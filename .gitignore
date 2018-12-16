@@ -98,3 +98,5 @@ images_data
 mjkey.txt
 .DS_Store
 tf_log
+
+*.swp
