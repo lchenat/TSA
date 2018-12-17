@@ -200,6 +200,78 @@ class Task:
             actions = np.clip(actions, self.action_space.low, self.action_space.high)
         return self.env.step(actions)
 
+### tsa ###
+from ..gridworld import ReachGridWorld, PORGBEnv
+
+class FiniteHorizonEnv(gym.Wrapper):
+    def __init__(self, env, T=100000000):
+        super().__init__(env)
+        self.T = T
+
+    def reset(self, *args, **kwargs):
+        self.t = 0
+        return self.env.reset(*args, **kwargs)
+
+    def step(self, action):
+        o, r, done, info = self.env.step(action)
+        self.t += 1
+        if self.t >= self.T:
+            done = True
+        return o, r, done, info
+        
+
+def make_gridworld_env(map_names, train_combos, test_combos, seed, rank, log_dir):
+    def _thunk():
+        random_seed(seed)
+        env = ReachGridWorld(map_names, train_combos, test_combos, window=4, seed=seed+rank)
+        env = PORGBEnv(env, l=16)
+        env = FiniteHorizonEnv(env, T=100)
+
+        if log_dir is not None:
+            env = bench.Monitor(env=env, filename=os.path.join(log_dir, str(rank)), allow_early_resets=True)
+        #env = FrameStack(env, 4)
+
+        return env
+
+    return _thunk
+
+class GridWorldTask:
+    def __init__(self,
+                 map_names,
+                 train_combos,
+                 test_combos,
+                 num_envs=1,
+                 single_process=True,
+                 log_dir=None,
+                 seed=np.random.randint(int(1e5))):
+        if log_dir is not None:
+            mkdir(log_dir)
+        envs = [make_gridworld_env(map_names, train_combos, test_combos, seed, i, log_dir) for i in range(num_envs)] # 
+        if single_process:
+            Wrapper = DummyVecEnv
+        else:
+            Wrapper = SubprocVecEnv
+        self.env = Wrapper(envs)
+        self.name = 'GridWorld'
+        self.observation_space = self.env.observation_space
+        self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
+
+        self.action_space = self.env.action_space
+        if isinstance(self.action_space, Discrete):
+            self.action_dim = self.action_space.n
+        elif isinstance(self.action_space, Box):
+            self.action_dim = self.action_space.shape[0]
+        else:
+            assert 'unknown action space'
+
+    def reset(self):
+        return self.env.reset()
+
+    def step(self, actions):
+        if isinstance(self.action_space, Box):
+            actions = np.clip(actions, self.action_space.low, self.action_space.high)
+        return self.env.step(actions)
+
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)
     state = task.reset()

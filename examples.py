@@ -350,6 +350,40 @@ def ppo_pixel_atari(name):
     config.logger = get_logger(tag=ppo_pixel_atari.__name__)
     run_steps(PPOAgent(config))
 
+### tsa ###
+
+def ppo_pixel_tsa():
+    env_config = dict(
+        map_names = ['map49'],
+        train_combos = [(0, 1, 1)], # single task
+        test_combos = [(0, 2, 2)],
+    )
+
+    config = Config()
+    log_dir = get_default_log_dir(ppo_pixel_tsa.__name__)
+    config.task_fn = lambda: GridWorldTask(**env_config, log_dir=log_dir, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(**env_config)
+    config.num_workers = 8
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
+    config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
+    config.state_normalizer = ImageNormalizer()
+    #config.reward_normalizer = SignNormalizer()
+    config.discount = 0.99
+    config.use_gae = True
+    config.gae_tau = 0.95
+    config.entropy_weight = 0.01
+    config.gradient_clip = 0.5
+    config.rollout_length = 128
+    config.optimization_epochs = 3
+    config.mini_batch_size = 32 * 8
+    config.ppo_ratio_clip = 0.1
+    config.log_interval = 128 * 8
+    config.max_steps = int(2e7)
+    config.logger = get_logger(tag=ppo_pixel_atari.__name__)
+    run_steps(PPOAgent(config))
+
+### end of tsa ###
+
 def ppo_continuous(name):
     config = Config()
     log_dir = get_default_log_dir(ppo_continuous.__name__)
@@ -437,8 +471,11 @@ if __name__ == '__main__':
     mkdir('log')
     mkdir('tf_log')
     set_one_thread()
-    random_seed()
+    random_seed(0)
     select_device(-1)
+
+    ppo_pixel_tsa()
+
     # select_device(0)
 
     # dqn_cart_pole()
@@ -452,13 +489,13 @@ if __name__ == '__main__':
     # ppo_continuous('HalfCheetah-v2')
     # ddpg_continuous('HalfCheetah-v2')
 
-    game = 'BreakoutNoFrameskip-v4'
+    # game = 'BreakoutNoFrameskip-v4'
     # dqn_pixel_atari(game)
     # quantile_regression_dqn_pixel_atari(game)
     # categorical_dqn_pixel_atari(game)
     # a2c_pixel_atari(game)
     # n_step_dqn_pixel_atari(game)
     # option_ciritc_pixel_atari(game)
-    ppo_pixel_atari(game)
+    # ppo_pixel_atari(game)
 
     # plot()

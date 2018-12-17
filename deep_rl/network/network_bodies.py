@@ -6,6 +6,52 @@
 
 from .network_utils import *
 
+### tsa ###
+
+class TSAConvBody(nn.Module):
+    def __init__(self, in_channels=12):
+        super().__init__()
+        self.feature_dim = 512
+        self.conv1_1 = layer_init(nn.Conv2d(in_channels, 32,  kernel_size=3, padding=1)) # 16->16
+        self.conv1_2 = layer_init(nn.Conv2d(32, 32, stride=2, kernel_size=3, padding=1)) # 16->8
+        self.conv2_1 = layer_init(nn.Conv2d(32, 32,           kernel_size=3, padding=1)) # 8->8
+        self.conv2_2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
+        self.conv3_1 = layer_init(nn.Conv2d(64, 64,           kernel_size=3, padding=1)) # 4->4
+        self.conv3_2 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
+        self.conv4_1 = layer_init(nn.Conv2d(128, 128,         kernel_size=3, padding=1)) # 2->2
+        self.conv4_2 = layer_init(nn.Conv2d(128, 128,         kernel_size=3, padding=1)) # 2->2
+        self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
+
+    def forward(self, x):
+        y = F.relu(self.conv1_2(self.conv1_1(x)))
+        y = F.relu(self.conv2_2(self.conv2_1(y)))
+        y = F.relu(self.conv3_2(self.conv3_1(y)))
+        y = F.relu(self.conv4_2(self.conv4_1(y)))
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc(y))
+        return y
+
+class TSAMiniConvBody(nn.Module):
+    def __init__(self, in_channels=12):
+        super().__init__()
+        self.feature_dim = 512
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 16->8
+        self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
+        self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
+        #self.conv4 = layer_init(nn.Conv2d(128, 128,         kernel_size=3, padding=1)) # 2->2
+        self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
+
+    def forward(self, x):
+        y = F.relu(self.conv1(x))
+        y = F.relu(self.conv2(y))
+        y = F.relu(self.conv3(y))
+        #y = F.relu(self.conv4(y))
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc(y))
+        return y
+
+### end of tsa ###
+
 class NatureConvBody(nn.Module):
     def __init__(self, in_channels=4):
         super(NatureConvBody, self).__init__()

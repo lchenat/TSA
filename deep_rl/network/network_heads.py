@@ -188,3 +188,46 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
                 'log_pi_a': log_prob,
                 'ent': entropy,
                 'v': v}
+
+### tsa ###
+
+class TSAActorCriticNet(nn.Module):
+    def __init__(self, action_dim, phi, actor, critic):
+        super().__init__()
+        self.phi = phi
+        self.actor = actor
+        self.critic = critic
+
+        self.actor_params = list(self.actor.parameters())
+        self.critic_params = list(self.critic.parameters())
+        self.phi_params = list(self.phi.parameters())
+
+
+class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 phi=None, # state |-> abstract state
+                 actor_body=None, # abstract state |-> action
+                 critic=None): # state |-> value function
+        super().__init__()
+        
+        self.network = TSAActorCriticNet(action_dim, phi, actor, critic)
+        self.to(Config.DEVICE)
+
+    def forward(self, obs, action=None):
+        obs = tensor(obs)
+        abs_s = self.network.phi(obs) # abstract state
+        logits = self.network.actor(abs_s)
+        v = self.network.critic(obs)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy,
+                'v': v}
+
+### end of tsa ###
