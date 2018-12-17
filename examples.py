@@ -5,6 +5,7 @@
 #######################################################################
 
 from deep_rl import *
+from ipdb import slaunch_ipdb_on_exception
 
 # DQN
 def dqn_cart_pole():
@@ -365,9 +366,13 @@ def ppo_pixel_tsa():
     config.eval_env = GridWorldTask(**env_config)
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
-    config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
+    #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
+    config.n_abs = 50 # number of abstract state
+    phi = ProbNet(config.n_abs, TSAMiniConvBody())
+    actor = EmbeddingActorNet(config.n_abs, config.action_dim) # given index, output distribution, hence embedding
+    critic = VanillaNet(1, TSAMiniConvBody())
+    config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
     config.state_normalizer = ImageNormalizer()
-    #config.reward_normalizer = SignNormalizer()
     config.discount = 0.99
     config.use_gae = True
     config.gae_tau = 0.95
@@ -474,7 +479,8 @@ if __name__ == '__main__':
     random_seed(0)
     select_device(-1)
 
-    ppo_pixel_tsa()
+    with slaunch_ipdb_on_exception():
+        ppo_pixel_tsa()
 
     # select_device(0)
 

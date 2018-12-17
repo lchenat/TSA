@@ -191,6 +191,32 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 
 ### tsa ###
 
+# a network that output probability
+# not sure whether this is a good practice, since I call forward instead of __call__
+class ProbNet(VanillaNet):
+    def __init__(self, output_dim, body):
+        super().__init__(output_dim, body)
+
+    def forward(self, x):
+        y = super().forward(x)
+        return nn.functional.softmax(y, dim=1)
+
+class EmbeddingActorNet(nn.Module):
+    def __init__(self, n_abs, action_dim):
+        super().__init__()
+        self.network = nn.Linear(n_abs, action_dim) # each row should be probability
+
+    def forward(self, cs, action=None):
+        logits = self.network(cs)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
 class TSAActorCriticNet(nn.Module):
     def __init__(self, action_dim, phi, actor, critic):
         super().__init__()
@@ -205,11 +231,10 @@ class TSAActorCriticNet(nn.Module):
 
 class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
     def __init__(self,
-                 state_dim,
                  action_dim,
-                 phi=None, # state |-> abstract state
-                 actor_body=None, # abstract state |-> action
-                 critic=None): # state |-> value function
+                 phi, # state |-> abstract state
+                 actor, # abstract state |-> action
+                 critic): # state |-> value function
         super().__init__()
         
         self.network = TSAActorCriticNet(action_dim, phi, actor, critic)
@@ -218,16 +243,8 @@ class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
     def forward(self, obs, action=None):
         obs = tensor(obs)
         abs_s = self.network.phi(obs) # abstract state
-        logits = self.network.actor(abs_s)
-        v = self.network.critic(obs)
-        dist = torch.distributions.Categorical(logits=logits)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1)
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy,
-                'v': v}
+        info = self.network.actor(abs_s, action=action)
+        info['v'] = self.network.critic(obs)
+        return info
 
 ### end of tsa ###
