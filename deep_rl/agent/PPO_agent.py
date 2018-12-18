@@ -44,7 +44,7 @@ class PPOAgent(BaseAgent):
         self.states = states
         prediction = self.network(states)
         storage.add(prediction)
-        storage.placeholder()
+        storage.placeholder() # fill in keys with no value
 
         advantages = tensor(np.zeros((config.num_workers, 1)))
         returns = prediction['v'].detach()
@@ -58,6 +58,8 @@ class PPOAgent(BaseAgent):
             storage.adv[i] = advantages.detach()
             storage.ret[i] = returns.detach()
 
+        # advantages <- adv
+        # cat data from all workers together (mix)
         states, actions, log_probs_old, returns, advantages = storage.cat(['s', 'a', 'log_pi_a', 'ret', 'adv'])
         actions = actions.detach()
         log_probs_old = log_probs_old.detach()

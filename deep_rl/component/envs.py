@@ -137,13 +137,14 @@ class FrameStack(FrameStack_):
         return LazyFrames(list(self.frames))
 
 
-# The original one in baselines is really bad
+# I modify this to support keywords in reset
 class DummyVecEnv(VecEnv):
     def __init__(self, env_fns):
         self.envs = [fn() for fn in env_fns]
         env = self.envs[0]
         VecEnv.__init__(self, len(env_fns), env.observation_space, env.action_space)
         self.actions = None
+        self.reset_kwargs = dict()
 
     def step_async(self, actions):
         self.actions = actions
@@ -153,13 +154,14 @@ class DummyVecEnv(VecEnv):
         for i in range(self.num_envs):
             obs, rew, done, info = self.envs[i].step(self.actions[i])
             if done:
-                obs = self.envs[i].reset()
+                obs = self.envs[i].reset(**self.reset_kwargs)
             data.append([obs, rew, done, info])
         obs, rew, done, info = zip(*data)
         return obs, np.asarray(rew), np.asarray(done), info
 
-    def reset(self):
-        return [env.reset() for env in self.envs]
+    def reset(self, **kwargs):
+        self.reset_kwargs = kwargs
+        return [env.reset(**kwargs) for env in self.envs]
 
     def close(self):
         return
@@ -227,10 +229,6 @@ def make_gridworld_env(env_config, seed, rank, log_dir):
         env = PORGBEnv(env, l=16)
         env = FiniteHorizonEnv(env, T=100)
 
-        #if log_dir is not None:
-            #env = bench.Monitor(env=env, filename=os.path.join(log_dir, str(rank)), allow_early_resets=True)
-        #env = FrameStack(env, 4)
-
         return env
 
     return _thunk
@@ -239,17 +237,12 @@ class GridWorldTask:
     def __init__(self,
                  env_config,
                  num_envs=1,
-                 single_process=True,
                  log_dir=None,
                  seed=np.random.randint(int(1e5))):
         if log_dir is not None:
             mkdir(log_dir)
-        envs = [make_gridworld_env(env_config, seed, i, log_dir) for i in range(num_envs)] # 
-        if single_process:
-            Wrapper = DummyVecEnv
-        else:
-            Wrapper = SubprocVecEnv
-        self.env = Wrapper(envs)
+        envs = [make_gridworld_env(env_config, seed, i, log_dir) for i in range(num_envs)]
+        self.env = DummyVecEnv(envs)
         self.name = 'GridWorld'
         self.observation_space = self.env.observation_space
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
@@ -262,13 +255,16 @@ class GridWorldTask:
         else:
             assert 'unknown action space'
 
-    def reset(self):
-        return self.env.reset()
+    def reset(self, index=None, train=True):
+        return self.env.reset(index=index, train=train)
 
     def step(self, actions):
         if isinstance(self.action_space, Box):
             actions = np.clip(actions, self.action_space.low, self.action_space.high)
         return self.env.step(actions)
+
+    def get_info(self): # retrieve map_id and goal position
+        return self.env.unwrapped.get_info()
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)

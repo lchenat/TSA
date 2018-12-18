@@ -369,17 +369,17 @@ def ppo_pixel_tsa():
     config = Config()
     config.log_name = '{}-{}'.format(ppo_pixel_tsa.__name__, args.tag)
     log_dir = get_log_dir(config.log_name)
-    config.task_fn = lambda: GridWorldTask(**env_config, log_dir=log_dir, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(**env_config)
+    config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
-    config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
-    #config.n_abs = 50 # number of abstract state
+    #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
+    config.n_abs = 50 # number of abstract state
     #visual_body = TSAMiniConvBody()
-    #phi = ProbNet(config.n_abs, TSAMiniConvBody())
-    #actor = EmbeddingActorNet(config.n_abs, config.action_dim) # given index, output distribution, hence embedding
-    #critic = VanillaNet(1, TSAMiniConvBody())
-    #config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
+    phi = ProbNet(config.n_abs, TSAMiniConvBody())
+    actor = EmbeddingActorNet(config.n_abs, config.action_dim) # given index, output distribution, hence embedding
+    critic = VanillaNet(1, TSAMiniConvBody())
+    config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True
