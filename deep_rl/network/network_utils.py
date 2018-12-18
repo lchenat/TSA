@@ -19,3 +19,8 @@ def layer_init(layer, w_scale=1.0):
     layer.weight.data.mul_(w_scale)
     nn.init.constant_(layer.bias.data, 0)
     return layer
+
+def weight_init(weight, w_scale=1.0):
+    nn.init.orthogonal_(weight.data)
+    weight.data.mul_(w_scale)
+    return weight

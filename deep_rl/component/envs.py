@@ -227,8 +227,8 @@ def make_gridworld_env(map_names, train_combos, test_combos, seed, rank, log_dir
         env = PORGBEnv(env, l=16)
         env = FiniteHorizonEnv(env, T=100)
 
-        if log_dir is not None:
-            env = bench.Monitor(env=env, filename=os.path.join(log_dir, str(rank)), allow_early_resets=True)
+        #if log_dir is not None:
+            #env = bench.Monitor(env=env, filename=os.path.join(log_dir, str(rank)), allow_early_resets=True)
         #env = FrameStack(env, 4)
 
         return env

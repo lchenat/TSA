@@ -6,6 +6,12 @@
 
 from deep_rl import *
 from ipdb import slaunch_ipdb_on_exception
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--tag', type=str, required=True)
+
+args = parser.parse_args()
 
 # DQN
 def dqn_cart_pole():
@@ -359,15 +365,16 @@ def ppo_pixel_tsa():
         train_combos = [(0, 1, 1)], # single task
         test_combos = [(0, 2, 2)],
     )
-
     config = Config()
-    log_dir = get_default_log_dir(ppo_pixel_tsa.__name__)
+    config.log_name = '{}-{}'.format(ppo_pixel_tsa.__name__, args.tag)
+    log_dir = get_log_dir(config.log_name)
     config.task_fn = lambda: GridWorldTask(**env_config, log_dir=log_dir, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(**env_config)
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
     #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
     config.n_abs = 50 # number of abstract state
+    #visual_body = TSAMiniConvBody()
     phi = ProbNet(config.n_abs, TSAMiniConvBody())
     actor = EmbeddingActorNet(config.n_abs, config.action_dim) # given index, output distribution, hence embedding
     critic = VanillaNet(1, TSAMiniConvBody())
@@ -383,8 +390,9 @@ def ppo_pixel_tsa():
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
-    config.max_steps = int(2e7)
-    config.logger = get_logger(tag=ppo_pixel_atari.__name__)
+    config.max_steps = 2e5 # int(2e7)
+    config.save_interval = 0 # how many steps to save a model
+    config.logger = get_logger(tag=config.log_name)
     run_steps(PPOAgent(config))
 
 ### end of tsa ###

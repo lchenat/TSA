@@ -199,19 +199,22 @@ class ProbNet(VanillaNet):
 
     def forward(self, x):
         y = super().forward(x)
+        assert y.dim() == 2, 'output of ProbNet should be of dim 2'
         return nn.functional.softmax(y, dim=1)
 
 class EmbeddingActorNet(nn.Module):
     def __init__(self, n_abs, action_dim):
         super().__init__()
-        self.network = nn.Linear(n_abs, action_dim) # each row should be probability
+        self.weight = weight_init(torch.randn(n_abs, action_dim)) # each col should be log_prob
 
     def forward(self, cs, action=None):
-        logits = self.network(cs)
-        dist = torch.distributions.Categorical(logits=logits)
+        assert cs.dim() == 2, 'dimension of cs should be 2'
+        probs = torch.matmul(cs, nn.functional.softmax(self.weight, dim=1))
+        assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0)))
+        dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1)
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
         entropy = dist.entropy().unsqueeze(-1)
         return {'a': action,
                 'log_pi_a': log_prob,
