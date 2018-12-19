@@ -200,7 +200,7 @@ class AbstractedStateEncoder(VanillaNet):
     def __init__(self, num_abs, state_dim, body, abstract_type='max'):
         super().__init__(state_dim, body)
         self.abstract_type = abstract_type
-        self.abs_states = weight_init(torch.randn(num_abs, state_dim))
+        self.abs_states = nn.Parameter(weight_init(torch.randn(num_abs, state_dim)))
 
     def forward(self, x):
         z = super().forward(x)
@@ -224,7 +224,7 @@ class AbstractedActor(nn.Module):
     def forward(self, abs_state, action=None):
         z = F.relu(self.fc1(abs_state))
         probs = F.softmax(self.fc2(z), dim=1)
-        assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0)))
+        # assert np.allclose(probs.cpu().detach().numpy().sum(1), np.ones(probs.size(0)))
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
