@@ -4,6 +4,9 @@
 # declaration at the top                                              #
 #######################################################################
 
+import torch.nn as nn
+import torch.nn.functional as F
+
 from .network_utils import *
 from .network_bodies import *
 
@@ -193,23 +196,34 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 
 # a network that output probability
 # not sure whether this is a good practice, since I call forward instead of __call__
-class ProbNet(VanillaNet):
-    def __init__(self, output_dim, body):
-        super().__init__(output_dim, body)
+class AbstractedStateEncoder(VanillaNet):
+    def __init__(self, num_abs, state_dim, body, abstract_type='max'):
+        super().__init__(state_dim, body)
+        self.abstract_type = abstract_type
+        self.abs_states = weight_init(torch.randn(num_abs, state_dim))
 
     def forward(self, x):
-        y = super().forward(x)
-        assert y.dim() == 2, 'output of ProbNet should be of dim 2'
-        return nn.functional.softmax(y, dim=1)
+        z = super().forward(x)
+        if self.abstract_type == 'max':
+          normalized_states = F.normalize(self.abs_states)
+          cos_sim = torch.matmul(F.normalize(z), normalized_states.t()) # cosine similarity
+          abs_ind = cos_sim.argmax(dim=1)
 
-class EmbeddingActorNet(nn.Module):
-    def __init__(self, n_abs, action_dim):
+          abs_state = F.embedding(abs_ind, normalized_states)
+        else:
+          raise ValueError('Only support max out for now')
+
+        return abs_state
+
+class AbstractedActor(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=512):
         super().__init__()
-        self.weight = weight_init(torch.randn(n_abs, action_dim)) # each col should be log_prob
+        self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, action_dim)
 
-    def forward(self, cs, action=None):
-        assert cs.dim() == 2, 'dimension of cs should be 2'
-        probs = torch.matmul(cs, nn.functional.softmax(self.weight, dim=1))
+    def forward(self, abs_state, action=None):
+        z = F.relu(self.fc1(abs_state))
+        probs = F.softmax(self.fc2(z), dim=1)
         assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0)))
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
@@ -239,7 +253,7 @@ class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
                  actor, # abstract state |-> action
                  critic): # state |-> value function
         super().__init__()
-        
+
         self.network = TSAActorCriticNet(action_dim, phi, actor, critic)
         self.to(Config.DEVICE)
 
