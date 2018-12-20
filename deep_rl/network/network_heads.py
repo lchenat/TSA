@@ -231,16 +231,12 @@ class AbstractedStateEncoder(VanillaNet):
 # each task maintains a linear layer
 # input: abstract feature
 # output: action
-class LinearActorNet(nn.Module, BaseNet):
+class LinearActorNet(MultiLinear, BaseNet):
     def __init__(self, abs_dim, action_dim, n_tasks):
-        super().__init__()
-        self.weights = nn.Parameter(weight_init(torch.randn(n_tasks, abs_dim, action_dim)))
-        self.biases = nn.Parameter(torch.zeros(n_tasks, action_dim))
+        super().__init__(abs_dim, action_dim, n_tasks, 'task_id')
 
     def forward(self, xs, info, action=None):
-        weights = self.weights[tensor(info['task_id'], torch.int64),:,:]
-        biases = self.biases[tensor(info['task_id'], torch.int64),:]
-        output = torch.bmm(xs.unsqueeze(1), weights).squeeze(1) + biases
+        output = super().forward(xs, info)
         probs = nn.functional.softmax(output, dim=1)
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
@@ -269,52 +265,73 @@ class AbstractedActor(nn.Module):
                 'log_pi_a': log_prob,
                 'ent': entropy}
 
-class VQNet(nn.Module, BaseNet):
+class VQAbstractEncoder(nn.Module, BaseNet):
     def __init__(self, embed_dim, body, n_embed):
         super().__init__()
         self.body = body
         self.embed_fc = layer_init(nn.Linear(body.feature_dim, embed_dim))
         self.embed = torch.nn.Embedding(n_embed, embed_dim) # weight shape: n_embed, embed_dim
+        self.used_indices = set() # debug
     
-    def forward(self, xs):
-        xs = self.body(xs)
+    def get_features(self, inputs):
+        return self.body(inputs)
+
+    def get_indices(self, xs):
         distance = (xs ** 2).sum(dim=1, keepdim=True) + (self.embed.weight ** 2).sum(1) - 2 * torch.matmul(xs, self.embed.weight.t())
         indices = torch.argmin(distance, dim=1)
-        #print('# of indices:', len(set(indices.detach().cpu().numpy())))
+        return indices
+
+    def get_embeddings(self, indices, xs=None):
         output = self.embed(indices)
-        output_x = xs + (output - xs).detach()
+        if xs is not None:
+            output_x = xs + (output - xs).detach()
+            return output, output_x
+        else:
+            return output
+
+    def forward(self, inputs):
+        xs = self.get_features(inputs)
+        indices = self.get_indices(xs)
+        self.used_indices = set(indices.detach().cpu().numpy())
+        #print('# of indices:', len(set(indices.detach().cpu().numpy())))
+        output, output_x = self.get_embeddings(indices, xs)
         e_latent_loss = torch.mean((output.detach() - xs)**2)
         q_latent_loss = torch.mean((output - xs.detach())**2)
         self._loss = q_latent_loss + 0.25 * e_latent_loss
 
         return output_x # output the one that can pass gradient to xs
 
-class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
+class TSANet(nn.Module, BaseNet):
     def __init__(self,
                  action_dim,
-                 phi, # state |-> abstract state
+                 abs_encoder, # state |-> abstract state
                  actor, # abstract state |-> action
                  critic): # state |-> value function
         super().__init__()
-        self.network = TSAActorCriticNet(action_dim, phi, actor, critic)
+        self.abs_encoder = abs_encoder
+        self.actor = actor
+        self.critic = critic
+
+        self.abs_encoder_params = list(self.abs_encoder.parameters())
+        self.actor_params = list(self.actor.parameters())
+        self.critic_params = list(self.critic.parameters())
+
         self.to(Config.DEVICE)
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
-        abs_s = self.network.phi(obs) # abstract state
-        output = self.network.actor(abs_s, info, action=action)
-        output['v'] = self.network.critic(obs)
+        abs_s = self.abs_encoder(obs) # abstract state
+        output = self.actor(abs_s, info, action=action)
+        output['v'] = self.critic(obs, info)
         return output
 
-class TSAActorCriticNet(nn.Module, BaseNet):
-    def __init__(self, action_dim, phi, actor, critic):
+class TSACriticNet(nn.Module, BaseNet):
+    def __init__(self, body, n_tasks):
         super().__init__()
-        self.phi = phi
-        self.actor = actor
-        self.critic = critic
+        self.body = body
+        self.fc = MultiLinear(body.feature_dim, 1, n_tasks, 'task_id')
 
-        self.actor_params = list(self.actor.parameters())
-        self.critic_params = list(self.critic.parameters())
-        self.phi_params = list(self.phi.parameters())
+    def forward(self, inputs, info):
+        return self.fc(self.body(inputs), info)
 
 ### end of tsa ###

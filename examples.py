@@ -362,8 +362,9 @@ def ppo_pixel_atari(name):
 def ppo_pixel_tsa():
     env_config = dict(
         map_names = ['map49'],
-        train_combos = [(0, 1, 1)],
+        #train_combos = [(0, 1, 1)],
         #train_combos=[(0, 1, 1), (0, 2, 2), (0, 1, 2)],
+        train_combos=[(0, 1, 1), (0, 1, 7), (0, 1, 12)],
         test_combos = [(0, 2, 2)],
         min_dis=10,
     )
@@ -387,10 +388,10 @@ def ppo_pixel_tsa():
     #critic = VanillaNet(1, TSAMiniConvBody())
     #config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
     ### VQ ###
-    phi = VQNet(config.abs_dim, TSAMiniConvBody(), config.n_abs)
-    actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-    critic = VanillaNet(1, TSAMiniConvBody())
-    config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
+    abs_encoder_fn = lambda: VQAbstractEncoder(config.abs_dim, TSAMiniConvBody(), config.n_abs)
+    actor_fn = lambda: LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+    critic_fn = lambda: TSACriticNet(TSAMiniConvBody(), config.eval_env.n_tasks)
+    config.network_fn = lambda: TSANet(config.action_dim, abs_encoder_fn(), actor_fn(), critic_fn())
     ##########
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99

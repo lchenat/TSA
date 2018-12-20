@@ -92,9 +92,10 @@ class PPOAgent(BaseAgent):
                 #print('policy: {:.2f}, value: {:.2f}, network: {:.2f}'.format(policy_loss, value_loss, self.network.loss()))
                 #assert np.allclose(self.network.network.phi._loss.detach().cpu().numpy(), self.network.loss().detach().cpu().numpy())
                 self.opt.zero_grad()
-                (policy_loss + value_loss + 0.05 * self.network.loss()).backward() # network loss collect loss in the middle
+                (policy_loss + value_loss + 0.01 * self.network.loss()).backward() # network loss collect loss in the middle
                 nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
                 self.opt.step()
+        print(self.network.abs_encoder.used_indices) # debug
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps

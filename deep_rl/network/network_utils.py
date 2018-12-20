@@ -21,6 +21,19 @@ class BaseNet:
                 tot_loss += child.loss()
         return tot_loss
 
+class MultiLinear(nn.Module):
+    def __init__(self, input_dim, output_dim, n_heads, key):
+        super().__init__()
+        self.weights = nn.Parameter(weight_init(torch.randn(n_heads, input_dim, output_dim)))
+        self.biases = nn.Parameter(torch.zeros(n_heads, output_dim))
+        self.key = key
+
+    def forward(self, inputs, info):
+        weights = self.weights[tensor(info[self.key], torch.int64),:,:]
+        biases = self.biases[tensor(info[self.key], torch.int64),:]
+        output = torch.bmm(inputs.unsqueeze(1), weights).squeeze(1) + biases
+        return output
+
 def layer_init(layer, w_scale=1.0):
     nn.init.orthogonal_(layer.weight.data)
     layer.weight.data.mul_(w_scale)
