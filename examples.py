@@ -388,7 +388,7 @@ def ppo_pixel_tsa():
     #critic = VanillaNet(1, TSAMiniConvBody())
     #config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
     ### VQ ###
-    abs_encoder_fn = lambda: VQAbstractEncoder(config.abs_dim, TSAMiniConvBody(), config.n_abs)
+    abs_encoder_fn = lambda: VQAbstractEncoder(config.n_abs, config.abs_dim, TSAMiniConvBody())
     actor_fn = lambda: LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     critic_fn = lambda: TSACriticNet(TSAMiniConvBody(), config.eval_env.n_tasks)
     config.network_fn = lambda: TSANet(config.action_dim, abs_encoder_fn(), actor_fn(), critic_fn())

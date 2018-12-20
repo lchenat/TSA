@@ -22,8 +22,8 @@ def _command_line_parser():
 def ppo_pixel_tsa(args):
     env_config = dict(
         map_names = ['map49'],
-        train_combos = [(0, 1, 1), (0, 1, 2)], # single task
-        test_combos = [(0, 2, 2), (0, 2, 1)],
+        train_combos = [(0, 1, 1)], # single task
+        test_combos = [(0, 1, 1)],
         min_dis=10,
     )
     config = Config()
@@ -31,14 +31,15 @@ def ppo_pixel_tsa(args):
     log_dir = get_log_dir(config.log_name)
     config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
 
     config.state_dim = 512
     config.n_abs = args.num_abs # number of abstract state
-    phi = AbstractedStateEncoder(config.n_abs, config.state_dim, TSAMiniConvBody(feature_dim=config.state_dim))
-    actor = AbstractedActor(config.state_dim, config.action_dim) # given index, output distribution, hence embedding
-    critic = VanillaNet(1, TSAMiniConvBody(feature_dim=config.state_dim))
+    phi = VQNet(config.n_abs, config.state_dim, TSAMiniConvBody())
+    actor = LinearActorNet(config.state_dim, config.action_dim, config.eval_env.n_tasks)
+    critic = VanillaNet(1, TSAMiniConvBody())
     config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
@@ -102,12 +103,12 @@ if __name__ == '__main__':
     parser = _command_line_parser()
     args = parser.parse_args()
 
-    with slaunch_ipdb_on_exception():
-      if args.agent == 'tsa':
-        ppo_pixel_tsa(args)
-      elif args.agent == 'baseline':
-        ppo_pixel_baseline(args)
-      else:
-        raise ValueError()
+    # with slaunch_ipdb_on_exception():
+    if args.agent == 'tsa':
+      ppo_pixel_tsa(args)
+    elif args.agent == 'baseline':
+      ppo_pixel_baseline(args)
+    else:
+      raise ValueError()
 
     # select_device(0)

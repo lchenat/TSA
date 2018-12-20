@@ -13,7 +13,7 @@ from ..utils import *
 class BaseNet:
     def __init__(self):
         pass
-        
+
     def loss(self): # for loss collection
         tot_loss = self._loss if hasattr(self, '_loss') else 0.0
         for child in self.children():
@@ -31,8 +31,9 @@ class MultiLinear(nn.Module):
     def forward(self, inputs, info):
         weights = self.weights[tensor(info[self.key], torch.int64),:,:]
         biases = self.biases[tensor(info[self.key], torch.int64),:]
-        output = torch.bmm(inputs.unsqueeze(1), weights).squeeze(1) + biases
-        return output
+        return batch_linear(inputs, weight=weights, bias=biases)
+        #output = torch.bmm(inputs.unsqueeze(1), weights).squeeze(1) + biases
+        #return output
 
 def layer_init(layer, w_scale=1.0):
     nn.init.orthogonal_(layer.weight.data)

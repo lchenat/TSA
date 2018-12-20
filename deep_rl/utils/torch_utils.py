@@ -60,3 +60,10 @@ def sync_grad(target_network, src_network):
 def diag_gt(score_matrix):
     assert score_matrix.dim() == 2, 'score matrix needs dim = 2.'
     return torch.LongTensor(range(score_matrix.size(0))).to(score_matrix.device)
+
+def batch_linear(input, weight, bias=None):
+    """ input: (N, D), weight: (N, D, H), bias: (N, H) """
+    if bias is not None:
+        return torch.bmm(input.unsqueeze(1), weight).squeeze(1) + bias
+    else:
+        return torch.bmm(input.unsqueeze(1), weight).squeeze(1)
