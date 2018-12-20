@@ -48,6 +48,34 @@ class TSAMiniConvBody(nn.Module):
         y = F.relu(self.fc(y))
         return y
 
+class UnetEncoder(nn.Module):
+    def __init__(self, in_channels=12, feature_dim=512):
+        self.feature_dim = feature_dim
+        self.conv1 = conv(12, 32, 4, stride=2)
+        self.conv2 = conv(32, 64, 4, stride=2)
+        self.fc = layer_init(nn.Linear(4 * 4 * 64, self.feature_dim))
+
+    def forward(self, x):
+        y = F.relu(self.conv1(x))
+        y = F.relu(self.conv2(y))
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc(y))
+        return y
+
+class UnetDecoder(nn.Module):
+    def __init__(self, in_channels=12, feature_dim=512):
+        self.feature_dim = feature_dim
+        self.fc = layer_init(nn.Linear(self.feature_dim, 4 * 4 * 64))
+
+        self.deconv1 = deconv(64, 32, 4)
+        self.deconv2 = deconv(32, 12, 4)
+
+    def forward(self, x):
+        y = F.relu(self.fc(x)).view(x.size(0), 64, 4, 4)
+        y = F.relu(self.deconv1(y))
+        y = F.softmax(self.deconv2(y), dim=1)
+        return y
+
 ### end of tsa ###
 
 class NatureConvBody(nn.Module):

@@ -82,8 +82,13 @@ class PPOAgent(BaseAgent):
 
                 value_loss = 0.5 * (sampled_returns - prediction['v']).pow(2).mean()
 
+                # Handle aux loss
+                aux_loss = 0
+                if type(prediction.get('aux', -1)) != type(-1):
+                  aux_loss += prediction['aux']
+
                 self.opt.zero_grad()
-                (policy_loss + value_loss).backward()
+                (policy_loss + value_loss + aux_loss).backward()
                 nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
                 self.opt.step()
 

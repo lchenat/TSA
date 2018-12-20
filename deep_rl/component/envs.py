@@ -218,7 +218,6 @@ class FiniteHorizonEnv(gym.Wrapper):
         if self.t >= self.T:
             done = True
         return o, r, done, info
-        
 
 def make_gridworld_env(env_config, seed, rank, log_dir):
     def _thunk():

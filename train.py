@@ -22,8 +22,8 @@ def _command_line_parser():
 def ppo_pixel_tsa(args):
     env_config = dict(
         map_names = ['map49'],
-        train_combos = [(0, 1, 1)], # single task
-        test_combos = [(0, 2, 2)],
+        train_combos = [(0, 1, 1), (0, 1, 2)], # single task
+        test_combos = [(0, 2, 2), (0, 2, 1)],
         min_dis=10,
     )
     config = Config()
@@ -51,7 +51,7 @@ def ppo_pixel_tsa(args):
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
-    config.max_steps = int(2e7)
+    config.max_steps = int(1e7)
     config.save_interval = 0 # how many steps to save a model
     config.logger = get_logger(tag=config.log_name)
     run_steps(PPOAgent(config))

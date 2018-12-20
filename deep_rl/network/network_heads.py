@@ -4,6 +4,7 @@
 # declaration at the top                                              #
 #######################################################################
 
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -199,21 +200,30 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 class AbstractedStateEncoder(VanillaNet):
     def __init__(self, num_abs, state_dim, body, abstract_type='max'):
         super().__init__(state_dim, body)
+        self.temperature = 0.1
         self.abstract_type = abstract_type
         self.abs_states = nn.Parameter(weight_init(torch.randn(num_abs, state_dim)))
 
     def forward(self, x):
         z = super().forward(x)
+        abs_loss = 0
         if self.abstract_type == 'max':
           normalized_states = F.normalize(self.abs_states)
-          cos_sim = torch.matmul(F.normalize(z), normalized_states.t()) # cosine similarity
+          normalized_z = F.normalize(z)
+          cos_sim = torch.matmul(z, normalized_states.t()) # cosine similarity
           abs_ind = cos_sim.argmax(dim=1)
 
           abs_state = F.embedding(abs_ind, normalized_states)
+          compatible_scores = F.softmax(F.linear(normalized_z, abs_state) / self.temperature, dim=1)
+          abs_loss += F.cross_entropy(compatible_scores, diag_gt(compatible_scores))
+
+          # Regularization#1: Diagnalize normalized similairity matrix
+          # abs_sim = F.softmax(F.linear(normalized_states, normalized_states) / self.temperature, dim=1)
+          # abs_loss += F.cross_entropy(abs_sim, diag_gt(abs_sim))
         else:
           raise ValueError('Only support max out for now')
 
-        return abs_state
+        return abs_state, abs_loss
 
 class AbstractedActor(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=512):
@@ -224,7 +234,6 @@ class AbstractedActor(nn.Module):
     def forward(self, abs_state, action=None):
         z = F.relu(self.fc1(abs_state))
         probs = F.softmax(self.fc2(z), dim=1)
-        # assert np.allclose(probs.cpu().detach().numpy().sum(1), np.ones(probs.size(0)))
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
@@ -233,6 +242,26 @@ class AbstractedActor(nn.Module):
         return {'a': action,
                 'log_pi_a': log_prob,
                 'ent': entropy}
+
+class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
+    def __init__(self,
+                 action_dim,
+                 phi, # state |-> abstract state
+                 actor, # abstract state |-> action
+                 critic): # state |-> value function
+        super().__init__()
+
+        self.aux_weight = 1
+        self.network = TSAActorCriticNet(action_dim, phi, actor, critic)
+        self.to(Config.DEVICE)
+
+    def forward(self, obs, action=None):
+        obs = tensor(obs)
+        abs_s, abs_loss = self.network.phi(obs) # abstract state
+        info = self.network.actor(abs_s, action=action)
+        info['v'] = self.network.critic(obs)
+        info['aux'] = abs_loss * self.aux_weight
+        return info
 
 class TSAActorCriticNet(nn.Module):
     def __init__(self, action_dim, phi, actor, critic):
@@ -244,24 +273,5 @@ class TSAActorCriticNet(nn.Module):
         self.actor_params = list(self.actor.parameters())
         self.critic_params = list(self.critic.parameters())
         self.phi_params = list(self.phi.parameters())
-
-
-class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
-    def __init__(self,
-                 action_dim,
-                 phi, # state |-> abstract state
-                 actor, # abstract state |-> action
-                 critic): # state |-> value function
-        super().__init__()
-
-        self.network = TSAActorCriticNet(action_dim, phi, actor, critic)
-        self.to(Config.DEVICE)
-
-    def forward(self, obs, action=None):
-        obs = tensor(obs)
-        abs_s = self.network.phi(obs) # abstract state
-        info = self.network.actor(abs_s, action=action)
-        info['v'] = self.network.critic(obs)
-        return info
 
 ### end of tsa ###
