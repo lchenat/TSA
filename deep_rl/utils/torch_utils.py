@@ -16,11 +16,14 @@ def select_device(gpu_id):
     else:
         Config.DEVICE = torch.device('cpu')
 
-def tensor(x):
+def tensor(x, dtype=torch.float32):
     if isinstance(x, torch.Tensor):
-        return x
-    x = torch.tensor(x, device=Config.DEVICE, dtype=torch.float32)
+        return x.type(dtype)
+    x = torch.tensor(x, device=Config.DEVICE, dtype=dtype)
     return x
+
+def tensor_dict(d, dtype=torch.float32):
+    return {k: tensor(v, dtype=dtype) for k, v in d.items()}
 
 def range_tensor(end):
     return torch.arange(end).long().to(Config.DEVICE)

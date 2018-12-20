@@ -111,3 +111,19 @@ def get_log_dir(name):
         else:
             print('exit the program')
             exit()
+
+# stack tree built by dictionary
+def stack_dict(args, stack=None):
+    ret = {}
+    for k in args[0]:
+        t = []
+        for d in args:
+            t.append(d[k])
+        if isinstance(args[0][k], dict):
+            ret[k] = stack_dict(t, stack)
+        else:
+            if stack:
+                t = stack(t)
+            ret[k] = t
+    return ret
+

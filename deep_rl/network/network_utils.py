@@ -13,6 +13,13 @@ from ..utils import *
 class BaseNet:
     def __init__(self):
         pass
+        
+    def loss(self): # for loss collection
+        tot_loss = self._loss if hasattr(self, '_loss') else 0.0
+        for child in self.children():
+            if hasattr(child, 'loss'):
+                tot_loss += child.loss()
+        return tot_loss
 
 def layer_init(layer, w_scale=1.0):
     nn.init.orthogonal_(layer.weight.data)

@@ -187,4 +187,4 @@ class Storage:
 
     def cat(self, keys):
         data = [getattr(self, k)[:self.size] for k in keys]
-        return map(lambda x: torch.cat(x, dim=0), data)
+        return map(lambda x: stack_dict(x, torch.cat) if isinstance(x[0], dict) else torch.cat(x, dim=0), data)

@@ -362,7 +362,8 @@ def ppo_pixel_atari(name):
 def ppo_pixel_tsa():
     env_config = dict(
         map_names = ['map49'],
-        train_combos = [(0, 1, 1)], # single task
+        train_combos = [(0, 1, 1)],
+        #train_combos=[(0, 1, 1), (0, 2, 2), (0, 1, 2)],
         test_combos = [(0, 2, 2)],
         min_dis=10,
     )
@@ -371,15 +372,26 @@ def ppo_pixel_tsa():
     log_dir = get_log_dir(config.log_name)
     config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
     #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
     config.n_abs = 50 # number of abstract state
+    config.abs_dim = 512
     #visual_body = TSAMiniConvBody()
-    phi = ProbNet(config.n_abs, TSAMiniConvBody())
-    actor = EmbeddingActorNet(config.n_abs, config.action_dim) # given index, output distribution, hence embedding
+    #phi = ProbNet(config.n_abs, TSAMiniConvBody())
+    #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks) # given index, output distribution, hence embedding
+    #critic = VanillaNet(1, TSAMiniConvBody())
+    #phi = VanillaNet(config.abs_dim, TSAConvBody()) # used to be Mini
+    #actor = AttentionActorNet(config.n_abs, config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+    #critic = VanillaNet(1, TSAMiniConvBody())
+    #config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
+    ### VQ ###
+    phi = VQNet(config.abs_dim, TSAMiniConvBody(), config.n_abs)
+    actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     critic = VanillaNet(1, TSAMiniConvBody())
     config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
+    ##########
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True

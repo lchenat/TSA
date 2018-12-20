@@ -4,6 +4,7 @@
 # declaration at the top                                              #
 #######################################################################
 
+import torch.nn.functional as F
 from .network_utils import *
 from .network_bodies import *
 
@@ -85,7 +86,7 @@ class OptionCriticNet(nn.Module, BaseNet):
         log_pi = F.log_softmax(pi, dim=-1)
         return q, beta, log_pi
 
-class ActorCriticNet(nn.Module):
+class ActorCriticNet(nn.Module, BaseNet):
     def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(ActorCriticNet, self).__init__()
         if phi_body is None: phi_body = DummyBody(state_dim)
@@ -191,6 +192,8 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 
 ### tsa ###
 
+### directly calculate embedding
+
 # a network that output probability
 # not sure whether this is a good practice, since I call forward instead of __call__
 class ProbNet(VanillaNet):
@@ -202,15 +205,17 @@ class ProbNet(VanillaNet):
         assert y.dim() == 2, 'output of ProbNet should be of dim 2'
         return nn.functional.softmax(y, dim=1)
 
-class EmbeddingActorNet(nn.Module):
-    def __init__(self, n_abs, action_dim):
+class EmbeddingActorNet(nn.Module, BaseNet):
+    def __init__(self, n_abs, action_dim, n_tasks):
         super().__init__()
-        self.weight = weight_init(torch.randn(n_abs, action_dim)) # each col should be log_prob
+        self.weights = weight_init(torch.randn(n_tasks, n_abs, action_dim)) # each col should be log_prob
 
-    def forward(self, cs, action=None):
-        assert cs.dim() == 2, 'dimension of cs should be 2'
-        probs = torch.matmul(cs, nn.functional.softmax(self.weight, dim=1))
-        assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0)))
+    def forward(self, cs, info, action=None):
+        assert cs.dim() == 2, 'dimension of cs should be 2' # N x C
+        weights = self.weights[tensor(info['task_id'], torch.int64),:,:] # N x C x A
+        weights = nn.functional.softmax(weights, dim=2)
+        probs = torch.bmm(cs.unsqueeze(1), weights).squeeze(1) # Nx1xC @ NxCxA = Nx1xA -> NxA
+        assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0))) # change
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
@@ -220,7 +225,40 @@ class EmbeddingActorNet(nn.Module):
                 'log_pi_a': log_prob,
                 'ent': entropy}
 
-class TSAActorCriticNet(nn.Module):
+class AttentionActorNet(EmbeddingActorNet):
+    def __init__(self, n_abs, abs_dim, action_dim, n_tasks):
+        super().__init__(n_abs, action_dim, n_tasks)
+        self.abs_feats = weight_init(torch.randn(abs_dim, n_abs))
+
+    def forward(self, xs, info, action=None):
+        # xs: NxD, abs_feat: DxC
+        cs = nn.functional.softmax(torch.matmul(F.normalize(xs), F.normalize(self.abs_feats, dim=0)), dim=1)
+        return super().forward(cs, info, action=action)
+
+# each task maintains a linear layer
+# input: abstract feature
+# output: action
+class LinearActorNet(nn.Module, BaseNet):
+    def __init__(self, abs_dim, action_dim, n_tasks):
+        super().__init__()
+        self.weights = nn.Parameter(weight_init(torch.randn(n_tasks, abs_dim, action_dim)))
+        self.biases = nn.Parameter(torch.zeros(n_tasks, action_dim))
+
+    def forward(self, xs, info, action=None):
+        weights = self.weights[tensor(info['task_id'], torch.int64),:,:]
+        biases = self.biases[tensor(info['task_id'], torch.int64),:]
+        output = torch.bmm(xs.unsqueeze(1), weights).squeeze(1) + biases
+        probs = nn.functional.softmax(output, dim=1)
+        dist = torch.distributions.Categorical(probs=probs)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
+class TSAActorCriticNet(nn.Module, BaseNet):
     def __init__(self, action_dim, phi, actor, critic):
         super().__init__()
         self.phi = phi
@@ -231,6 +269,25 @@ class TSAActorCriticNet(nn.Module):
         self.critic_params = list(self.critic.parameters())
         self.phi_params = list(self.phi.parameters())
 
+class VQNet(nn.Module, BaseNet):
+    def __init__(self, embed_dim, body, n_embed):
+        super().__init__()
+        self.body = body
+        self.embed_fc = layer_init(nn.Linear(body.feature_dim, embed_dim))
+        self.embed = torch.nn.Embedding(n_embed, embed_dim) # weight shape: n_embed, embed_dim
+    
+    def forward(self, xs):
+        xs = self.body(xs)
+        distance = (xs ** 2).sum(dim=1, keepdim=True) + (self.embed.weight ** 2).sum(1) - 2 * torch.matmul(xs, self.embed.weight.t())
+        indices = torch.argmin(distance, dim=1)
+        print('# of indices:', len(set(indices.detach().numpy())))
+        output = self.embed(indices)
+        output_x = xs + (output - xs).detach()
+        e_latent_loss = torch.mean((output.detach() - xs)**2)
+        q_latent_loss = torch.mean((output - xs.detach())**2)
+        self._loss = q_latent_loss + 0.25 * e_latent_loss
+
+        return output_x # output the one that can pass gradient to xs
 
 class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
     def __init__(self,
@@ -239,15 +296,14 @@ class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
                  actor, # abstract state |-> action
                  critic): # state |-> value function
         super().__init__()
-        
         self.network = TSAActorCriticNet(action_dim, phi, actor, critic)
         self.to(Config.DEVICE)
 
-    def forward(self, obs, action=None):
+    def forward(self, obs, info, action=None):
         obs = tensor(obs)
         abs_s = self.network.phi(obs) # abstract state
-        info = self.network.actor(abs_s, action=action)
-        info['v'] = self.network.critic(obs)
-        return info
+        output = self.network.actor(abs_s, info, action=action)
+        output['v'] = self.network.critic(obs)
+        return output
 
 ### end of tsa ###

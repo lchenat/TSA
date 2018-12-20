@@ -155,8 +155,10 @@ class DummyVecEnv(VecEnv):
             obs, rew, done, info = self.envs[i].step(self.actions[i])
             if done:
                 obs = self.envs[i].reset(**self.reset_kwargs)
+                info = self.envs[i].unwrapped.get_info()
             data.append([obs, rew, done, info])
         obs, rew, done, info = zip(*data)
+        info = stack_dict(info)
         return obs, np.asarray(rew), np.asarray(done), info
 
     def reset(self, **kwargs):
@@ -165,6 +167,9 @@ class DummyVecEnv(VecEnv):
 
     def close(self):
         return
+
+    def get_info(self):
+        return stack_dict([env.unwrapped.get_info() for env in self.envs])
 
 class Task:
     def __init__(self,
@@ -246,6 +251,8 @@ class GridWorldTask:
         self.name = 'GridWorld'
         self.observation_space = self.env.observation_space
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
+        self.n_maps = len(env_config['map_names'])
+        self.n_tasks = len(self.env.envs[0].unwrapped.g2i)
 
         self.action_space = self.env.action_space
         if isinstance(self.action_space, Discrete):
@@ -264,7 +271,7 @@ class GridWorldTask:
         return self.env.step(actions)
 
     def get_info(self): # retrieve map_id and goal position
-        return self.env.unwrapped.get_info()
+        return self.env.get_info()
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)

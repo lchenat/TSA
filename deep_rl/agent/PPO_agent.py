@@ -20,14 +20,16 @@ class PPOAgent(BaseAgent):
         self.episode_rewards = []
         self.states = self.task.reset()
         self.states = config.state_normalizer(self.states)
+        self.infos = self.task.get_info() # store task_ids
 
     def step(self):
         config = self.config
-        storage = Storage(config.rollout_length)
+        storage = Storage(config.rollout_length, keys=['info'])
         states = self.states
-        for _ in range(config.rollout_length):
-            prediction = self.network(states)
-            next_states, rewards, terminals, _ = self.task.step(to_np(prediction['a']))
+        infos = self.infos
+        for t in range(config.rollout_length):
+            prediction = self.network(states, infos)
+            next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a']))
             self.online_rewards += rewards
             rewards = config.reward_normalizer(rewards)
             for i, terminal in enumerate(terminals):
@@ -38,11 +40,14 @@ class PPOAgent(BaseAgent):
             storage.add(prediction)
             storage.add({'r': tensor(rewards).unsqueeze(-1),
                          'm': tensor(1 - terminals).unsqueeze(-1),
-                         's': tensor(states)})
+                         's': tensor(states),
+                         'info': tensor_dict(infos)}) # cat?
             states = next_states
+            infos = next_infos
 
         self.states = states
-        prediction = self.network(states)
+        self.infos = infos
+        prediction = self.network(states, infos) # what is this for? Just fill in blank?
         storage.add(prediction)
         storage.placeholder() # fill in keys with no value
 
@@ -60,7 +65,7 @@ class PPOAgent(BaseAgent):
 
         # advantages <- adv
         # cat data from all workers together (mix)
-        states, actions, log_probs_old, returns, advantages = storage.cat(['s', 'a', 'log_pi_a', 'ret', 'adv'])
+        states, actions, log_probs_old, returns, advantages, infos = storage.cat(['s', 'a', 'log_pi_a', 'ret', 'adv', 'info'])
         actions = actions.detach()
         log_probs_old = log_probs_old.detach()
         advantages = (advantages - advantages.mean()) / advantages.std()
@@ -74,8 +79,9 @@ class PPOAgent(BaseAgent):
                 sampled_log_probs_old = log_probs_old[batch_indices]
                 sampled_returns = returns[batch_indices]
                 sampled_advantages = advantages[batch_indices]
+                sampled_infos = {k: v[batch_indices] for k, v in infos.items()}
 
-                prediction = self.network(sampled_states, sampled_actions)
+                prediction = self.network(sampled_states, sampled_infos, sampled_actions)
                 ratio = (prediction['log_pi_a'] - sampled_log_probs_old).exp()
                 obj = ratio * sampled_advantages
                 obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
@@ -84,8 +90,9 @@ class PPOAgent(BaseAgent):
 
                 value_loss = 0.5 * (sampled_returns - prediction['v']).pow(2).mean()
 
+                print('policy: {:.2f}, value: {:.2f}, network: {:2f}'.format(policy_loss, value_loss, self.network.loss()))
                 self.opt.zero_grad()
-                (policy_loss + value_loss).backward()
+                (policy_loss + value_loss + 0.05 * self.network.loss()).backward() # network loss collect loss in the middle
                 nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
                 self.opt.step()
 
