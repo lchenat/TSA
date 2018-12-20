@@ -272,7 +272,7 @@ class LinearActorNet(nn.Module, BaseNet):
         weights = self.weights[tensor(info['task_id'], torch.int64),:,:]
         biases = self.biases[tensor(info['task_id'], torch.int64),:]
 
-        output = batch_linear(output, weights, bias=biases)
+        output = batch_linear(xs, weights, bias=biases)
         probs = F.softmax(output, dim=1)
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
