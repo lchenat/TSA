@@ -4,7 +4,10 @@
 # declaration at the top                                              #
 #######################################################################
 
+import numpy as np
+import torch.nn as nn
 import torch.nn.functional as F
+
 from .network_utils import *
 from .network_bodies import *
 
@@ -194,46 +197,36 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 
 ### directly calculate embedding
 
-# a network that output probability
-# not sure whether this is a good practice, since I call forward instead of __call__
-class ProbNet(VanillaNet):
-    def __init__(self, output_dim, body):
-        super().__init__(output_dim, body)
+class AbstractedStateEncoder(VanillaNet):
+    def __init__(self, num_abs, state_dim, body, abstract_type='max'):
+        super().__init__(state_dim, body)
+        self.aux_weight = 1
+        self.temperature = 0.1
+        self.abstract_type = abstract_type
+        self.abs_states = nn.Parameter(weight_init(torch.randn(num_abs, state_dim)))
 
     def forward(self, x):
-        y = super().forward(x)
-        assert y.dim() == 2, 'output of ProbNet should be of dim 2'
-        return nn.functional.softmax(y, dim=1)
+        z = super().forward(x)
+        abs_loss = 0
+        if self.abstract_type == 'max':
+            normalized_states = F.normalize(self.abs_states)
+            normalized_z = F.normalize(z)
+            quantization_score = F.softmax(F.linear(normalized_z, normalized_states) / self.temperature, dim=1) # probability quantization
+            abs_ind = quantization_score.argmax(dim=1)
+            # print(set(to_np(abs_ind).tolist()))
 
-class EmbeddingActorNet(nn.Module, BaseNet):
-    def __init__(self, n_abs, action_dim, n_tasks):
-        super().__init__()
-        self.weights = weight_init(torch.randn(n_tasks, n_abs, action_dim)) # each col should be log_prob
+            abs_state = F.embedding(abs_ind, normalized_states)
+            compatible_scores = F.softmax(F.linear(normalized_z, abs_state) / self.temperature, dim=1)
+            abs_loss += F.cross_entropy(compatible_scores, diag_gt(compatible_scores))
 
-    def forward(self, cs, info, action=None):
-        assert cs.dim() == 2, 'dimension of cs should be 2' # N x C
-        weights = self.weights[tensor(info['task_id'], torch.int64),:,:] # N x C x A
-        weights = nn.functional.softmax(weights, dim=2)
-        probs = torch.bmm(cs.unsqueeze(1), weights).squeeze(1) # Nx1xC @ NxCxA = Nx1xA -> NxA
-        assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0))) # change
-        dist = torch.distributions.Categorical(probs=probs)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
+            # Regularization#1: Diagnalize normalized similairity matrix
+            abs_sim = F.softmax(F.linear(normalized_states, normalized_states) / self.temperature, dim=1)
+            abs_loss += F.cross_entropy(abs_sim, diag_gt(abs_sim))
+        else:
+            raise ValueError('Only support max out for now')
 
-class AttentionActorNet(EmbeddingActorNet):
-    def __init__(self, n_abs, abs_dim, action_dim, n_tasks):
-        super().__init__(n_abs, action_dim, n_tasks)
-        self.abs_feats = weight_init(torch.randn(abs_dim, n_abs))
-
-    def forward(self, xs, info, action=None):
-        # xs: NxD, abs_feat: DxC
-        cs = nn.functional.softmax(torch.matmul(F.normalize(xs), F.normalize(self.abs_feats, dim=0)), dim=1)
-        return super().forward(cs, info, action=action)
+        self._loss = self.aux_weight * abs_loss
+        return abs_state
 
 # each task maintains a linear layer
 # input: abstract feature
@@ -258,16 +251,23 @@ class LinearActorNet(nn.Module, BaseNet):
                 'log_pi_a': log_prob,
                 'ent': entropy}
 
-class TSAActorCriticNet(nn.Module, BaseNet):
-    def __init__(self, action_dim, phi, actor, critic):
+class AbstractedActor(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=512):
         super().__init__()
-        self.phi = phi
-        self.actor = actor
-        self.critic = critic
+        self.fc1 = nn.Linear(state_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, action_dim)
 
-        self.actor_params = list(self.actor.parameters())
-        self.critic_params = list(self.critic.parameters())
-        self.phi_params = list(self.phi.parameters())
+    def forward(self, abs_state, action=None):
+        z = F.relu(self.fc1(abs_state))
+        probs = F.softmax(self.fc2(z), dim=1)
+        dist = torch.distributions.Categorical(probs=probs)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
 
 class VQNet(nn.Module, BaseNet):
     def __init__(self, embed_dim, body, n_embed):
@@ -280,7 +280,7 @@ class VQNet(nn.Module, BaseNet):
         xs = self.body(xs)
         distance = (xs ** 2).sum(dim=1, keepdim=True) + (self.embed.weight ** 2).sum(1) - 2 * torch.matmul(xs, self.embed.weight.t())
         indices = torch.argmin(distance, dim=1)
-        print('# of indices:', len(set(indices.detach().numpy())))
+        #print('# of indices:', len(set(indices.detach().cpu().numpy())))
         output = self.embed(indices)
         output_x = xs + (output - xs).detach()
         e_latent_loss = torch.mean((output.detach() - xs)**2)
@@ -305,5 +305,16 @@ class CategoricalTSAActorCriticNet(nn.Module, BaseNet):
         output = self.network.actor(abs_s, info, action=action)
         output['v'] = self.network.critic(obs)
         return output
+
+class TSAActorCriticNet(nn.Module, BaseNet):
+    def __init__(self, action_dim, phi, actor, critic):
+        super().__init__()
+        self.phi = phi
+        self.actor = actor
+        self.critic = critic
+
+        self.actor_params = list(self.actor.parameters())
+        self.critic_params = list(self.critic.parameters())
+        self.phi_params = list(self.phi.parameters())
 
 ### end of tsa ###

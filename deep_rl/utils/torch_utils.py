@@ -56,3 +56,7 @@ def epsilon_greedy(epsilon, x):
 def sync_grad(target_network, src_network):
     for param, src_param in zip(target_network.parameters(), src_network.parameters()):
         param._grad = src_param.grad.clone()
+
+def diag_gt(score_matrix):
+    assert score_matrix.dim() == 2, 'score matrix needs dim = 2.'
+    return torch.LongTensor(range(score_matrix.size(0))).to(score_matrix.device)

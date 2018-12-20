@@ -32,22 +32,48 @@ class TSAConvBody(nn.Module):
         return y
 
 class TSAMiniConvBody(nn.Module):
-    def __init__(self, in_channels=12):
+    def __init__(self, in_channels=12, feature_dim=512):
         super().__init__()
-        self.feature_dim = 512
+        self.feature_dim = feature_dim
         self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 16->8
         self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
         self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
-        #self.conv4 = layer_init(nn.Conv2d(128, 128,         kernel_size=3, padding=1)) # 2->2
         self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
 
     def forward(self, x):
         y = F.relu(self.conv1(x))
         y = F.relu(self.conv2(y))
         y = F.relu(self.conv3(y))
-        #y = F.relu(self.conv4(y))
         y = y.view(y.size(0), -1)
         y = F.relu(self.fc(y))
+        return y
+
+class UnetEncoder(nn.Module):
+    def __init__(self, in_channels=12, feature_dim=512):
+        self.feature_dim = feature_dim
+        self.conv1 = conv(12, 32, 4, stride=2)
+        self.conv2 = conv(32, 64, 4, stride=2)
+        self.fc = layer_init(nn.Linear(4 * 4 * 64, self.feature_dim))
+
+    def forward(self, x):
+        y = F.relu(self.conv1(x))
+        y = F.relu(self.conv2(y))
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc(y))
+        return y
+
+class UnetDecoder(nn.Module):
+    def __init__(self, in_channels=12, feature_dim=512):
+        self.feature_dim = feature_dim
+        self.fc = layer_init(nn.Linear(self.feature_dim, 4 * 4 * 64))
+
+        self.deconv1 = deconv(64, 32, 4)
+        self.deconv2 = deconv(32, 12, 4)
+
+    def forward(self, x):
+        y = F.relu(self.fc(x)).view(x.size(0), 64, 4, 4)
+        y = F.relu(self.deconv1(y))
+        y = F.softmax(self.deconv2(y), dim=1)
         return y
 
 ### end of tsa ###

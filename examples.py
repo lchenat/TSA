@@ -498,7 +498,7 @@ if __name__ == '__main__':
     mkdir('tf_log')
     set_one_thread()
     random_seed(0)
-    select_device(-1)
+    select_device(0)
 
     with slaunch_ipdb_on_exception():
         ppo_pixel_tsa()

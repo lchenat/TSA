@@ -173,6 +173,7 @@ class Storage:
     def add(self, data):
         for k, v in data.items():
             assert k in self.keys
+            #if k in self.keys: # error prone
             getattr(self, k).append(v)
 
     def placeholder(self):
