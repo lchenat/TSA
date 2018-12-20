@@ -208,20 +208,21 @@ class AbstractedStateEncoder(VanillaNet):
         z = super().forward(x)
         abs_loss = 0
         if self.abstract_type == 'max':
-          normalized_states = F.normalize(self.abs_states)
-          normalized_z = F.normalize(z)
-          cos_sim = torch.matmul(z, normalized_states.t()) # cosine similarity
-          abs_ind = cos_sim.argmax(dim=1)
+            normalized_states = F.normalize(self.abs_states)
+            normalized_z = F.normalize(z)
+            quantization_score = F.softmax(F.linear(normalized_z, normalized_states) / self.temperature, dim=1) # probability quantization
+            abs_ind = quantization_score.argmax(dim=1)
+            print(set(to_np(abs_ind).tolist()))
 
-          abs_state = F.embedding(abs_ind, normalized_states)
-          compatible_scores = F.softmax(F.linear(normalized_z, abs_state) / self.temperature, dim=1)
-          abs_loss += F.cross_entropy(compatible_scores, diag_gt(compatible_scores))
+            abs_state = F.embedding(abs_ind, normalized_states)
+            compatible_scores = F.softmax(F.linear(normalized_z, abs_state) / self.temperature, dim=1)
+            abs_loss += F.cross_entropy(compatible_scores, diag_gt(compatible_scores))
 
-          # Regularization#1: Diagnalize normalized similairity matrix
-          # abs_sim = F.softmax(F.linear(normalized_states, normalized_states) / self.temperature, dim=1)
-          # abs_loss += F.cross_entropy(abs_sim, diag_gt(abs_sim))
+            # Regularization#1: Diagnalize normalized similairity matrix
+            abs_sim = F.softmax(F.linear(normalized_states, normalized_states) / self.temperature, dim=1)
+            abs_loss += F.cross_entropy(abs_sim, diag_gt(abs_sim))
         else:
-          raise ValueError('Only support max out for now')
+            raise ValueError('Only support max out for now')
 
         return abs_state, abs_loss
 
