@@ -13,7 +13,7 @@ from ..utils import *
 class BaseNet:
     def __init__(self):
         pass
-        
+
     def loss(self): # for loss collection
         tot_loss = self._loss if hasattr(self, '_loss') else 0.0
         for child in self.children():

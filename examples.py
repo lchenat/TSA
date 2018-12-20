@@ -387,7 +387,7 @@ def ppo_pixel_tsa():
     #critic = VanillaNet(1, TSAMiniConvBody())
     #config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
     ### VQ ###
-    phi = VQNet(config.abs_dim, TSAMiniConvBody(), config.n_abs)
+    phi = VQNet(config.n_abs, config.abs_dim, TSAMiniConvBody())
     actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     critic = VanillaNet(1, TSAMiniConvBody())
     config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)

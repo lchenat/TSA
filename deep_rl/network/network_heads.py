@@ -197,16 +197,19 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 
 ### directly calculate embedding
 
-class AbstractedStateEncoder(VanillaNet):
-    def __init__(self, num_abs, state_dim, body, abstract_type='max'):
-        super().__init__(state_dim, body)
+class AbstractedStateEncoder(nn.Module, BaseNet):
+    def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
+        super().__init__()
         self.aux_weight = 1
         self.temperature = 0.1
         self.abstract_type = abstract_type
-        self.abs_states = nn.Parameter(weight_init(torch.randn(num_abs, state_dim)))
+
+        self.fc_head = layer_init(nn.Linear(body.feature_dim, output_dim))
+        self.body = body
+        self.abs_states = nn.Parameter(weight_init(torch.randn(n_embed, embed_dim)))
 
     def forward(self, x):
-        z = super().forward(x)
+        z = self.fc_head(F.relu(self.body(tensor(x))))
         abs_loss = 0
         if self.abstract_type == 'max':
             normalized_states = F.normalize(self.abs_states)
@@ -228,6 +231,34 @@ class AbstractedStateEncoder(VanillaNet):
         self._loss = self.aux_weight * abs_loss
         return abs_state
 
+class NonLinearActorNet(nn.Module, BaseNet):
+    def __init__(self, abs_dim, action_dim, n_tasks, hidden_dim=512):
+        super().__init__()
+        self.fc1_weights = nn.Parameter(weight_init(torch.randn(n_tasks, abs_dim, hidden_dim)))
+        self.fc1_biases = nn.Parameter(torch.zeros(n_tasks, hidden_dim))
+        self.fc2_weights = nn.Parameter(weight_init(torch.randn(n_tasks, hidden_dim, action_dim)))
+        self.fc2_biases = nn.Parameter(torch.zeros(n_tasks, action_dim))
+
+    def forward(self, xs, info, action=None):
+        fc1_weights = self.fc1_weights[tensor(info['task_id'], torch.int64),:,:]
+        fc1_biases = self.fc1_biases[tensor(info['task_id'], torch.int64),:]
+
+        fc2_weights = self.fc2_weights[tensor(info['task_id'], torch.int64),:,:]
+        fc2_biases = self.fc2_biases[tensor(info['task_id'], torch.int64),:]
+
+        output = F.relu(batch_linear(xs, fc1_weights, bias=fc1_biases))
+        output = batch_linear(output, fc2_weights, bias=fc2_biases)
+
+        probs = nn.functional.softmax(output, dim=1)
+        dist = torch.distributions.Categorical(probs=probs)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
 # each task maintains a linear layer
 # input: abstract feature
 # output: action
@@ -240,26 +271,9 @@ class LinearActorNet(nn.Module, BaseNet):
     def forward(self, xs, info, action=None):
         weights = self.weights[tensor(info['task_id'], torch.int64),:,:]
         biases = self.biases[tensor(info['task_id'], torch.int64),:]
-        output = torch.bmm(xs.unsqueeze(1), weights).squeeze(1) + biases
-        probs = nn.functional.softmax(output, dim=1)
-        dist = torch.distributions.Categorical(probs=probs)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
 
-class AbstractedActor(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=512):
-        super().__init__()
-        self.fc1 = nn.Linear(state_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, action_dim)
-
-    def forward(self, abs_state, action=None):
-        z = F.relu(self.fc1(abs_state))
-        probs = F.softmax(self.fc2(z), dim=1)
+        output = batch_linear(output, weights, bias=biases)
+        probs = F.softmax(output, dim=1)
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
@@ -270,17 +284,17 @@ class AbstractedActor(nn.Module):
                 'ent': entropy}
 
 class VQNet(nn.Module, BaseNet):
-    def __init__(self, embed_dim, body, n_embed):
+    def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
         super().__init__()
         self.body = body
         self.embed_fc = layer_init(nn.Linear(body.feature_dim, embed_dim))
         self.embed = torch.nn.Embedding(n_embed, embed_dim) # weight shape: n_embed, embed_dim
-    
+
     def forward(self, xs):
         xs = self.body(xs)
         distance = (xs ** 2).sum(dim=1, keepdim=True) + (self.embed.weight ** 2).sum(1) - 2 * torch.matmul(xs, self.embed.weight.t())
         indices = torch.argmin(distance, dim=1)
-        #print('# of indices:', len(set(indices.detach().cpu().numpy())))
+
         output = self.embed(indices)
         output_x = xs + (output - xs).detach()
         e_latent_loss = torch.mean((output.detach() - xs)**2)
