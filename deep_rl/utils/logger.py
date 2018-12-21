@@ -13,6 +13,9 @@ import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s: %(message)s')
 from .misc import *
 
+
+base_log_dir = './tf_log'
+
 # create a dir if it does not exist
 # rm: whether to first remove the original one if it exists
 def mkdir(path, rm=False):
@@ -34,10 +37,11 @@ def get_logger(tag=None, skip=False, level=logging.INFO):
     return Logger(logger, './tf_log/%s' % (tag,), skip)
 
 class Logger(object):
-    def __init__(self, vanilla_logger, log_dir, skip=False):
+    def __init__(self, vanilla_logger, log_dir_tag, skip=False):
+        self.log_dir = os.path.join(base_log_dir, log_dir_tag)
         if not skip:
-            mkdir(log_dir, rm=True) # not working now!!!!!!!!!!!!!!!!!!!!!!!!!!
-            self.writer = SummaryWriter(log_dir)
+            mkdir(self.log_dir, rm=True) # not working now!!!!!!!!!!!!!!!!!!!!!!!!!!
+            self.writer = SummaryWriter(self.log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info
             self.debug = vanilla_logger.debug
@@ -65,7 +69,7 @@ class Logger(object):
             step = self.get_step(tag)
         if np.isscalar(value):
             value = np.asarray([value])
-        self.writer.add_scalar(tag, value, step)
+        self.writer.add_scalar(os.path.join(self.log_dir, tag), value, step)
 
     def add_histogram(self, tag, values, step=None):
         if self.skip:
@@ -73,4 +77,4 @@ class Logger(object):
         values = self.to_numpy(values)
         if step is None:
             step = self.get_step(tag)
-        self.writer.add_histogram(tag, values, step)
+        self.writer.add_histogram(os.path.join(self.log_dir, tag), values, step)

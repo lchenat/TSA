@@ -299,7 +299,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         self.body = body
         self.embed_fc = layer_init(nn.Linear(body.feature_dim, embed_dim))
         self.embed = torch.nn.Embedding(n_embed, embed_dim) # weight shape: n_embed, embed_dim
-        self.used_indices = set() # debug
+        #self.used_indices = set() # debug
     
     def get_features(self, inputs):
         return self.body(inputs)
@@ -320,7 +320,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
     def forward(self, inputs):
         xs = self.get_features(inputs)
         indices = self.get_indices(xs)
-        self.used_indices = set(indices.detach().cpu().numpy())
+        #self.used_indices = set(indices.detach().cpu().numpy())
         #print('# of indices:', len(set(indices.detach().cpu().numpy())))
         output, output_x = self.get_embeddings(indices, xs)
         e_latent_loss = torch.mean((output.detach() - xs)**2)
