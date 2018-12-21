@@ -382,7 +382,7 @@ def ppo_pixel_tsa():
     config.abs_dim = 512
     ### VQ ###
     visual_body = TSAConvBody() # TSAMiniConvBody()
-    abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
+    abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='softmax')
     actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     critic = TSACriticNet(visual_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)

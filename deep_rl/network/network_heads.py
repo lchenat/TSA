@@ -299,6 +299,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         self.body = body
         self.embed_fc = layer_init(nn.Linear(body.feature_dim, embed_dim))
         self.embed = torch.nn.Embedding(n_embed, embed_dim) # weight shape: n_embed, embed_dim
+        self.abstract_type = abstract_type
         #self.used_indices = set() # debug
     
     def get_features(self, inputs):
@@ -306,7 +307,10 @@ class VQAbstractEncoder(nn.Module, BaseNet):
 
     def get_indices(self, xs):
         distance = (xs ** 2).sum(dim=1, keepdim=True) + (self.embed.weight ** 2).sum(1) - 2 * torch.matmul(xs, self.embed.weight.t())
-        indices = torch.argmin(distance, dim=1)
+        if self.abstract_type == 'max':
+            indices = torch.argmin(distance, dim=1)
+        else self.abstract_type == 'softmax':
+            indices = torch.distributions.Categorical(logits=distance).sample()
         return indices
 
     def get_embeddings(self, indices, xs=None):
@@ -321,7 +325,6 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         xs = self.get_features(inputs)
         indices = self.get_indices(xs)
         #self.used_indices = set(indices.detach().cpu().numpy())
-        #print('# of indices:', len(set(indices.detach().cpu().numpy())))
         output, output_x = self.get_embeddings(indices, xs)
         e_latent_loss = torch.mean((output.detach() - xs)**2)
         q_latent_loss = torch.mean((output - xs.detach())**2)
