@@ -6,12 +6,22 @@
 
 from tensorboardX import SummaryWriter
 import os
+import shutil
 import numpy as np
 import torch
 import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s: %(message)s')
 from .misc import *
 
+# create a dir if it does not exist
+# rm: whether to first remove the original one if it exists
+def mkdir(path, rm=False):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    else:
+        if rm:
+            shutil.rmtree(path)
+            os.makedirs(path)
 
 def get_logger(tag=None, skip=False, level=logging.INFO):
     logger = logging.getLogger()
@@ -26,6 +36,7 @@ def get_logger(tag=None, skip=False, level=logging.INFO):
 class Logger(object):
     def __init__(self, vanilla_logger, log_dir, skip=False):
         if not skip:
+            mkdir(log_dir, rm=True)
             self.writer = SummaryWriter(log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info
