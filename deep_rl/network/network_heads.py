@@ -309,7 +309,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         distance = (xs ** 2).sum(dim=1, keepdim=True) + (self.embed.weight ** 2).sum(1) - 2 * torch.matmul(xs, self.embed.weight.t())
         if self.abstract_type == 'max':
             indices = torch.argmin(distance, dim=1)
-        else self.abstract_type == 'softmax':
+        elif self.abstract_type == 'softmax':
             indices = torch.distributions.Categorical(logits=distance).sample()
         return indices
 
