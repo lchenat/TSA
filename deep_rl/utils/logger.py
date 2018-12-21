@@ -36,7 +36,7 @@ def get_logger(tag=None, skip=False, level=logging.INFO):
 class Logger(object):
     def __init__(self, vanilla_logger, log_dir, skip=False):
         if not skip:
-            mkdir(log_dir, rm=True)
+            mkdir(log_dir, rm=True) # not working now!!!!!!!!!!!!!!!!!!!!!!!!!!
             self.writer = SummaryWriter(log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info

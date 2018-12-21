@@ -97,7 +97,8 @@ class PPOAgent(BaseAgent):
                 loss_dict['policy'].append(policy_loss)
                 value_loss = 0.5 * (sampled_returns - prediction['v']).pow(2).mean()
                 loss_dict['value'].append(value_loss)
-                network_loss = 0.0005 * self.network.loss()
+                network_loss = self.network.loss()
+                network_loss = 0.01 * network_loss / torch.max(1, network_loss.detach())
                 loss_dict['network'].append(network_loss)
                 aux_loss = network_loss
                 if getattr(config, 'action_predictor', None) is not None: # inverse dynamic loss
