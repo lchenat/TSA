@@ -31,8 +31,7 @@ class Logger(object):
         self.log_dir_tag = log_dir_tag
         log_dir = os.path.join(base_log_dir, log_dir_tag)
         if not skip:
-            import ipdb; ipdb.set_trace()
-            shutil.rmtree(log_dir) # clean it up
+            if os.path.exists(log_dir): shutil.rmtree(log_dir) # clean it up
             self.writer = SummaryWriter(log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info
