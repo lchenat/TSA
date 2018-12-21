@@ -8,6 +8,9 @@ from ..network import *
 from ..component import *
 from .BaseAgent import *
 
+from collections import defaultdict
+
+
 class PPOAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)
@@ -41,6 +44,7 @@ class PPOAgent(BaseAgent):
             storage.add({'r': tensor(rewards).unsqueeze(-1),
                          'm': tensor(1 - terminals).unsqueeze(-1),
                          's': tensor(states),
+                         'ns': tensor(next_states),
                          'info': tensor_dict(infos)}) # cat?
             states = next_states
             infos = next_infos
@@ -65,16 +69,19 @@ class PPOAgent(BaseAgent):
 
         # advantages <- adv
         # cat data from all workers together (mix)
-        states, actions, log_probs_old, returns, advantages, infos = storage.cat(['s', 'a', 'log_pi_a', 'ret', 'adv', 'info'])
+        states, next_states, ms, actions, log_probs_old, returns, advantages, infos = storage.cat(['s', 'ns', 'm', 'a', 'log_pi_a', 'ret', 'adv', 'info'])
         actions = actions.detach()
         log_probs_old = log_probs_old.detach()
         advantages = (advantages - advantages.mean()) / advantages.std()
+        loss_dict = defaultdict(list) # record loss and output
 
         for _ in range(config.optimization_epochs):
             sampler = random_sample(np.arange(states.size(0)), config.mini_batch_size)
             for batch_indices in sampler:
                 batch_indices = tensor(batch_indices).long()
                 sampled_states = states[batch_indices]
+                sampled_next_states = next_states[batch_indices]
+                sampled_ms = ms[batch_indices]
                 sampled_actions = actions[batch_indices]
                 sampled_log_probs_old = log_probs_old[batch_indices]
                 sampled_returns = returns[batch_indices]
@@ -87,15 +94,25 @@ class PPOAgent(BaseAgent):
                 obj_clipped = ratio.clamp(1.0 - self.config.ppo_ratio_clip,
                                           1.0 + self.config.ppo_ratio_clip) * sampled_advantages
                 policy_loss = -torch.min(obj, obj_clipped).mean() - config.entropy_weight * prediction['ent'].mean()
-
+                loss_dict['policy'].append(policy_loss)
                 value_loss = 0.5 * (sampled_returns - prediction['v']).pow(2).mean()
-                #print('policy: {:.2f}, value: {:.2f}, network: {:.2f}'.format(policy_loss, value_loss, self.network.loss()))
+                loss_dict['value'].append(value_loss)
+                network_loss = 0.0005 * self.network.loss()
+                loss_dict['network'].append(network_loss)
+                aux_loss = network_loss
+                if getattr(config, 'action_predictor', None) is not None: # inverse dynamic loss
+                    indices = sampled_ms.squeeze(1) > 0
+                    action_prediction_loss = 0.05 * config.action_predictor.loss(sampled_states[indices], sampled_next_states[indices], sampled_actions[indices])
+                    loss_dict['action'].append(action_prediction_loss)
+                    aux_loss += action_prediction_loss
                 #assert np.allclose(self.network.network.phi._loss.detach().cpu().numpy(), self.network.loss().detach().cpu().numpy())
                 self.opt.zero_grad()
-                (policy_loss + value_loss + 0.01 * self.network.loss()).backward() # network loss collect loss in the middle
+                (policy_loss + value_loss + aux_loss).backward() # network loss collect loss in the middle
                 nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
                 self.opt.step()
-        print(self.network.abs_encoder.used_indices) # debug
-
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
+        print(self.network.abs_encoder.used_indices) # debug
+        for k, v in loss_dict.items():
+            config.logger.add_scalar(tag='{}/{}'.format(config.log_name, k), value=torch.mean(tensor(v)), step=self.total_steps)
+

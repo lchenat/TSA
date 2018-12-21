@@ -6,6 +6,7 @@
 
 from deep_rl import *
 from ipdb import slaunch_ipdb_on_exception
+from termcolor import colored
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -362,9 +363,9 @@ def ppo_pixel_atari(name):
 def ppo_pixel_tsa():
     env_config = dict(
         map_names = ['map49'],
-        #train_combos = [(0, 1, 1)],
+        train_combos = [(0, 1, 1)],
         #train_combos=[(0, 1, 1), (0, 2, 2), (0, 1, 2)],
-        train_combos=[(0, 1, 1), (0, 1, 7), (0, 1, 12)],
+        #train_combos=[(0, 1, 1), (0, 1, 7), (0, 1, 12)],
         test_combos = [(0, 2, 2)],
         min_dis=10,
     )
@@ -379,19 +380,15 @@ def ppo_pixel_tsa():
     #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
     config.n_abs = 50 # number of abstract state
     config.abs_dim = 512
-    #visual_body = TSAMiniConvBody()
-    #phi = ProbNet(config.n_abs, TSAMiniConvBody())
-    #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks) # given index, output distribution, hence embedding
-    #critic = VanillaNet(1, TSAMiniConvBody())
-    #phi = VanillaNet(config.abs_dim, TSAConvBody()) # used to be Mini
-    #actor = AttentionActorNet(config.n_abs, config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-    #critic = VanillaNet(1, TSAMiniConvBody())
-    #config.network_fn = lambda: CategoricalTSAActorCriticNet(config.action_dim, phi, actor, critic)
     ### VQ ###
-    abs_encoder_fn = lambda: VQAbstractEncoder(config.n_abs, config.abs_dim, TSAMiniConvBody())
-    actor_fn = lambda: LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-    critic_fn = lambda: TSACriticNet(TSAMiniConvBody(), config.eval_env.n_tasks)
-    config.network_fn = lambda: TSANet(config.action_dim, abs_encoder_fn(), actor_fn(), critic_fn())
+    visual_body = TSAConvBody() # TSAMiniConvBody()
+    abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
+    actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+    critic = TSACriticNet(visual_body, config.eval_env.n_tasks)
+    network = TSANet(config.action_dim, abs_encoder, actor, critic)
+    config.network_fn = lambda: network
+    ### aux loss ###
+    config.action_predictor = ActionPredictor(config.action_dim, visual_body)
     ##########
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
@@ -495,6 +492,9 @@ def plot():
     plt.savefig('./images/breakout.png')
 
 if __name__ == '__main__':
+    if is_git_diff():
+        print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
+        exit()
     mkdir('log')
     mkdir('tf_log')
     set_one_thread()

@@ -4,6 +4,7 @@
 # declaration at the top                                              #
 #######################################################################
 
+import subprocess
 import numpy as np
 import pickle
 import os
@@ -27,6 +28,10 @@ def stdin_choices(msg, choices, err_msg=None):
         if choice in choices:
             return choice
         print(err_msg)
+
+# run git diff and return whether there is modification
+def is_git_diff():
+    return bool(subprocess.check_output(['git', 'diff']))
 
 def collect_stats(agent):
     rewards = agent.episode_rewards

@@ -67,3 +67,23 @@ def batch_linear(input, weight, bias=None):
         return torch.bmm(input.unsqueeze(1), weight).squeeze(1) + bias
     else:
         return torch.bmm(input.unsqueeze(1), weight).squeeze(1)
+
+class one_hot:
+    # input should be 1-dim indices or 2-dim with second dim 1
+    # input should be LongTensor
+    # output is FloatTensor
+    @staticmethod
+    def encode(indices, dim):
+        if len(indices.shape) == 1:
+            indices = indices.unsqueeze(1)
+        assert len(indices.shape) == 2 and indices.shape[1] == 1, 'shape error'
+
+        encodings = torch.zeros(indices.shape[0], dim)
+        encodings.scatter_(1, indices, 1)
+        return encodings
+
+    @staticmethod
+    def decode(encodings):
+        indices = encodings.nonzero()
+        return indices[:, 1]
+

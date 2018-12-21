@@ -362,4 +362,26 @@ class TSACriticNet(nn.Module, BaseNet):
     def forward(self, inputs, info):
         return self.fc(self.body(inputs), info)
 
+class ActionPredictor(nn.Module):
+    def __init__(self, action_dim, state_encoder, hidden_dim=256):
+        super().__init__()
+        self.state_encoder = state_encoder
+        self.action_predictor = nn.Sequential(
+            nn.Linear(2 * self.state_encoder.feature_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim),
+            nn.Softmax(dim=1),
+        )
+        self.to(Config.DEVICE)
+
+    def forward(self, states, next_states):
+        state_features = self.state_encoder(states)
+        next_state_features = self.state_encoder(next_states)
+        inputs = torch.cat([state_features, next_state_features], dim=1)
+        return self.action_predictor(inputs)
+
+    def loss(self, states, next_states, actions):
+        predicted_actions = self(states, next_states)
+        return F.cross_entropy(predicted_actions, actions)
+
 ### end of tsa ###
