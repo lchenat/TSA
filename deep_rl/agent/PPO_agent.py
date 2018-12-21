@@ -98,12 +98,12 @@ class PPOAgent(BaseAgent):
                 value_loss = 0.5 * (sampled_returns - prediction['v']).pow(2).mean()
                 loss_dict['value'].append(value_loss)
                 network_loss = self.network.loss()
-                network_loss = 0.01 * network_loss / torch.clamp(network_loss.detach(), min=1)
+                network_loss = 0.01 * network_loss #/ torch.clamp(network_loss.detach(), min=1)
                 loss_dict['network'].append(network_loss)
                 aux_loss = network_loss
                 if getattr(config, 'action_predictor', None) is not None: # inverse dynamic loss
                     indices = sampled_ms.squeeze(1) > 0
-                    action_prediction_loss = 0.05 * config.action_predictor.loss(sampled_states[indices], sampled_next_states[indices], sampled_actions[indices])
+                    action_prediction_loss = 0.1 * config.action_predictor.loss(sampled_states[indices], sampled_next_states[indices], sampled_actions[indices])
                     loss_dict['action'].append(action_prediction_loss)
                     aux_loss += action_prediction_loss
                 #assert np.allclose(self.network.network.phi._loss.detach().cpu().numpy(), self.network.loss().detach().cpu().numpy())
