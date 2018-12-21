@@ -6,25 +6,15 @@
 
 from tensorboardX import SummaryWriter
 import os
-import shutil
 import numpy as np
 import torch
+import shutil
 import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s: %(message)s')
 from .misc import *
 
 
 base_log_dir = './tf_log'
-
-# create a dir if it does not exist
-# rm: whether to first remove the original one if it exists
-def mkdir(path, rm=False):
-    if not os.path.exists(path):
-        os.makedirs(path)
-    else:
-        if rm:
-            shutil.rmtree(path)
-            os.makedirs(path)
 
 def get_logger(tag=None, skip=False, level=logging.INFO):
     logger = logging.getLogger()
@@ -41,7 +31,7 @@ class Logger(object):
         self.log_dir_tag = log_dir_tag
         log_dir = os.path.join(base_log_dir, log_dir_tag)
         if not skip:
-            mkdir(log_dir, rm=True) # not working now!!!!!!!!!!!!!!!!!!!!!!!!!!
+            shutil.rmtree(log_dir) # clean it up
             self.writer = SummaryWriter(log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info

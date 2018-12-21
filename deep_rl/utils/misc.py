@@ -54,7 +54,7 @@ def run_steps(agent):
             config.logger.info('total steps {}, returns {:.2f}/{:.2f}/{:.2f}/{:.2f} (mean/median/min/max), {:.2f} steps/s'.format(
                 stats['steps'], stats['mean returns'], stats['median returns'], stats['min returns'], stats['max returns'],
                 config.log_interval / (time.time() - t0)))
-            config.logger.add_scalar('{}/mean-returns'.format(config.log_name), stats['mean returns'], stats['steps'])
+            config.logger.add_scalar('mean-returns', stats['mean returns'], stats['steps'])
             t0 = time.time()
             if config.save_interval and not agent.total_steps % (config.save_interval * config.log_interval):
                 agent.save('data/{}/step-{}-mean-{}' % (config.log_name, stats['steps'], stats['mean returns']))
