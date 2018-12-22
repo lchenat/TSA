@@ -11,6 +11,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--tag', type=str, required=True)
+parser.add_argument('-d', action='store_true')
 
 args = parser.parse_args()
 
@@ -370,7 +371,9 @@ def ppo_pixel_tsa():
         min_dis=10,
     )
     config = Config()
-    config.log_name = '{}-{}'.format(ppo_pixel_tsa.__name__, args.tag)
+    config.abs_dim = 512
+    config.n_abs = 512 # number of abstract state, try large
+    config.log_name = '{}-{}-n_abs-{}'.format(ppo_pixel_tsa.__name__, args.tag, config.n_abs)
     log_dir = get_log_dir(config.log_name)
     config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
@@ -378,8 +381,6 @@ def ppo_pixel_tsa():
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
     #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
-    config.n_abs = 50 # number of abstract state
-    config.abs_dim = 512
     ### VQ ###
     visual_body = TSAConvBody() # TSAMiniConvBody()
     abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
@@ -401,7 +402,7 @@ def ppo_pixel_tsa():
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
-    config.max_steps = int(2e7)
+    config.max_steps = 1e4 if args.d else int(2e7)
     config.save_interval = 0 # how many steps to save a model
     config.logger = get_logger(tag=config.log_name)
     run_steps(PPOAgent(config))
@@ -492,7 +493,7 @@ def plot():
     plt.savefig('./images/breakout.png')
 
 if __name__ == '__main__':
-    if is_git_diff():
+    if not args.d and is_git_diff():
         print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
         exit()
     mkdir('log')

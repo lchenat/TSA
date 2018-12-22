@@ -6,6 +6,7 @@
 
 from tensorboardX import SummaryWriter
 import os
+import glob
 import numpy as np
 import torch
 import shutil
@@ -26,14 +27,17 @@ def get_logger(tag=None, skip=False, level=logging.INFO):
         logger.addHandler(fh)
     return Logger(logger, tag, skip)
 
+def remove_tf_log(log_dir_tag):
+    for filename in glob.glob(os.path.join(base_log_dir, '{}*'.format(log_dir_tag))):
+        if os.path.isdir(filename):
+            shutil.rmtree(filename)
+
 class Logger(object):
     def __init__(self, vanilla_logger, log_dir_tag, skip=False):
         self.log_dir_tag = log_dir_tag
-        log_dir = os.path.join(base_log_dir, log_dir_tag)
+        log_dir = os.path.join(base_log_dir, '{}-{}'.format(log_dir_tag, get_time_str()))
         if not skip:
-            if os.path.exists(log_dir): 
-                print('remove the original one')
-                shutil.rmtree(log_dir) # clean it up
+            remove_tf_log(log_dir_tag)
             self.writer = SummaryWriter(log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info

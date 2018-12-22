@@ -195,6 +195,36 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 
 ### tsa ###
 
+### a simple baseline ###
+# a network that output probability
+class ProbAbstractEncoder(VanillaNet):
+    def __init__(self, n_abs, body):
+        super().__init__(n_abs, body)
+
+    def forward(self, x):
+        y = super().forward(x)
+        return nn.functional.softmax(y, dim=1)
+
+# maintain embeddings for abstract state
+class EmbeddingActorNet(nn.Module):
+    def __init__(self, n_abs, action_dim, n_tasks):
+        super().__init__()
+        self.weight = weight_init(torch.randn(n_tasks, n_abs, action_dim))
+
+    def forward(self, cs, info, action=None):
+        assert cs.dim() == 2, 'dimension of cs should be 2'
+        weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=1)
+        probs = batch_linear(cs, weight=weights)
+        assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0)))
+        dist = torch.distributions.Categorical(probs=probs)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
 ### directly calculate embedding
 
 class AbstractedStateEncoder(nn.Module, BaseNet):
