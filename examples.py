@@ -381,10 +381,14 @@ def ppo_pixel_tsa():
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
     #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
-    ### VQ ###
     visual_body = TSAConvBody() # TSAMiniConvBody()
-    abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
-    actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+    ### VQ ###
+    #abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
+    #actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+    ### Prob ###
+    abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
+    actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+    ##########
     critic = TSACriticNet(visual_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
     config.network_fn = lambda: network
