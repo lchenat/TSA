@@ -114,8 +114,9 @@ class PPOAgent(BaseAgent):
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         #print(self.network.abs_encoder.used_indices) # debug
-        n_used_indices = len(set(self.network.abs_encoder.get_indices(self.network.abs_encoder.get_features(states)).detach().cpu().numpy()))
-        config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
+        if self.network.abs_encoder.abstract_type == 'max':
+            n_used_indices = len(set(self.network.abs_encoder.get_indices(self.network.abs_encoder.get_features(states)).detach().cpu().numpy()))
+            config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
 

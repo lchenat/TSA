@@ -198,24 +198,25 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 ### a simple baseline ###
 # a network that output probability
 class ProbAbstractEncoder(VanillaNet):
-    def __init__(self, n_abs, body):
+    def __init__(self, n_abs, body, abstract_type='prob'):
         super().__init__(n_abs, body)
+        self.abstract_type='prob'
 
     def forward(self, x):
         y = super().forward(x)
         return nn.functional.softmax(y, dim=1)
 
 # maintain embeddings for abstract state
-class EmbeddingActorNet(nn.Module):
+class EmbeddingActorNet(nn.Module, BaseNet):
     def __init__(self, n_abs, action_dim, n_tasks):
         super().__init__()
-        self.weight = weight_init(torch.randn(n_tasks, n_abs, action_dim))
+        self.weight = nn.Parameter(weight_init(torch.randn(n_tasks, n_abs, action_dim)))
 
     def forward(self, cs, info, action=None):
         assert cs.dim() == 2, 'dimension of cs should be 2'
-        weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=1)
+        weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
         probs = batch_linear(cs, weight=weights)
-        assert np.allclose(probs.detach().numpy().sum(1), np.ones(probs.size(0)))
+        assert np.allclose(probs.detach().cpu().numpy().sum(1), np.ones(probs.size(0)))
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
