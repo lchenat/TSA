@@ -201,13 +201,16 @@ class ProbAbstractEncoder(VanillaNet):
     def __init__(self, n_abs, body, abstract_type='prob'):
         super().__init__(n_abs, body)
         self.abstract_type='prob'
+        self.loss_weight = 0.05
 
     def forward(self, x):
         y = super().forward(x)
+        self._loss = self.loss_weight * self.entropy(logits=y)
         return nn.functional.softmax(y, dim=1)
 
-    def entropy(self, x):
-        logits = self.forward(x)
+    def entropy(self, x, logits=None):
+        if logits is None:
+            logits = self.forward(x)
         dist = torch.distributions.Categorical(logits=logits)
         return dist.entropy()
 
@@ -336,7 +339,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         self.embed_fc = layer_init(nn.Linear(body.feature_dim, embed_dim))
         self.embed = torch.nn.Embedding(n_embed, embed_dim) # weight shape: n_embed, embed_dim
         self.abstract_type = abstract_type
-        #self.used_indices = set() # debug
+        self.loss_weight = 0.01
     
     def get_features(self, inputs):
         return self.body(inputs)
@@ -360,11 +363,10 @@ class VQAbstractEncoder(nn.Module, BaseNet):
     def forward(self, inputs):
         xs = self.get_features(inputs)
         indices = self.get_indices(xs)
-        #self.used_indices = set(indices.detach().cpu().numpy())
         output, output_x = self.get_embeddings(indices, xs)
         e_latent_loss = torch.mean((output.detach() - xs)**2)
         q_latent_loss = torch.mean((output - xs.detach())**2)
-        self._loss = q_latent_loss + 0.25 * e_latent_loss
+        self._loss = self.loss_weight * (q_latent_loss + 0.25 * e_latent_loss)
 
         return output_x # output the one that can pass gradient to xs
 
