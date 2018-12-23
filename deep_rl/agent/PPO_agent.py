@@ -117,6 +117,9 @@ class PPOAgent(BaseAgent):
         if self.network.abs_encoder.abstract_type == 'max':
             n_used_indices = len(set(self.network.abs_encoder.get_indices(self.network.abs_encoder.get_features(states)).detach().cpu().numpy()))
             config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
+        elif self.network.abs_encoder.abstract_type == 'prob':
+            entropy = self.network.abs_encoder.entropy(states)
+            config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).sum().detach().cpu().numpy(), step=self.total_steps)
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
 

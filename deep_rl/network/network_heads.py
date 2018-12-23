@@ -206,6 +206,11 @@ class ProbAbstractEncoder(VanillaNet):
         y = super().forward(x)
         return nn.functional.softmax(y, dim=1)
 
+    def entropy(self, x):
+        logits = self.forward(x)
+        dist = torch.distributions.Categorical(logits=logits)
+        return dist.entropy()
+
 # maintain embeddings for abstract state
 class EmbeddingActorNet(nn.Module, BaseNet):
     def __init__(self, n_abs, action_dim, n_tasks):
