@@ -205,7 +205,7 @@ class ProbAbstractEncoder(VanillaNet):
 
     def forward(self, x):
         y = super().forward(x)
-        self._loss = self.loss_weight * self.entropy(x, logits=y)
+        self._loss = self.loss_weight * self.entropy(x, logits=y).mean()
         return nn.functional.softmax(y, dim=1)
 
     def entropy(self, x, logits=None):
