@@ -372,7 +372,7 @@ def ppo_pixel_tsa():
     )
     config = Config()
     config.abs_dim = 512
-    config.n_abs = 512 # number of abstract state, try large
+    config.n_abs = 256 # number of abstract state, try large
     config.log_name = '{}-{}-n_abs-{}'.format(ppo_pixel_tsa.__name__, args.tag, config.n_abs)
     log_dir = get_log_dir(config.log_name)
     config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
