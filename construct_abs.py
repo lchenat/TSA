@@ -1,4 +1,3 @@
-from deep_rl import *
 from deep_rl.gridworld import ReachGridWorld, PORGBEnv, ReachGoalManager
 from ipdb import slaunch_ipdb_on_exception
 import argparse

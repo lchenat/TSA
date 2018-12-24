@@ -4,7 +4,12 @@
 # declaration at the top                                              #
 #######################################################################
 
-from deep_rl import *
+# so that import deep_rl does not include all dependencies
+from deep_rl.agent import *
+from deep_rl.component import *
+from deep_rl.network import *
+from deep_rl.utils import *
+
 from ipdb import slaunch_ipdb_on_exception
 from termcolor import colored
 import argparse
