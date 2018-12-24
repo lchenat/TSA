@@ -208,7 +208,7 @@ class Task:
         return self.env.step(actions)
 
 ### tsa ###
-from ..gridworld import ReachGridWorld, PORGBEnv
+from ...envs.gridworld import ReachGridWorld, PORGBEnv
 
 class FiniteHorizonEnv(gym.Wrapper):
     def __init__(self, env, T=100000000):
