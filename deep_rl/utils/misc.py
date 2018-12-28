@@ -19,6 +19,12 @@ except:
     # python == 2.7
     from pathlib2 import Path
 
+class with_null:
+    def __enter__(self):
+        return None
+
+    def __exit__(self, type, value, traceback):
+        return None
 
 def stdin_choices(msg, choices, err_msg=None):
     choices_txt = '[{}]'.format('/'.join(choices))

@@ -22,10 +22,7 @@ def _command_line_parser():
 
     return parser
 
-
-### tsa ###
-
-def ppo_pixel_tsa():
+def ppo_pixel_tsa(args):
     env_config = dict(
         map_names = ['map49'],
         train_combos = [(0, 1, 1)],
@@ -109,8 +106,6 @@ def ppo_pixel_baseline(args):
     config.logger = get_logger(tag=config.log_name)
     run_steps(PPOAgent(config))
 
-### end of tsa ###
-
 if __name__ == '__main__':
     parser = _command_line_parser()
     args = parser.parse_args()
@@ -124,9 +119,13 @@ if __name__ == '__main__':
     random_seed(0)
     select_device(0)
 
-    # with slaunch_ipdb_on_exception():
-    if args.agent == 'tsa':
-        ppo_pixel_tsa(args)
-    elif args.agent == 'baseline':
-        ppo_pixel_baseline(args)
+    if args.d:
+        context = slaunch_ipdb_on_exception
+    else:
+        context = with_null
+    with context():
+        if args.agent == 'tsa':
+            ppo_pixel_tsa(args)
+        elif args.agent == 'baseline':
+            ppo_pixel_baseline(args)
 
