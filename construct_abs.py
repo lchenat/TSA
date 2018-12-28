@@ -1,6 +1,7 @@
 from deep_rl.gridworld import ReachGridWorld, PORGBEnv, ReachGoalManager
 from ipdb import slaunch_ipdb_on_exception
 import argparse
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--method', choices=['cluster'], default='cluster')
