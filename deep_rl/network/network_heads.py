@@ -176,7 +176,7 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
         self.to(Config.DEVICE)
 
-    def forward(self, obs, action=None):
+    def forward(self, obs, info, action=None):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
         phi_a = self.network.actor_body(phi)
@@ -203,7 +203,7 @@ class ProbAbstractEncoder(VanillaNet):
         self.abstract_type='prob'
         self.loss_weight = 0.05
 
-    def forward(self, x):
+    def forward(self, x, info):
         y = super().forward(x)
         self._loss = self.loss_weight * self.entropy(x, logits=y).mean()
         return nn.functional.softmax(y, dim=1)
@@ -360,7 +360,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         else:
             return output
 
-    def forward(self, inputs):
+    def forward(self, inputs, info):
         xs = self.get_features(inputs)
         indices = self.get_indices(xs)
         output, output_x = self.get_embeddings(indices, xs)
@@ -369,6 +369,18 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         self._loss = self.loss_weight * (q_latent_loss + 0.25 * e_latent_loss)
 
         return output_x # output the one that can pass gradient to xs
+
+# input: abstract dictionary
+class PosAbstractEncoder(nn.Module, BaseNet):
+    def __init__(self, n_abs, abs_dict):
+        super().__init__()
+        self.n_abs = n_abs
+        self.abs_dict = abs_dict
+
+    def forward(self, inputs, info):
+        c_indices = [self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])]
+        cs = one_hot.encode(tensor(c_indices, dtype=torch.long), dim=self.n_abs)
+        return cs
 
 class TSANet(nn.Module, BaseNet):
     def __init__(self,
@@ -389,7 +401,7 @@ class TSANet(nn.Module, BaseNet):
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
-        abs_s = self.abs_encoder(obs) # abstract state
+        abs_s = self.abs_encoder(obs, info) # abstract state
         output = self.actor(abs_s, info, action=action)
         output['v'] = self.critic(obs, info)
         return output

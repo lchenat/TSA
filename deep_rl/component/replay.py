@@ -8,6 +8,7 @@ import torch
 import numpy as np
 import torch.multiprocessing as mp
 from collections import deque
+from functools import partial
 from ..utils import *
 
 
@@ -188,4 +189,4 @@ class Storage:
 
     def cat(self, keys):
         data = [getattr(self, k)[:self.size] for k in keys]
-        return map(lambda x: stack_dict(x, torch.cat) if isinstance(x[0], dict) else torch.cat(x, dim=0), data)
+        return map(lambda x: stack_dict(x, lambda l: sum(l, [])) if isinstance(x[0], dict) else torch.cat(x, dim=0), data) # I change this

@@ -12,6 +12,7 @@ from deep_rl.utils import *
 from ipdb import slaunch_ipdb_on_exception
 from termcolor import colored
 import argparse
+import dill
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
@@ -19,6 +20,7 @@ def _command_line_parser():
     parser.add_argument('--tag', type=str, required=True)
     parser.add_argument('--num_abs', type=int, default=50)
     parser.add_argument('-d', action='store_true')
+    parser.add_argument('--abs_fn', type=str, default=None)
 
     return parser
 
@@ -47,8 +49,15 @@ def ppo_pixel_tsa(args):
     #abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
     #actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     ### Prob ###
-    abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
-    actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+    #abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
+    #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+    ### Pos ###
+    assert hasattr(args, 'abs_fn'), 'need args.abs_fn'
+    with open(os.path.join('abs', '{}.pkl'.format(args.abs_fn)), 'rb') as f:
+        abs_dict = dill.load(f)
+        n_abs = len(set(abs_dict[0].values())) # only have 1 map!
+    abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
+    actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
     ##########
     critic = TSACriticNet(visual_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
@@ -80,7 +89,7 @@ def ppo_pixel_baseline(args):
         min_dis=10,
     )
     config = Config()
-    config.log_name = '{}-{}'.format(ppo_pixel_tsa.__name__, args.tag)
+    config.log_name = '{}-{}'.format(ppo_pixel_baseline.__name__, args.tag)
     log_dir = get_log_dir(config.log_name)
     config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)

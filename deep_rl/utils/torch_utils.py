@@ -17,7 +17,7 @@ def select_device(gpu_id):
         Config.DEVICE = torch.device('cpu')
 
 def tensor(x, dtype=torch.float32):
-    if isinstance(x, torch.Tensor):
+    if torch.is_tensor(x):
         return x.type(dtype)
     x = torch.tensor(x, device=Config.DEVICE, dtype=dtype)
     return x
@@ -29,7 +29,9 @@ def range_tensor(end):
     return torch.arange(end).long().to(Config.DEVICE)
 
 def to_np(t):
-    return t.cpu().detach().numpy()
+    if torch.is_tensor(t):
+        return t.cpu().detach().numpy()
+    return t
 
 def random_seed(seed=None):
     np.random.seed(seed)
@@ -78,7 +80,7 @@ class one_hot:
             indices = indices.unsqueeze(1)
         assert len(indices.shape) == 2 and indices.shape[1] == 1, 'shape error'
 
-        encodings = torch.zeros(indices.shape[0], dim)
+        encodings = torch.zeros(indices.shape[0], dim).to(indices.device)
         encodings.scatter_(1, indices, 1)
         return encodings
 

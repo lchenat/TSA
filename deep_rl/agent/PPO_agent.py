@@ -45,7 +45,7 @@ class PPOAgent(BaseAgent):
                          'm': tensor(1 - terminals).unsqueeze(-1),
                          's': tensor(states),
                          'ns': tensor(next_states),
-                         'info': tensor_dict(infos)}) # cat?
+                         'info': infos}) # cat?
             states = next_states
             infos = next_infos
 
@@ -86,7 +86,7 @@ class PPOAgent(BaseAgent):
                 sampled_log_probs_old = log_probs_old[batch_indices]
                 sampled_returns = returns[batch_indices]
                 sampled_advantages = advantages[batch_indices]
-                sampled_infos = {k: v[batch_indices] for k, v in infos.items()}
+                sampled_infos = {k: [v[n] for n in to_np(batch_indices)] for k, v in infos.items()}
 
                 prediction = self.network(sampled_states, sampled_infos, sampled_actions)
                 ratio = (prediction['log_pi_a'] - sampled_log_probs_old).exp()
@@ -112,12 +112,13 @@ class PPOAgent(BaseAgent):
                 self.opt.step()
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
-        if self.network.abs_encoder.abstract_type == 'max':
-            n_used_indices = len(set(self.network.abs_encoder.get_indices(self.network.abs_encoder.get_features(states)).detach().cpu().numpy()))
-            config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
-        elif self.network.abs_encoder.abstract_type == 'prob':
-            entropy = self.network.abs_encoder.entropy(states)
-            config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).mean().detach().cpu().numpy(), step=self.total_steps)
+        if hasattr(self.network.abs_encoder, 'abstract_type'):
+            if self.network.abs_encoder.abstract_type == 'max':
+                n_used_indices = len(set(self.network.abs_encoder.get_indices(self.network.abs_encoder.get_features(states)).detach().cpu().numpy()))
+                config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
+            elif self.network.abs_encoder.abstract_type == 'prob':
+                entropy = self.network.abs_encoder.entropy(states)
+                config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).mean().detach().cpu().numpy(), step=self.total_steps)
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
 
