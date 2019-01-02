@@ -16,24 +16,27 @@ import dill
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent', type=str, default='tsa', choices=['tsa', 'baseline'])
+    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline'])
+    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos'])
     parser.add_argument('--tag', type=str, required=True)
     parser.add_argument('--num_abs', type=int, default=50)
     parser.add_argument('-d', action='store_true')
     parser.add_argument('--abs_fn', type=str, default=None)
+    parser.add_argument('env_config', type=str, default='data/env_config/map49-single')
 
     return parser
 
 def ppo_pixel_tsa(args):
-    # add something
-    env_config = dict(
-        map_names = ['map49'],
-        train_combos = [(0, 1, 1)],
-        #train_combos=[(0, 1, 1), (0, 2, 2), (0, 1, 2)],
-        #train_combos=[(0, 1, 1), (0, 1, 7), (0, 1, 12)],
-        test_combos = [(0, 2, 2)],
-        min_dis=10,
-    )
+    #env_config = dict(
+    #    map_names = ['map49'],
+    #    train_combos = [(0, 1, 1)],
+    #    test_combos = [(0, 2, 2)],
+    #    #train_combos=[(0, 1, 1), (0, 2, 2), (0, 1, 2)],
+    #    #train_combos=[(0, 1, 1), (0, 1, 7), (0, 1, 12)],
+    #    min_dis=10,
+    #)
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
     config = Config()
     config.abs_dim = 512
     config.n_abs = 256 # number of abstract state, try large
@@ -44,22 +47,20 @@ def ppo_pixel_tsa(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
-    #config.network_fn = lambda: CategoricalActorCriticNet(config.state_dim, config.action_dim, TSAMiniConvBody())
     visual_body = TSAConvBody() # TSAMiniConvBody()
-    ### VQ ###
-    #abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
-    #actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-    ### Prob ###
-    #abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
-    #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
-    ### Pos ###
-    assert hasattr(args, 'abs_fn'), 'need args.abs_fn'
-    with open(os.path.join('abs', '{}.pkl'.format(args.abs_fn)), 'rb') as f:
-        abs_dict = dill.load(f)
-        n_abs = len(set(abs_dict[0].values())) # only have 1 map!
-    abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
-    actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-    ##########
+    if args.net == 'vq':
+        abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
+        actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+    elif args.net == 'prob':
+        abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
+        actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+    elif args.net == 'pos':
+        assert args.abs_fn is not None, 'need args.abs_fn'
+        with open(os.path.join('data/abs', '{}.pkl'.format(args.abs_fn)), 'rb') as f:
+            abs_dict = dill.load(f)
+            n_abs = len(set(abs_dict[0].values())) # only have 1 map!
+        abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
+        actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
     critic = TSACriticNet(visual_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
     config.network_fn = lambda: network
