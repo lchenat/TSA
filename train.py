@@ -74,7 +74,7 @@ def ppo_pixel_tsa(args):
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
-    config.max_steps = 1e4 if args.d else int(2e7)
+    config.max_steps = 1e4 if args.d else int(1.5e7)
     config.save_interval = 0 # how many steps to save a model
     config.logger = get_logger(tag=config.log_name)
     run_steps(PPOAgent(config))
