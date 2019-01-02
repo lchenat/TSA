@@ -226,7 +226,7 @@ class FiniteHorizonEnv(gym.Wrapper):
             done = True
         return o, r, done, info
 
-def make_gridworld_env(env_config, seed, rank, log_dir):
+def make_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
         env = ReachGridWorld(**env_config, window=4, seed=seed+rank)
@@ -241,11 +241,8 @@ class GridWorldTask:
     def __init__(self,
                  env_config,
                  num_envs=1,
-                 log_dir=None,
                  seed=np.random.randint(int(1e5))):
-        if log_dir is not None:
-            mkdir(log_dir)
-        envs = [make_gridworld_env(env_config, seed, i, log_dir) for i in range(num_envs)]
+        envs = [make_gridworld_env(env_config, seed, i) for i in range(num_envs)]
         self.env = DummyVecEnv(envs)
         self.name = 'GridWorld'
         self.observation_space = self.env.observation_space

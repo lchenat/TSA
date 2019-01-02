@@ -22,36 +22,29 @@ def _command_line_parser():
     parser.add_argument('--n_abs', type=int, default=50)
     parser.add_argument('-d', action='store_true')
     parser.add_argument('--abs_fn', type=str, default=None)
-    parser.add_argument('--env_config', type=str, default='data/env_config/map49-single')
+    parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
 
     return parser
 
 def ppo_pixel_tsa(args):
-    #env_config = dict(
-    #    map_names = ['map49'],
-    #    train_combos = [(0, 1, 1)],
-    #    test_combos = [(0, 2, 2)],
-    #    #train_combos=[(0, 1, 1), (0, 2, 2), (0, 1, 2)],
-    #    #train_combos=[(0, 1, 1), (0, 1, 7), (0, 1, 12)],
-    #    min_dis=10,
-    #)
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
     config = Config()
     config.abs_dim = 512
-    config.n_abs = args.n_abs # this is not correct now
-    config.log_name = '{}-{}-n_abs-{}'.format(ppo_pixel_tsa.__name__, args.tag, config.n_abs)
-    log_dir = get_log_dir(config.log_name)
-    config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
     visual_body = TSAConvBody() # TSAMiniConvBody()
     if args.net == 'vq':
+        config.n_abs = args.n_abs
+        config.log_name = '{}-{}-{}-n_abs-{}-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs, args.tag)
         abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
         actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'prob':
+        config.n_abs = args.n_abs
+        config.log_name = '{}-{}-{}-n_abs-{}-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs, args.tag)
         abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
         actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'pos':
@@ -59,6 +52,8 @@ def ppo_pixel_tsa(args):
         with open(args.abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
             n_abs = len(set(abs_dict[0].values())) # only have 1 map!
+        config.n_abs = n_abs
+        config.log_name = '{}-{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4], args.tag)
         print(abs_dict)
         abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
         actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
@@ -93,8 +88,7 @@ def ppo_pixel_baseline(args):
     )
     config = Config()
     config.log_name = '{}-{}'.format(ppo_pixel_baseline.__name__, args.tag)
-    log_dir = get_log_dir(config.log_name)
-    config.task_fn = lambda: GridWorldTask(env_config, log_dir=log_dir, num_envs=config.num_workers)
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     config.num_workers = 8
 

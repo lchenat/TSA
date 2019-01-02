@@ -40,6 +40,9 @@ def stdin_choices(msg, choices, err_msg=None):
 def is_git_diff():
     return bool(subprocess.check_output(['git', 'diff']))
 
+def lastname(path):
+    return os.path.basename(os.path.normpath(path)) # might have problem for symbolic link
+
 def collect_stats(agent):
     rewards = agent.episode_rewards
     return {
