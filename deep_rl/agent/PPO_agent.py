@@ -17,7 +17,7 @@ class PPOAgent(BaseAgent):
         self.config = config
         self.task = config.task_fn()
         self.network = config.network_fn()
-        self.opt = config.optimizer_fn(self.network.parameters())
+        self.opt = config.optimizer_fn(self.network)
         self.total_steps = 0
         self.online_rewards = np.zeros(config.num_workers)
         self.episode_rewards = []
@@ -106,10 +106,12 @@ class PPOAgent(BaseAgent):
                     action_prediction_loss = 0.05 * config.action_predictor.loss(sampled_states[indices], sampled_next_states[indices], sampled_actions[indices])
                     loss_dict['action'].append(action_prediction_loss)
                     aux_loss += action_prediction_loss
-                self.opt.zero_grad()
-                (policy_loss + value_loss + aux_loss).backward() # network loss collect loss in the middle
-                nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
-                self.opt.step()
+                ### optimization ###
+                self.opt.step(policy_loss + value_loss + aux_loss) # try first
+                #self.opt.zero_grad()
+                #(policy_loss + value_loss + aux_loss).backward() # network loss collect loss in the middle
+                #nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
+                #self.opt.step()
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         if hasattr(self.network.abs_encoder, 'abstract_type'):
@@ -117,7 +119,7 @@ class PPOAgent(BaseAgent):
                 n_used_indices = len(set(self.network.abs_encoder.get_indices(self.network.abs_encoder.get_features(states)).detach().cpu().numpy()))
                 config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
             elif self.network.abs_encoder.abstract_type == 'prob':
-                entropy = self.network.abs_encoder.entropy(states)
+                entropy = self.network.abs_encoder.entropy(states, infos)
                 config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).mean().detach().cpu().numpy(), step=self.total_steps)
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)

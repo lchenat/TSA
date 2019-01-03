@@ -201,16 +201,16 @@ class ProbAbstractEncoder(VanillaNet):
     def __init__(self, n_abs, body, abstract_type='prob'):
         super().__init__(n_abs, body)
         self.abstract_type='prob'
-        self.loss_weight = 0.05
+        self.loss_weight = 0.001
 
     def forward(self, x, info):
         y = super().forward(x)
-        self._loss = self.loss_weight * self.entropy(x, logits=y).mean()
+        self._loss = self.loss_weight * self.entropy(x, info, logits=y).mean()
         return nn.functional.softmax(y, dim=1)
 
-    def entropy(self, x, logits=None):
+    def entropy(self, x, info, logits=None):
         if logits is None:
-            logits = self.forward(x)
+            logits = self.forward(x, info)
         dist = torch.distributions.Categorical(logits=logits)
         return dist.entropy()
 

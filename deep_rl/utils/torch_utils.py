@@ -8,6 +8,7 @@ from .config import *
 import torch
 import os
 import random
+from torch import nn
 
 def select_device(gpu_id):
     # if torch.cuda.is_available() and gpu_id >= 0:
@@ -89,3 +90,36 @@ class one_hot:
         indices = encodings.nonzero()
         return indices[:, 1]
 
+### optimizer ###
+class VanillaOptimizer:
+    def __init__(self, params, opt, grad_clip):
+        self.params = params
+        self.opt = opt # params already passed in
+        self.grad_clip = grad_clip
+
+    def step(self, loss):
+        self.opt.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(params, self.gradient_clip)
+        self.opt.step()
+
+# update the first / second params using the first / second opt with freq_list[0/1] times before switching
+class AlternateOptimizer:
+    def __init__(self, params_list, opt_list, freq_list, grad_clip):
+        self.params_list = params_list
+        self.opt_list = opt_list
+        self.freq_list = freq_list
+        self.grad_clip = grad_clip
+        self.cur = 0 # current parameter to update
+        self.t = 0 # count how many times the current parameter has been update
+        
+    def step(self, loss):
+        opt = self.opt_list[self.cur]
+        opt.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.params_list[self.cur], self.grad_clip)
+        opt.step()
+        self.t += 1
+        if self.t >= self.freq_list[self.cur]:
+            self.t = 0
+            self.cur = 1 - self.cur

@@ -19,11 +19,11 @@ def _command_line_parser():
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline'])
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos'])
     parser.add_argument('--tag', type=str, required=True)
-    parser.add_argument('--n_abs', type=int, default=50)
+    parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('-d', action='store_true')
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
-
+    parser.add_argument('--opt', choices=['vanilla', 'alt'], default='vanilla')
     return parser
 
 def ppo_pixel_tsa(args):
@@ -35,7 +35,6 @@ def ppo_pixel_tsa(args):
     config.eval_env = GridWorldTask(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5)
     visual_body = TSAConvBody() # TSAMiniConvBody()
     if args.net == 'vq':
         config.n_abs = args.n_abs
@@ -63,6 +62,17 @@ def ppo_pixel_tsa(args):
     ### aux loss ###
     config.action_predictor = ActionPredictor(config.action_dim, visual_body)
     ##########
+    if args.opt == 'vanilla':
+        config.optimizer_fn = \
+            lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5), config.gradient_clip)
+    else:
+        def optimizer_fn(model):
+            abs_params = list(model.abs_encoder.parameters()) + list(model.critic.parameters())
+            actor_params = model.actor.parameters()
+            abs_opt = torch.optim.RMSprop(abs_params, lr=0.00025, alpha=0.99, eps=1e-5)
+            actor_opt = torch.optim.RMSprop(actor_params, lr=0.00025, alpha=0.99, eps=1e-5)
+            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], [3, 3], config.gradient_clip)
+        config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True
