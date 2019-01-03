@@ -64,7 +64,7 @@ def ppo_pixel_tsa(args):
     ##########
     if args.opt == 'vanilla':
         config.optimizer_fn = \
-            lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(params, lr=0.00025, alpha=0.99, eps=1e-5), config.gradient_clip)
+            lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(model.parameters(), lr=0.00025, alpha=0.99, eps=1e-5), config.gradient_clip)
     else:
         def optimizer_fn(model):
             abs_params = list(model.abs_encoder.parameters()) + list(model.critic.parameters())
