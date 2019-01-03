@@ -71,7 +71,7 @@ def ppo_pixel_tsa(args):
             actor_params = model.actor.parameters()
             abs_opt = torch.optim.RMSprop(abs_params, lr=0.00025, alpha=0.99, eps=1e-5)
             actor_opt = torch.optim.RMSprop(actor_params, lr=0.00025, alpha=0.99, eps=1e-5)
-            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], [3, 3], config.gradient_clip)
+            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], [2, 4], config.gradient_clip)
         config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
