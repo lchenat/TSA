@@ -100,7 +100,7 @@ class VanillaOptimizer:
     def step(self, loss):
         self.opt.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm_(params, self.gradient_clip)
+        nn.utils.clip_grad_norm_(self.params, self.grad_clip)
         self.opt.step()
 
 # update the first / second params using the first / second opt with freq_list[0/1] times before switching
