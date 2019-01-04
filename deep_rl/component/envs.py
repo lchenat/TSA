@@ -229,7 +229,7 @@ class FiniteHorizonEnv(gym.Wrapper):
 def make_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
-        env = ReachGridWorld(**env_config, window=4, seed=seed+rank)
+        env = ReachGridWorld(**env_config, seed=seed+rank)
         env = PORGBEnv(env, l=16)
         env = FiniteHorizonEnv(env, T=100)
 

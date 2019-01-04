@@ -203,6 +203,10 @@ class ProbAbstractEncoder(VanillaNet):
         self.abstract_type='prob'
         self.loss_weight = 0.001
 
+    def get_indices(self, inputs, info):
+        y = super().forward(x)
+        return torch.argmax(y, dim=1)
+
     def forward(self, x, info):
         y = super().forward(x)
         self._loss = self.loss_weight * self.entropy(x, info, logits=y).mean()
@@ -344,7 +348,11 @@ class VQAbstractEncoder(nn.Module, BaseNet):
     def get_features(self, inputs):
         return self.body(inputs)
 
-    def get_indices(self, xs):
+    def get_indices(self, inputs_or_xs, info, is_feature=False):
+        if not is_feature:
+            xs = self.get_features(inputs_or_xs)
+        else:
+            xs = inputs_or_xs
         distance = (xs ** 2).sum(dim=1, keepdim=True) + (self.embed.weight ** 2).sum(1) - 2 * torch.matmul(xs, self.embed.weight.t())
         if self.abstract_type == 'max':
             indices = torch.argmin(distance, dim=1)
@@ -362,7 +370,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
 
     def forward(self, inputs, info):
         xs = self.get_features(inputs)
-        indices = self.get_indices(xs)
+        indices = self.get_indices(xs, info, is_feature=True)
         output, output_x = self.get_embeddings(indices, xs)
         e_latent_loss = torch.mean((output.detach() - xs)**2)
         q_latent_loss = torch.mean((output - xs.detach())**2)
@@ -376,6 +384,10 @@ class PosAbstractEncoder(nn.Module, BaseNet):
         super().__init__()
         self.n_abs = n_abs
         self.abs_dict = abs_dict
+
+    def get_indices(inputs, info):
+        indices = tensor([self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])], dtype=torch.long)
+        return indices
 
     def forward(self, inputs, info):
         c_indices = [self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])]
