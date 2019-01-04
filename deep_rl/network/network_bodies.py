@@ -9,9 +9,9 @@ from .network_utils import *
 ### tsa ###
 
 class TSAConvBody(nn.Module):
-    def __init__(self, in_channels=12):
+    def __init__(self, in_channels=12, feature_dim=512):
         super().__init__()
-        self.feature_dim = 512
+        self.feature_dim = feature_dim
         self.conv1_1 = layer_init(nn.Conv2d(in_channels, 32,  kernel_size=3, padding=1)) # 16->16
         self.conv1_2 = layer_init(nn.Conv2d(32, 32, stride=2, kernel_size=3, padding=1)) # 16->8
         self.conv2_1 = layer_init(nn.Conv2d(32, 32,           kernel_size=3, padding=1)) # 8->8

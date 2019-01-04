@@ -108,15 +108,12 @@ class PPOAgent(BaseAgent):
                     aux_loss += action_prediction_loss
                 ### optimization ###
                 self.opt.step(policy_loss + value_loss + aux_loss) # try first
-                #self.opt.zero_grad()
-                #(policy_loss + value_loss + aux_loss).backward() # network loss collect loss in the middle
-                #nn.utils.clip_grad_norm_(self.network.parameters(), config.gradient_clip)
-                #self.opt.step()
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
+        # log the visualization
         if hasattr(self.network.abs_encoder, 'abstract_type'):
             if self.network.abs_encoder.abstract_type == 'max':
-                n_used_indices = len(set(self.network.abs_encoder.get_indices(self.network.abs_encoder.get_features(states)).detach().cpu().numpy()))
+                n_used_indices = len(set(self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()))
                 config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
             elif self.network.abs_encoder.abstract_type == 'prob':
                 entropy = self.network.abs_encoder.entropy(states, infos)
