@@ -88,7 +88,7 @@ def ppo_pixel_tsa(args):
     config.max_steps = 1e4 if args.d else int(1.5e7)
     config.save_interval = 0 # how many steps to save a model
     config.logger = get_logger(tag=config.log_name)
-    config.logger.add_text('test', 'this is a test!')
+    config.logger.add_text('Configs', [{'window': env_config['window'], 'git sha': get_git_sha()}])
     run_steps(PPOAgent(config))
 
 def ppo_pixel_baseline(args):

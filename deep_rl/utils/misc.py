@@ -8,9 +8,12 @@ import subprocess
 import numpy as np
 import pickle
 import os
+import git
 import datetime
 import torch
 import time
+import dill
+from PIL import Image
 from .torch_utils import *
 try:
     # python >= 3.5
@@ -39,6 +42,11 @@ def stdin_choices(msg, choices, err_msg=None):
 # run git diff and return whether there is modification
 def is_git_diff():
     return bool(subprocess.check_output(['git', 'diff']))
+
+def get_git_sha():
+    repo = git.Repo(search_parent_directories=True)
+    sha = repo.head.object.hexsha
+    return sha
 
 def lastname(path):
     return os.path.basename(os.path.normpath(path)) # might have problem for symbolic link
@@ -142,3 +150,18 @@ def stack_dict(args, stack=None):
             ret[k] = t
     return ret
 
+def fsave(data, fn, ftype):
+    dirname = os.path.dirname(fn)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    if ftype == 'json':
+        with open(fn, 'w') as f:
+            json.dump(data, f)
+    elif ftype == 'pkl':
+        with open(fn, 'wb') as f:
+            dill.dump(data, f)        
+    elif ftype == 'png':
+        Image.fromarray(data).save(fn)
+    else:
+        raise Exception('unsupported file type: {}'.format(ftype))
+ 

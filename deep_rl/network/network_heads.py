@@ -203,7 +203,7 @@ class ProbAbstractEncoder(VanillaNet):
         self.abstract_type='prob'
         self.loss_weight = 0.001
 
-    def get_indices(self, inputs, info):
+    def get_indices(self, x, info):
         y = super().forward(x)
         return torch.argmax(y, dim=1)
 

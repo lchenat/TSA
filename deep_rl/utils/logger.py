@@ -32,13 +32,23 @@ def remove_tf_log(log_dir_tag):
         if os.path.isdir(filename):
             shutil.rmtree(filename)
 
+def convert2str(*args):
+    res = ''
+    for obj in args:
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                res += '{}: {}\n\n'.format(k, v)
+        else:
+            res += '{}\n\n'.format(obj)
+    return res
+
 class Logger(object):
     def __init__(self, vanilla_logger, log_dir_tag, skip=False):
         self.log_dir_tag = log_dir_tag
-        log_dir = os.path.join(base_log_dir, '{}-{}'.format(log_dir_tag, get_time_str()))
+        self.log_dir = os.path.join(base_log_dir, '{}-{}'.format(log_dir_tag, get_time_str()))
         if not skip:
             remove_tf_log(log_dir_tag)
-            self.writer = SummaryWriter(log_dir)
+            self.writer = SummaryWriter(self.log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info
             self.debug = vanilla_logger.debug
@@ -76,5 +86,10 @@ class Logger(object):
             step = self.get_step(tag)
         self.writer.add_histogram(os.path.join(self.log_dir_tag, tag), values, step)
 
-    def add_text(self, tag, value):
-        self.writer.add_text(tag, value)
+    def add_text(self, tag, values):
+        self.writer.add_text(os.path.join(self.log_dir_tag, tag), convert2str(*values))
+
+    def add_file(self, tag, value, step=None, ftype='pkl'):
+        if step is None:
+            step = self.get_step(tag)
+        fsave(value, os.path.join(self.log_dir, tag, '{}.{}'.format(step, ftype)), ftype=ftype)

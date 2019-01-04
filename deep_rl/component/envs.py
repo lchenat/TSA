@@ -216,7 +216,7 @@ class LastWrapper(gym.Wrapper):
 
     def __getattribute__(self, attr):
         if attr == 'env':
-            return object.__getattribute__(attr)
+            return object.__getattribute__(self, attr)
         env = self.env
         while env.unwrapped != env:
             if hasattr(env, attr):
