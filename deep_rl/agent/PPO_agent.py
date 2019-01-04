@@ -110,6 +110,13 @@ class PPOAgent(BaseAgent):
                 self.opt.step(policy_loss + value_loss + aux_loss) # try first
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
+        # log the abs_encoder
+        #if hasattr(self.network, 'abs_encoder'):
+        #    states, infos = config.eval_env.env.envs[0].last.get_teleportable_states
+        #    states = tensor(states)
+        #    infos = stack_dict(infos)
+        #    indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
+        #    config.logger.save_logs()
         # log the visualization
         if hasattr(self.network.abs_encoder, 'abstract_type'):
             if self.network.abs_encoder.abstract_type == 'max':

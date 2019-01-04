@@ -210,6 +210,19 @@ class Task:
 ### tsa ###
 from ..gridworld import ReachGridWorld, PORGBEnv
 
+class LastWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+    def __getattribute__(self, attr):
+        if attr == 'env':
+            return object.__getattribute__(attr)
+        env = self.env
+        while env.unwrapped != env:
+            if hasattr(env, attr):
+                return getattr(env, attr)
+            env = env.env 
+
 class FiniteHorizonEnv(gym.Wrapper):
     def __init__(self, env, T=100000000):
         super().__init__(env)
@@ -225,6 +238,10 @@ class FiniteHorizonEnv(gym.Wrapper):
         if self.t >= self.T:
             done = True
         return o, r, done, info
+
+    @property
+    def last(self):
+        return LastWrapper(self)
 
 def make_gridworld_env(env_config, seed, rank):
     def _thunk():

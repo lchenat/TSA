@@ -75,3 +75,6 @@ class Logger(object):
         if step is None:
             step = self.get_step(tag)
         self.writer.add_histogram(os.path.join(self.log_dir_tag, tag), values, step)
+
+    def add_text(self, tag, value):
+        self.writer.add_text(tag, value)
