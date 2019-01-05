@@ -93,3 +93,6 @@ class Logger(object):
         if step is None:
             step = self.get_step(tag)
         fsave(value, os.path.join(self.log_dir, tag, '{}.{}'.format(step, ftype)), ftype=ftype)
+
+    def save_file(self, data, fn, ftype='pkl'):
+        fsave(data, os.path.join(self.log_dir, fn), ftype=ftype)

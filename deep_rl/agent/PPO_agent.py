@@ -116,7 +116,8 @@ class PPOAgent(BaseAgent):
             states = tensor(states)
             infos = stack_dict(infos)
             indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
-            config.logger.add_file('indices', indices, step=self.total_steps)
+            abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
+            config.logger.add_file('abs_map', abs_map, step=self.total_steps)
         # log the visualization
         if hasattr(self.network.abs_encoder, 'abstract_type'):
             if self.network.abs_encoder.abstract_type == 'max':
