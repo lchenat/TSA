@@ -7,6 +7,7 @@
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from abc import ABC, abstractmethod
 
 from .network_utils import *
 from .network_bodies import *
@@ -195,27 +196,36 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
 
 ### tsa ###
 
+class AbstractEncoder(ABC):
+    @abstractmethod
+    def get_indices(self, inputs, info):
+        pass
+
+    @abstractmethod
+    def forward(self, inputs, info):
+        pass
+
 ### a simple baseline ###
 # a network that output probability
-class ProbAbstractEncoder(VanillaNet):
+class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
     def __init__(self, n_abs, body, abstract_type='prob'):
         super().__init__(n_abs, body)
         self.abstract_type='prob'
         self.loss_weight = 0.001
         self.feature_dim = n_abs # output_dim
 
-    def get_indices(self, x, info):
-        y = super().forward(x)
+    def get_indices(self, inputs, info):
+        y = super().forward(inputs)
         return torch.argmax(y, dim=1)
 
-    def forward(self, x, info):
-        y = super().forward(x)
-        self._loss = self.loss_weight * self.entropy(x, info, logits=y).mean()
+    def forward(self, inputs, info):
+        y = super().forward(inputs)
+        self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean()
         return nn.functional.softmax(y, dim=1)
 
-    def entropy(self, x, info, logits=None):
+    def entropy(self, inputs, info, logits=None):
         if logits is None:
-            logits = self.forward(x, info)
+            logits = self.forward(inputs, info)
         dist = torch.distributions.Categorical(logits=logits)
         return dist.entropy()
 
@@ -337,7 +347,7 @@ class LinearActorNet(nn.Module, BaseNet):
                 'log_pi_a': log_prob,
                 'ent': entropy}
 
-class VQAbstractEncoder(nn.Module, BaseNet):
+class VQAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
         super().__init__()
         self.body = body
@@ -381,7 +391,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         return output_x # output the one that can pass gradient to xs
 
 # input: abstract dictionary
-class PosAbstractEncoder(nn.Module, BaseNet):
+class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_abs, abs_dict):
         super().__init__()
         self.n_abs = n_abs
@@ -428,6 +438,8 @@ class TSACriticNet(nn.Module, BaseNet):
         self.fc = MultiLinear(body.feature_dim, 1, n_tasks, 'task_id')
 
     def forward(self, inputs, info):
+        if isinstance(self.body, AbstractEncoder):
+            return self.fc(self.body(inputs, info), info)
         return self.fc(self.body(inputs), info)
 
 class ActionPredictor(nn.Module):
