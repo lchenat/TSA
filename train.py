@@ -18,6 +18,7 @@ def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline'])
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos'])
+    parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     parser.add_argument('--tag', type=str, required=True)
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('-d', action='store_true')
@@ -57,7 +58,11 @@ def ppo_pixel_tsa(args):
         print(abs_dict)
         abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
         actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-    critic = TSACriticNet(visual_body, config.eval_env.n_tasks)
+    if args.critic == 'visual':
+        critic_body = visual_body
+    elif args.critic == 'abs':
+        critic_body = abs_encoder
+    critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
     config.network_fn = lambda: network
     ### aux loss ###

@@ -202,6 +202,7 @@ class ProbAbstractEncoder(VanillaNet):
         super().__init__(n_abs, body)
         self.abstract_type='prob'
         self.loss_weight = 0.001
+        self.feature_dim = n_abs # output_dim
 
     def get_indices(self, x, info):
         y = super().forward(x)
@@ -344,6 +345,7 @@ class VQAbstractEncoder(nn.Module, BaseNet):
         self.embed = torch.nn.Embedding(n_embed, embed_dim) # weight shape: n_embed, embed_dim
         self.abstract_type = abstract_type
         self.loss_weight = 0.01
+        self.feature_dim = embed_dim
     
     def get_features(self, inputs):
         return self.body(inputs)
@@ -384,6 +386,7 @@ class PosAbstractEncoder(nn.Module, BaseNet):
         super().__init__()
         self.n_abs = n_abs
         self.abs_dict = abs_dict
+        self.feature_dim = self.n_abs
 
     def get_indices(inputs, info):
         indices = tensor([self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])], dtype=torch.long)
