@@ -229,6 +229,30 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         dist = torch.distributions.Categorical(logits=logits)
         return dist.entropy()
 
+class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
+    def __init__(self, n_abs, body, abstract_type='sample'):
+        super().__init__(n_abs, body)
+        self.abstract_type='sample'
+        self.loss_weight = 0.001
+        self.feature_dim = n_abs # output_dim
+
+    def get_indices(self, inputs, info):
+        y = super().forward(inputs)
+        return torch.argmax(y, dim=1)
+
+    def forward(self, inputs, info):
+        y = super().forward(inputs)
+        self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean()
+        dist = torch.distributions.Categorical(logits=y)
+        return nn.functional.softmax(y, dim=1)
+
+    def entropy(self, inputs, info, logits=None):
+        if logits is None:
+            logits = self.forward(inputs, info)
+        dist = torch.distributions.Categorical(logits=logits)
+        return dist.entropy()
+
+
 # maintain embeddings for abstract state
 class EmbeddingActorNet(nn.Module, BaseNet):
     def __init__(self, n_abs, action_dim, n_tasks):

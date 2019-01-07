@@ -126,6 +126,8 @@ class PPOAgent(BaseAgent):
             elif self.network.abs_encoder.abstract_type == 'prob':
                 entropy = self.network.abs_encoder.entropy(states, infos)
                 config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).mean().detach().cpu().numpy(), step=self.total_steps)
+            elif self.network.abs_encoder.abstract_type == 'sample':
+                pass
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
 

@@ -42,7 +42,7 @@ def ppo_pixel_tsa(args):
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
         abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
-        actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'prob':
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
