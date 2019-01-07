@@ -398,7 +398,7 @@ class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
         self.abs_dict = abs_dict
         self.feature_dim = self.n_abs
 
-    def get_indices(inputs, info):
+    def get_indices(self, inputs, info):
         indices = tensor([self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])], dtype=torch.long)
         return indices
 
