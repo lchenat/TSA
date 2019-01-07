@@ -18,13 +18,13 @@ def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline'])
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos'])
-    parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
-    parser.add_argument('--tag', type=str, required=True)
     parser.add_argument('--n_abs', type=int, default=512)
-    parser.add_argument('-d', action='store_true')
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
     parser.add_argument('--opt', choices=['vanilla', 'alt'], default='vanilla')
+    parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
+    parser.add_argument('--tag', type=str, default=None)
+    parser.add_argument('-d', action='store_true')
     return parser
 
 def ppo_pixel_tsa(args):
@@ -40,12 +40,12 @@ def ppo_pixel_tsa(args):
     visual_body = TSAConvBody(3*env_config['window']) # TSAMiniConvBody()
     if args.net == 'vq':
         config.n_abs = args.n_abs
-        config.log_name = '{}-{}-{}-n_abs-{}-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs, args.tag)
+        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
         abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
         actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'prob':
         config.n_abs = args.n_abs
-        config.log_name = '{}-{}-{}-n_abs-{}-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs, args.tag)
+        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
         abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
         actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'pos':
@@ -54,7 +54,7 @@ def ppo_pixel_tsa(args):
             abs_dict = dill.load(f)
             n_abs = len(set(abs_dict[0].values())) # only have 1 map!
         config.n_abs = n_abs
-        config.log_name = '{}-{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4], args.tag)
+        config.log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
         print(abs_dict)
         abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
         actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
@@ -92,6 +92,7 @@ def ppo_pixel_tsa(args):
     config.log_interval = 128 * 8
     config.max_steps = 1e4 if args.d else int(1.5e7)
     config.save_interval = 0 # how many steps to save a model
+    if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{'window': env_config['window'], 'git sha': get_git_sha()}])
     config.logger.save_file(env_config, 'env_config')
