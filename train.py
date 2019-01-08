@@ -24,13 +24,14 @@ def _command_line_parser():
     parser.add_argument('--opt', choices=['vanilla', 'alt'], default='vanilla')
     parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     parser.add_argument('--tag', type=str, default=None)
+    parser.add_argument('--window', type=int, default=4)
     parser.add_argument('-d', action='store_true')
     return parser
 
 def ppo_pixel_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
-        env_config['window'] = 1
+        env_config['window'] = args.window
     config = Config()
     config.abs_dim = 512
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
