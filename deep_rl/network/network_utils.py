@@ -22,9 +22,9 @@ class BaseNet:
         return tot_loss
 
 class MultiLinear(nn.Module):
-    def __init__(self, input_dim, output_dim, n_heads, key):
+    def __init__(self, input_dim, output_dim, n_heads, key, w_scale=1.0):
         super().__init__()
-        self.weights = nn.Parameter(weight_init(torch.randn(n_heads, input_dim, output_dim)))
+        self.weights = nn.Parameter(weight_init(torch.randn(n_heads, input_dim, output_dim), w_scale=w_scale))
         self.biases = nn.Parameter(torch.zeros(n_heads, output_dim))
         self.key = key
 

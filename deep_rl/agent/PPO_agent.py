@@ -118,16 +118,16 @@ class PPOAgent(BaseAgent):
             indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
             abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
             config.logger.add_file('abs_map', abs_map, step=self.total_steps)
-        # log the visualization
-        if hasattr(self.network.abs_encoder, 'abstract_type'):
-            if self.network.abs_encoder.abstract_type == 'max':
-                n_used_indices = len(set(self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()))
-                config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
-            elif self.network.abs_encoder.abstract_type == 'prob':
-                entropy = self.network.abs_encoder.entropy(states, infos)
-                config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).mean().detach().cpu().numpy(), step=self.total_steps)
-            elif self.network.abs_encoder.abstract_type == 'sample':
-                pass
+            # log the visualization of the abs
+            if hasattr(self.network.abs_encoder, 'abstract_type'):
+                if self.network.abs_encoder.abstract_type == 'max':
+                    n_used_indices = len(set(self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()))
+                    config.logger.add_scalar(tag='n_used_abstract_states', value=n_used_indices, step=self.total_steps)
+                elif self.network.abs_encoder.abstract_type == 'prob':
+                    entropy = self.network.abs_encoder.entropy(states, infos)
+                    config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).mean().detach().cpu().numpy(), step=self.total_steps)
+                elif self.network.abs_encoder.abstract_type == 'sample':
+                    pass
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
 

@@ -91,7 +91,7 @@ class OptionCriticNet(nn.Module, BaseNet):
         return q, beta, log_pi
 
 class ActorCriticNet(nn.Module, BaseNet):
-    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body):
+    def __init__(self, n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(ActorCriticNet, self).__init__()
         if phi_body is None: phi_body = DummyBody(state_dim)
         if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
@@ -99,8 +99,10 @@ class ActorCriticNet(nn.Module, BaseNet):
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
-        self.fc_action = layer_init(nn.Linear(actor_body.feature_dim, action_dim), 1e-3)
-        self.fc_critic = layer_init(nn.Linear(critic_body.feature_dim, 1), 1e-3)
+        self.fc_action = MultiLinear(actor_body.feature_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
+        self.fc_critic = MultiLinear(critic_body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
+        #self.fc_action = layer_init(nn.Linear(actor_body.feature_dim, action_dim), 1e-3)
+        #self.fc_critic = layer_init(nn.Linear(critic_body.feature_dim, 1), 1e-3) 
 
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
@@ -168,22 +170,23 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
 
 class CategoricalActorCriticNet(nn.Module, BaseNet):
     def __init__(self,
+                 n_tasks,
                  state_dim,
                  action_dim,
                  phi_body=None,
                  actor_body=None,
                  critic_body=None):
         super(CategoricalActorCriticNet, self).__init__()
-        self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
+        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body)
         self.to(Config.DEVICE)
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
-        phi_a = self.network.actor_body(phi)
+        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
         phi_v = self.network.critic_body(phi)
-        logits = self.network.fc_action(phi_a)
-        v = self.network.fc_critic(phi_v)
+        logits = self.network.fc_action(phi_a, info)
+        v = self.network.fc_critic(phi_v, info)
         dist = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()
@@ -244,6 +247,7 @@ class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
         y = super().forward(inputs)
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean()
         dist = torch.distributions.Categorical(logits=y)
+
         return nn.functional.softmax(y, dim=1)
 
     def entropy(self, inputs, info, logits=None):
@@ -257,7 +261,7 @@ class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
 class EmbeddingActorNet(nn.Module, BaseNet):
     def __init__(self, n_abs, action_dim, n_tasks):
         super().__init__()
-        self.weight = nn.Parameter(weight_init(torch.randn(n_tasks, n_abs, action_dim)))
+        self.weight = nn.Parameter(weight_init(torch.randn(n_tasks, n_abs, action_dim), w_scale=1e-3))
 
     def forward(self, cs, info, action=None):
         assert cs.dim() == 2, 'dimension of cs should be 2'
@@ -314,7 +318,7 @@ class AbstractedStateEncoder(nn.Module, BaseNet):
 # output: action
 class LinearActorNet(MultiLinear, BaseNet):
     def __init__(self, abs_dim, action_dim, n_tasks):
-        super().__init__(abs_dim, action_dim, n_tasks, 'task_id')
+        super().__init__(abs_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 
     def forward(self, xs, info, action=None):
         output = super().forward(xs, info)
@@ -331,8 +335,8 @@ class LinearActorNet(MultiLinear, BaseNet):
 class NonLinearActorNet(nn.Module, BaseNet):
     def __init__(self, abs_dim, action_dim, n_tasks, hidden_dim=512):
         super().__init__()
-        self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, 'task_id')
-        self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, 'task_id')
+        self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
+        self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 
     def forward(self, xs, info, action=None):
         output = F.relu(self.fc1(xs, info))
@@ -350,26 +354,26 @@ class NonLinearActorNet(nn.Module, BaseNet):
 # each task maintains a linear layer
 # input: abstract feature
 # output: action
-class LinearActorNet(nn.Module, BaseNet):
-    def __init__(self, abs_dim, action_dim, n_tasks):
-        super().__init__()
-        self.weights = nn.Parameter(weight_init(torch.randn(n_tasks, abs_dim, action_dim)))
-        self.biases = nn.Parameter(torch.zeros(n_tasks, action_dim))
-
-    def forward(self, xs, info, action=None):
-        weights = self.weights[tensor(info['task_id'], torch.int64),:,:]
-        biases = self.biases[tensor(info['task_id'], torch.int64),:]
-
-        output = batch_linear(xs, weights, bias=biases)
-        probs = F.softmax(output, dim=1)
-        dist = torch.distributions.Categorical(probs=probs)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
+#class LinearActorNet(nn.Module, BaseNet):
+#    def __init__(self, abs_dim, action_dim, n_tasks):
+#        super().__init__()
+#        self.weights = nn.Parameter(weight_init(torch.randn(n_tasks, abs_dim, action_dim)))
+#        self.biases = nn.Parameter(torch.zeros(n_tasks, action_dim))
+#
+#    def forward(self, xs, info, action=None):
+#        weights = self.weights[tensor(info['task_id'], torch.int64),:,:]
+#        biases = self.biases[tensor(info['task_id'], torch.int64),:]
+#
+#        output = batch_linear(xs, weights, bias=biases)
+#        probs = F.softmax(output, dim=1)
+#        dist = torch.distributions.Categorical(probs=probs)
+#        if action is None:
+#            action = dist.sample()
+#        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+#        entropy = dist.entropy().unsqueeze(-1)
+#        return {'a': action,
+#                'log_pi_a': log_prob,
+#                'ent': entropy}
 
 class VQAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
@@ -459,7 +463,7 @@ class TSACriticNet(nn.Module, BaseNet):
     def __init__(self, body, n_tasks):
         super().__init__()
         self.body = body
-        self.fc = MultiLinear(body.feature_dim, 1, n_tasks, 'task_id')
+        self.fc = MultiLinear(body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
 
     def forward(self, inputs, info):
         if isinstance(self.body, AbstractEncoder):
