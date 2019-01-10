@@ -24,7 +24,7 @@ def _command_line_parser():
     parser.add_argument('--opt', choices=['vanilla', 'alt'], default='vanilla')
     parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     parser.add_argument('--tag', type=str, default=None)
-    parser.add_argument('--window', type=int, default=4)
+    parser.add_argument('--window', type=int, default=1)
     parser.add_argument('-d', action='store_true')
     return parser
 
