@@ -108,7 +108,7 @@ def ppo_pixel_baseline(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
-        n_tasks = len(env_config['train_combos'])
+        n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
     config = Config()
     config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
