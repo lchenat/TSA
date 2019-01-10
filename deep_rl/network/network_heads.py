@@ -211,9 +211,10 @@ class AbstractEncoder(ABC):
 ### a simple baseline ###
 # a network that output probability
 class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
-    def __init__(self, n_abs, body, abstract_type='prob'):
+    def __init__(self, n_abs, body, temperature=1.0, abstract_type='prob'):
         super().__init__(n_abs, body)
-        self.abstract_type='prob'
+        self.abstract_type = abstract_type
+        self.temperature = temperature
         self.loss_weight = 0.001
         self.feature_dim = n_abs # output_dim
 
@@ -222,7 +223,7 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         return torch.argmax(y, dim=1)
 
     def forward(self, inputs, info):
-        y = super().forward(inputs)
+        y = super().forward(inputs) / self.temperature
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean()
         return nn.functional.softmax(y, dim=1)
 
@@ -235,7 +236,7 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
 class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
     def __init__(self, n_abs, body, abstract_type='sample'):
         super().__init__(n_abs, body)
-        self.abstract_type='sample'
+        self.abstract_type = abstract_type
         self.loss_weight = 0.001
         self.feature_dim = n_abs # output_dim
 

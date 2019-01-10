@@ -25,6 +25,7 @@ def _command_line_parser():
     parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('--window', type=int, default=1)
+    parser.add_argument('--temperature', type=float, default=1.0)
     parser.add_argument('-d', action='store_true')
     return parser
 
@@ -47,7 +48,7 @@ def ppo_pixel_tsa(args):
     elif args.net == 'prob':
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-        abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body)
+        abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
         actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'pos':
         assert args.abs_fn is not None, 'need args.abs_fn'
