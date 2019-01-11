@@ -21,13 +21,47 @@ def _command_line_parser():
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
-    parser.add_argument('--opt', choices=['vanilla', 'alt'], default='vanilla')
+    parser.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
     parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('--window', type=int, default=1)
     parser.add_argument('--temperature', type=float, default=1.0)
+    parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     parser.add_argument('-d', action='store_true')
     return parser
+
+def get_optimizer_fn(args, config):
+    if len(args.lr) < 2: args.lr.append(args.lr[0])
+    if args.opt == 'vanilla':
+        config.optimizer_fn = \
+            lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(model.parameters(), lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
+    elif args.opt == 'alt':
+        def optimizer_fn(model):
+            abs_params = list(model.abs_encoder.parameters())
+            abs_ids = set(id(param) for param in abs_params)
+            actor_params = list(model.actor.parameters()) + [param for param in model.critic.parameters() if id(param) not in abs_ids]
+            abs_opt = torch.optim.RMSprop(abs_params, lr=args.lr[0], alpha=0.99, eps=1e-5)
+            actor_opt = torch.optim.RMSprop(actor_params, lr=args.lr[1], alpha=0.99, eps=1e-5)
+            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], [2, 4], config.gradient_clip)
+        config.optimizer_fn = optimizer_fn
+    elif args.opt == 'diff':
+        def optimizer_fn(model):
+            abs_params = list(model.abs_encoder.parameters())
+            abs_ids = set(id(param) for param in abs_params)
+            actor_params = list(model.actor.parameters()) + [param for param in model.critic.parameters() if id(param) not in abs_ids]
+            return VanillaOptimizer(model.parameters(), 
+                torch.optim.RMSprop(
+                    [{'params': abs_params, 'lr': args.lr[0]}, 
+                     {'params': actor_params, 'lr': args.lr[1]}], 
+                    lr=args.lr[0],
+                    alpha=0.99, 
+                    eps=1e-5,
+                ), 
+                config.gradient_clip,
+            )
+        config.optimizer_fn = optimizer_fn
+    else:
+        raise Exception('unsupported optimizer type')
 
 def ppo_pixel_tsa(args):
     with open(args.env_config, 'rb') as f:
@@ -60,8 +94,6 @@ def ppo_pixel_tsa(args):
         print(abs_dict)
         abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
         actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-    elif args.net == 'baseline':
-        pass
     if args.critic == 'visual':
         critic_body = visual_body
     elif args.critic == 'abs':
@@ -72,17 +104,7 @@ def ppo_pixel_tsa(args):
     ### aux loss ###
     config.action_predictor = ActionPredictor(config.action_dim, visual_body)
     ##########
-    if args.opt == 'vanilla':
-        config.optimizer_fn = \
-            lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(model.parameters(), lr=0.00025, alpha=0.99, eps=1e-5), config.gradient_clip)
-    else:
-        def optimizer_fn(model):
-            abs_params = list(model.abs_encoder.parameters()) + list(model.critic.parameters())
-            actor_params = model.actor.parameters()
-            abs_opt = torch.optim.RMSprop(abs_params, lr=0.00025, alpha=0.99, eps=1e-5)
-            actor_opt = torch.optim.RMSprop(actor_params, lr=0.00025, alpha=0.99, eps=1e-5)
-            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], [2, 4], config.gradient_clip)
-        config.optimizer_fn = optimizer_fn
+    get_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True
