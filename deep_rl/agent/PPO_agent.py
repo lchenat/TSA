@@ -130,4 +130,5 @@ class PPOAgent(BaseAgent):
                     pass
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
+        self.network.step() # do all adaptive update
 
