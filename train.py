@@ -17,7 +17,7 @@ import dill
 def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline'])
-    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos'])
+    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
@@ -78,7 +78,7 @@ def ppo_pixel_tsa(args):
     if args.net == 'vq':
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-        abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body, abstract_type='max')
+        abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
         actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'prob':
         config.n_abs = args.n_abs
@@ -95,6 +95,11 @@ def ppo_pixel_tsa(args):
         print(abs_dict)
         abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
         actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+    elif args.net == 'kv': # key-value
+        config.n_abs = args.n_abs
+        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+        abs_encoder = KVAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
+        actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     if args.critic == 'visual':
         critic_body = visual_body
     elif args.critic == 'abs':

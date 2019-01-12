@@ -215,7 +215,7 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         super().__init__(n_abs, body)
         self.abstract_type = abstract_type
         self.temperature = temperature
-        self.loss_weight = 0.001
+        self.loss_weight = 0.0
         self.feature_dim = n_abs # output_dim
 
     def get_indices(self, inputs, info):
@@ -418,6 +418,34 @@ class VQAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
         self._loss = self.loss_weight * (q_latent_loss + 0.25 * e_latent_loss)
 
         return output_x # output the one that can pass gradient to xs
+
+class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
+    def __init__(self, n_embed, embed_dim, body, abstract_type='prob'):
+        super().__init__()
+        self.body = body
+        self.key = nn.Linear(body.feature_dim, n_embed, bias=False)
+        self.value = nn.Linear(n_embed, embed_dim, bias=False)
+        self.abstract_type = abstract_type
+        self.loss_weight = 0.0
+        self.feature_dim = embed_dim
+        self.denominator = np.sqrt(body.feature_dim)
+    
+    def entropy(self, inputs, info, probs=None):
+        if probs is None:
+            probs = self.get_probs(inputs, info)
+        dist = torch.distributions.Categorical(probs=probs)
+        return dist.entropy()
+
+    def get_probs(self, inputs, info):
+        return F.softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
+
+    def get_indices(self, inputs, info):
+        return self.get_probs(inputs, info).argmax(dim=1)
+
+    def forward(self, inputs, info):
+        probs = self.get_probs(inputs, info)
+        self._loss = self.loss_weight * self.entropy(inputs, info, probs=probs).mean()
+        return self.value(probs)
 
 # input: abstract dictionary
 class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
