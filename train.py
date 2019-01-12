@@ -22,6 +22,7 @@ def _command_line_parser():
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
     parser.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
+    parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
     parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('--window', type=int, default=1)
@@ -42,7 +43,7 @@ def get_optimizer_fn(args, config):
             actor_params = list(model.actor.parameters()) + [param for param in model.critic.parameters() if id(param) not in abs_ids]
             abs_opt = torch.optim.RMSprop(abs_params, lr=args.lr[0], alpha=0.99, eps=1e-5)
             actor_opt = torch.optim.RMSprop(actor_params, lr=args.lr[1], alpha=0.99, eps=1e-5)
-            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], [2, 4], config.gradient_clip)
+            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], args.opt_gap, config.gradient_clip)
         config.optimizer_fn = optimizer_fn
     elif args.opt == 'diff':
         def optimizer_fn(model):
