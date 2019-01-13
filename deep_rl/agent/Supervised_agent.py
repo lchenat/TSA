@@ -35,7 +35,8 @@ class SupervisedAgent(SupervisedBaseAgent):
         self.opt = config.optimizer_fn(self.network)
         self.total_steps = 0
  
-    def eval_episde(self):
+    def eval_episode(self):
+        config = self.config
         states, infos = config.eval_env.env.envs[0].last.get_teleportable_states(config.discount)
         states = tensor(states)
         infos = stack_dict(infos)
