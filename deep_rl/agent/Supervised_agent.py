@@ -21,7 +21,7 @@ class SupervisedBaseAgent:
             acc.append(self.eval_episode())
         mean_acc = np.mean(acc)
         self.config.logger.info('eval acc: {}'.format(mean_acc))
-        self.config.logger.add_scalar('eval_acc:', mean_acc, self.total_steps)
+        self.config.logger.add_scalar(tag='acc', value=mean_acc, step=self.total_steps)
         return mean_acc
 
     def eval_episode(self):
