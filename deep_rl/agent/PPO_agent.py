@@ -112,7 +112,7 @@ class PPOAgent(BaseAgent):
         self.total_steps += steps
         # log the abs_encoder
         if hasattr(self.network, 'abs_encoder'):
-            states, infos = config.eval_env.env.envs[0].last.get_teleportable_states()
+            states, infos = config.eval_env.env.envs[0].last.get_teleportable_states(config.discount)
             states = tensor(states)
             infos = stack_dict(infos)
             indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()

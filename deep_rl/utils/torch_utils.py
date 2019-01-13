@@ -92,7 +92,7 @@ class one_hot:
 
 ### optimizer ###
 class VanillaOptimizer:
-    def __init__(self, params, opt, grad_clip):
+    def __init__(self, params, opt, grad_clip=None):
         self.params = params
         self.opt = opt # params already passed in
         self.grad_clip = grad_clip
@@ -100,7 +100,8 @@ class VanillaOptimizer:
     def step(self, loss):
         self.opt.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm_(self.params, self.grad_clip)
+        if self.grad_clip:
+            nn.utils.clip_grad_norm_(self.params, self.grad_clip)
         self.opt.step()
 
 # update the first / second params using the first / second opt with freq_list[0/1] times before switching

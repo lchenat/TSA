@@ -16,7 +16,7 @@ import dill
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline'])
+    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised'])
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
@@ -31,7 +31,7 @@ def _command_line_parser():
     parser.add_argument('-d', action='store_true')
     return parser
 
-def get_optimizer_fn(args, config):
+def set_optimizer_fn(args, config):
     if len(args.lr) < 2: args.lr.append(args.lr[0])
     if args.opt == 'vanilla':
         config.optimizer_fn = \
@@ -64,16 +64,7 @@ def get_optimizer_fn(args, config):
     else:
         raise Exception('unsupported optimizer type')
 
-def ppo_pixel_tsa(args):
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-    config = Config()
-    config.abs_dim = 512
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
-    print('n_tasks:', config.eval_env.n_tasks)
-    config.num_workers = 8
+def set_network_fn(args, config):
     visual_body = TSAConvBody(3*env_config['window']) # TSAMiniConvBody()
     if args.net == 'vq':
         config.n_abs = args.n_abs
@@ -107,10 +98,22 @@ def ppo_pixel_tsa(args):
     critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
     config.network_fn = lambda: network
+
+def ppo_pixel_tsa(args):
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+    config = Config()
+    config.abs_dim = 512
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
+    config.num_workers = 8
+    set_network_fn(args, config)
     ### aux loss ###
     config.action_predictor = ActionPredictor(config.action_dim, visual_body)
     ##########
-    get_optimizer_fn(args, config)
+    set_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True
@@ -172,6 +175,37 @@ def ppo_pixel_baseline(args):
     config.logger.save_file(env_config, 'env_config')
     run_steps(PPOAgent(config))
 
+def supervised_tsa(args):
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+        n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
+    config = Config()
+    config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
+    if args.opt == 'vanilla':
+        config.optimizer_fn = lambda model: VanillaOptimizer(
+            model.parameters(),
+            torch.optim.RMSprop(model.parameters(), lr=0.00025, alpha=0.99, eps=1e-5), 
+            config.gradient_clip,
+        )
+    else:
+        raise Exception('unsupported optimizer type')
+    set_network_fn(args, config)
+    config.state_normalizer = ImageNormalizer()
+    config.log_interval = 128 * 8
+    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.save_interval = 0 # how many steps to save a model
+    if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.logger = get_logger(tag=config.log_name)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    config.logger.save_file(env_config, 'env_config')
+    run_supervised_steps(SupervisedAgent(config))
+
 if __name__ == '__main__':
     parser = _command_line_parser()
     args = parser.parse_args()
@@ -194,4 +228,6 @@ if __name__ == '__main__':
             ppo_pixel_tsa(args)
         elif args.agent == 'baseline':
             ppo_pixel_baseline(args)
+        elif args.agent == 'supervised':
+            supervised_tsa(args)
 

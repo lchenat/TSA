@@ -61,6 +61,9 @@ def collect_stats(agent):
         'max returns': np.max(rewards),
     }
    
+def run_supervised_steps(agent):
+    pass
+
 def run_steps(agent):
     config = agent.config
     agent_name = agent.__class__.__name__

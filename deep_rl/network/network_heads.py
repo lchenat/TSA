@@ -264,10 +264,14 @@ class EmbeddingActorNet(nn.Module, BaseNet):
         super().__init__()
         self.weight = nn.Parameter(weight_init(torch.randn(n_tasks, n_abs, action_dim), w_scale=1e-3))
 
-    def forward(self, cs, info, action=None):
+    def get_probs(self, cs, info):
         assert cs.dim() == 2, 'dimension of cs should be 2'
         weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
         probs = batch_linear(cs, weight=weights)
+        return probs       
+
+    def forward(self, cs, info, action=None):
+        probs = self.get_probs(cs, info)
         assert np.allclose(probs.detach().cpu().numpy().sum(1), np.ones(probs.size(0)))
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
@@ -321,9 +325,13 @@ class LinearActorNet(MultiLinear, BaseNet):
     def __init__(self, abs_dim, action_dim, n_tasks):
         super().__init__(abs_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 
-    def forward(self, xs, info, action=None):
+    def get_probs(self, xs, info):
         output = super().forward(xs, info)
         probs = nn.functional.softmax(output, dim=1)
+        return probs
+
+    def forward(self, xs, info, action=None):
+        probs = self.get_probs(xs, info)
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
@@ -339,10 +347,14 @@ class NonLinearActorNet(nn.Module, BaseNet):
         self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
         self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 
-    def forward(self, xs, info, action=None):
+    def get_probs(self, xs, info):
         output = F.relu(self.fc1(xs, info))
         output = self.fc2(output, info)
         probs = nn.functional.softmax(output, dim=1)
+        return probs
+
+    def forward(self, xs, info, action=None):
+        probs = self.get_probs(xs, info)
         dist = torch.distributions.Categorical(probs=probs)
         if action is None:
             action = dist.sample()
@@ -351,30 +363,6 @@ class NonLinearActorNet(nn.Module, BaseNet):
         return {'a': action,
                 'log_pi_a': log_prob,
                 'ent': entropy}
-
-# each task maintains a linear layer
-# input: abstract feature
-# output: action
-#class LinearActorNet(nn.Module, BaseNet):
-#    def __init__(self, abs_dim, action_dim, n_tasks):
-#        super().__init__()
-#        self.weights = nn.Parameter(weight_init(torch.randn(n_tasks, abs_dim, action_dim)))
-#        self.biases = nn.Parameter(torch.zeros(n_tasks, action_dim))
-#
-#    def forward(self, xs, info, action=None):
-#        weights = self.weights[tensor(info['task_id'], torch.int64),:,:]
-#        biases = self.biases[tensor(info['task_id'], torch.int64),:]
-#
-#        output = batch_linear(xs, weights, bias=biases)
-#        probs = F.softmax(output, dim=1)
-#        dist = torch.distributions.Categorical(probs=probs)
-#        if action is None:
-#            action = dist.sample()
-#        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-#        entropy = dist.entropy().unsqueeze(-1)
-#        return {'a': action,
-#                'log_pi_a': log_prob,
-#                'ent': entropy}
 
 class VQAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
@@ -480,6 +468,11 @@ class TSANet(nn.Module, BaseNet):
         self.critic_params = list(self.critic.parameters())
 
         self.to(Config.DEVICE)
+
+    def get_probs(self, obs, info):
+        obs = tensor(obs)
+        abs_s = self.abs_encoder(obs, info) # abstract state
+        return self.actor.get_probs(abs_s, info)
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
