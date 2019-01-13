@@ -23,14 +23,14 @@ except:
     from pathlib2 import Path
 
 def linspace(start, end, n, repeat_end=False):
-    assert n > 1
+    assert n > 1 
     cur = start
     for _ in range(n):
-        yield cur
+        yield cur 
         cur += (end - start) / (n - 1)
     if repeat_end:
         while True:
-            yield cur
+            yield cur 
 
 class with_null:
     def __enter__(self):
@@ -72,7 +72,23 @@ def collect_stats(agent):
     }
    
 def run_supervised_steps(agent):
-    pass
+    config = agent.config
+    t0 = time.time()
+    while True:
+        if config.log_interval and not agent.total_steps % config.log_interval and agent.total_steps:
+            config.logger.info('total steps {}, NLL: {}, {:.2f} steps/s'.format( 
+                agent.total_steps,
+                agent.loss,
+                config.log_interval / (time.time() - t0)))
+            t0 = time.time()
+            if config.save_interval and not agent.total_steps % (config.save_interval * config.log_interval):
+                agent.save('data/{}/step-{}-NLL-{}' % (config.log_name, agent.total_steps, agent.loss))
+        if config.eval_interval and not agent.total_steps % config.eval_interval:
+            agent.eval_episodes()
+        if config.max_steps and agent.total_steps >= config.max_steps:
+            agent.close()
+            break
+        agent.step()
 
 def run_steps(agent):
     config = agent.config
@@ -95,27 +111,6 @@ def run_steps(agent):
             agent.close()
             break
         agent.step()
-
-#def run_steps(agent):
-#    config = agent.config
-#    agent_name = agent.__class__.__name__
-#    t0 = time.time()
-#    while True:
-#        if config.save_interval and not agent.total_steps % config.save_interval:
-#            agent.save('data/model-%s-%s-%s.bin' % (agent_name, config.task_name, config.tag))
-#        if config.log_interval and not agent.total_steps % config.log_interval and len(agent.episode_rewards):
-#            rewards = agent.episode_rewards
-#            agent.episode_rewards = []
-#            config.logger.info('total steps %d, returns %.2f/%.2f/%.2f/%.2f (mean/median/min/max), %.2f steps/s' % (
-#                agent.total_steps, np.mean(rewards), np.median(rewards), np.min(rewards), np.max(rewards),
-#                config.log_interval / (time.time() - t0)))
-#            t0 = time.time()
-#        if config.eval_interval and not agent.total_steps % config.eval_interval:
-#            agent.eval_episodes()
-#        if config.max_steps and agent.total_steps >= config.max_steps:
-#            agent.close()
-#            break
-#        agent.step()
 
 def get_time_str():
     return datetime.datetime.now().strftime("%y%m%d-%H%M%S")

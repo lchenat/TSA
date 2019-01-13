@@ -79,7 +79,7 @@ def set_network_fn(args, config):
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
         if len(args.temperature) == 1:
-            args.temperature = linspace(args.temperature, args.temperature, 2, repeat_end=True)
+            args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
         elif len(args.temperature) == 3:
             args.temperature[2] = int(args.temperature[2])
             args.temperature = linspace(*args.temperature, repeat_end=True)
@@ -152,11 +152,12 @@ def ppo_pixel_tsa(args):
     run_steps(PPOAgent(config))
 
 def ppo_pixel_baseline(args):
+    config = Config()
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
         n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
-    config = Config()
+        config.env_config = env_config
     config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
@@ -191,11 +192,12 @@ def ppo_pixel_baseline(args):
     run_steps(PPOAgent(config))
 
 def supervised_tsa(args):
+    config = Config()
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
         n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
-    config = Config()
+        config.env_config = env_config
     config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
@@ -209,8 +211,9 @@ def supervised_tsa(args):
         raise Exception('unsupported optimizer type')
     set_network_fn(args, config)
     config.state_normalizer = ImageNormalizer()
-    config.log_interval = 128 * 8
-    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.discount = 0.99
+    config.log_interval = 1
+    config.max_steps = 10 if args.d else int(10000)
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
