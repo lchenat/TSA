@@ -65,7 +65,7 @@ def set_optimizer_fn(args, config):
         raise Exception('unsupported optimizer type')
 
 def set_network_fn(args, config):
-    visual_body = TSAConvBody(3*env_config['window']) # TSAMiniConvBody()
+    visual_body = TSAConvBody(3*config.env_config['window']) # TSAMiniConvBody()
     if args.net == 'vq':
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
@@ -98,21 +98,22 @@ def set_network_fn(args, config):
     critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
     config.network_fn = lambda: network
+    ### aux loss ###
+    config.action_predictor = ActionPredictor(config.action_dim, visual_body)
+    ##########
 
 def ppo_pixel_tsa(args):
+    config = Config()
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
-    config = Config()
+        config.env_config = env_config
     config.abs_dim = 512
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     set_network_fn(args, config)
-    ### aux loss ###
-    config.action_predictor = ActionPredictor(config.action_dim, visual_body)
-    ##########
     set_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
