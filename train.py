@@ -215,6 +215,7 @@ def supervised_tsa(args):
     config.log_interval = 1
     config.max_steps = 10 if args.d else int(10000)
     config.save_interval = 0 # how many steps to save a model
+    config.eval_interval = 100
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{

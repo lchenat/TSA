@@ -19,7 +19,9 @@ class SupervisedBaseAgent:
         acc = []
         for _ in range(self.config.eval_episodes):
             acc.append(self.eval_episode())
-        return np.mean(acc)
+        mean_acc = np.mean(acc)
+        self.config.logger.info('eval acc: {}'.format(mean_acc))
+        return mean_acc
 
     def eval_episode(self):
         raise NotImplementedError
@@ -54,5 +56,9 @@ class SupervisedAgent(SupervisedBaseAgent):
         # log before update
         self.loss = loss.detach().cpu().numpy()
         config.logger.add_scalar(tag='NLL', value=loss, step=self.total_steps)
+        if hasattr(self.network, 'abs_encoder'):
+            indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
+            abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
+            config.logger.add_file('abs_map', abs_map, step=self.total_steps)
         self.opt.step(loss)
         self.total_steps += 1
