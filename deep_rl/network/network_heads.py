@@ -180,6 +180,14 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body)
         self.to(Config.DEVICE)
 
+    def get_probs(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
+        phi_v = self.network.critic_body(phi)
+        logits = self.network.fc_action(phi_a, info)
+        return nn.functional.softmax(logits, dim=1)
+
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
