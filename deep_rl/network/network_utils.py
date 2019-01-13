@@ -21,6 +21,11 @@ class BaseNet:
                 tot_loss += child.loss()
         return tot_loss
 
+    def step(self):
+        for child in self.children():
+            if hasattr(child, 'step'):
+                child.step()
+
 class MultiLinear(nn.Module):
     def __init__(self, input_dim, output_dim, n_heads, key, w_scale=1.0):
         super().__init__()

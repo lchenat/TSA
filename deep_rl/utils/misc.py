@@ -22,6 +22,16 @@ except:
     # python == 2.7
     from pathlib2 import Path
 
+def linspace(start, end, n, repeat_end=False):
+    assert n > 1
+    cur = start
+    for _ in range(n):
+        yield cur
+        cur += (end - start) / (n - 1)
+    if repeat_end:
+        while True:
+            yield cur
+
 class with_null:
     def __enter__(self):
         return None

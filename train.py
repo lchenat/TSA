@@ -26,8 +26,8 @@ def _command_line_parser():
     parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('--window', type=int, default=1)
-    parser.add_argument('--temperature', type=float, default=1.0)
     parser.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
+    parser.add_argument('--temperature', type=float, nargs='+', default=[1.0])
     parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     parser.add_argument('-d', action='store_true')
     return parser
@@ -78,6 +78,13 @@ def set_network_fn(args, config):
     elif args.net == 'prob':
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+        if len(args.temperature) == 1:
+            args.temperature = linspace(args.temperature, args.temperature, 2, repeat_end=True)
+        elif len(args.temperature) == 3:
+            args.temperature[2] = int(args.temperature[2])
+            args.temperature = linspace(*args.temperature, repeat_end=True)
+        else:
+            raise Exception('this length is not gonna work')
         abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
         actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'pos':

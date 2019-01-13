@@ -211,19 +211,21 @@ class AbstractEncoder(ABC):
 ### a simple baseline ###
 # a network that output probability
 class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
-    def __init__(self, n_abs, body, temperature=1.0, abstract_type='prob'):
+    def __init__(self, n_abs, body, temperature, abstract_type='prob'):
         super().__init__(n_abs, body)
         self.abstract_type = abstract_type
         self.temperature = temperature
         self.loss_weight = 0.0
         self.feature_dim = n_abs # output_dim
+        self.temperature = temperature
+        self.cur_t = next(temperature)
 
     def get_indices(self, inputs, info):
         y = super().forward(inputs)
         return torch.argmax(y, dim=1)
 
     def forward(self, inputs, info):
-        y = super().forward(inputs) / self.temperature
+        y = super().forward(inputs) / self.cur_t
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean()
         return nn.functional.softmax(y, dim=1)
 
@@ -232,6 +234,10 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
             logits = self.forward(inputs, info)
         dist = torch.distributions.Categorical(logits=logits)
         return dist.entropy()
+
+    def step(self):
+        self.cur_t = next(self.temperature)
+        BaseNet.step(self)
 
 class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
     def __init__(self, n_abs, body, abstract_type='sample'):
