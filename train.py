@@ -204,8 +204,8 @@ def supervised_tsa(args):
     if args.opt == 'vanilla':
         config.optimizer_fn = lambda model: VanillaOptimizer(
             model.parameters(),
-            #torch.optim.RMSprop(model.parameters(), lr=args.lr, alpha=0.99, eps=1e-5), 
-            torch.optim.Adam(model.parameters(), lr=args.lr),
+            #torch.optim.RMSprop(model.parameters(), lr=args.lr[0], alpha=0.99, eps=1e-5), 
+            torch.optim.Adam(model.parameters(), lr=args.lr[0]),
             config.gradient_clip,
         )
     else:
