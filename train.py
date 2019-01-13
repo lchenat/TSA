@@ -210,7 +210,8 @@ def supervised_tsa(args):
         )
     else:
         raise Exception('unsupported optimizer type')
-    set_network_fn(args, config)
+    #set_network_fn(args, config)
+    config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window'])) # debug
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.log_interval = 1
