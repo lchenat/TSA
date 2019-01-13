@@ -27,6 +27,7 @@ def _command_line_parser():
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('--window', type=int, default=1)
     parser.add_argument('--temperature', type=float, default=1.0)
+    parser.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
     parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     parser.add_argument('-d', action='store_true')
     return parser
@@ -70,7 +71,10 @@ def set_network_fn(args, config):
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
         abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
-        actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        if args.actor == 'nonlinear':
+            actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        else:
+            actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'prob':
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
@@ -90,7 +94,10 @@ def set_network_fn(args, config):
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
         abs_encoder = KVAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
-        actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        if args.actor == 'nonlinear':
+            actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        else:
+            actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
     if args.critic == 'visual':
         critic_body = visual_body
     elif args.critic == 'abs':
