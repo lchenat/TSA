@@ -66,6 +66,7 @@ def set_optimizer_fn(args, config):
         raise Exception('unsupported optimizer type')
 
 def set_network_fn(args, config):
+    config.abs_dim = 512
     visual_body = TSAConvBody(3*config.env_config['window']) # TSAMiniConvBody()
     if args.net == 'vq':
         config.n_abs = args.n_abs
@@ -122,7 +123,6 @@ def ppo_pixel_tsa(args):
         env_config = dill.load(f)
         env_config['window'] = args.window
         config.env_config = env_config
-    config.abs_dim = 512
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
@@ -210,8 +210,8 @@ def supervised_tsa(args):
         )
     else:
         raise Exception('unsupported optimizer type')
-    #set_network_fn(args, config)
-    config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window'])) # debug
+    set_network_fn(args, config)
+    #config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window'])) # debug
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.log_interval = 1

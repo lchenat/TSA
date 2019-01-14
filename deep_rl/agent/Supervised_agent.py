@@ -54,13 +54,16 @@ class SupervisedAgent(SupervisedBaseAgent):
         infos = stack_dict(infos)
         probs = self.network.get_probs(states, infos)
         labels = one_hot.encode(tensor(infos['opt_a'], dtype=torch.long), config.action_dim)
-        loss = (-torch.log(probs) * labels).sum(dim=1).mean()
+        loss_dict = dict()
+        loss_dict['NLL'] = (-torch.log(probs) * labels).sum(dim=1).mean()
+        loss_dict['network'] = self.network.loss()
         # log before update
-        self.loss = loss.detach().cpu().numpy()
-        config.logger.add_scalar(tag='NLL', value=loss, step=self.total_steps)
+        self.loss = loss_dict['NLL'].detach().cpu().numpy()
+        for k, v in loss_dict.items():
+            config.logger.add_scalar(tag=k, value=v, step=self.total_steps)
         if hasattr(self.network, 'abs_encoder'):
             indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
             abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
             config.logger.add_file('abs_map', abs_map, step=self.total_steps)
-        self.opt.step(loss)
+        self.opt.step(sum(loss_dict.values(), 0.0))
         self.total_steps += 1
