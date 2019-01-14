@@ -44,14 +44,14 @@ class SupervisedAgent(SupervisedBaseAgent):
         states = tensor(states)
         infos = stack_dict(infos)
         if config.label == 'action':
-            probs = self.network.get_probs(states, infos)
+            logprobs = self.network.get_logprobs(states, infos)
             labels = tensor(infos['opt_a'], dtype=torch.long)
-        elif config.label == 'abs':
-            probs = self.network.abs_encoder(states, infos)
-            labels = self.abs_network(states, infos)          
+        elif config.label == 'abs': # this does not fit logprob yet, and only works for prob
+            logprobs = self.network.abs_encoder(states, infos)
+            labels = self.abs_network(states, infos).argmax(dim=1)
         else:
             raise Exception('unsupported label')
-        pred_labels = probs.argmax(dim=1)
+        pred_labels = logprobs.argmax(dim=1)
         return (pred_labels == labels).float().mean() 
 
     def step(self):
@@ -60,16 +60,17 @@ class SupervisedAgent(SupervisedBaseAgent):
         states = tensor(states)
         infos = stack_dict(infos)
         if config.label == 'action':
-            probs = self.network.get_probs(states, infos)
+            logprobs = self.network.get_logprobs(states, infos)
             labels = one_hot.encode(tensor(infos['opt_a'], dtype=torch.long), config.action_dim)
-        elif config.label == 'abs':
-            probs = self.network.abs_encoder(states, infos)
+        elif config.label == 'abs': # only work for prob encoder
+            logprobs = self.network.abs_encoder(states, infos)
             labels = self.abs_network(states, infos)
         else:
             raise Exception('unsupported label')
         loss_dict = dict()
-        loss_dict['NLL'] = (-torch.log(probs) * labels).sum(dim=1).mean()
+        loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
         loss_dict['network'] = self.network.loss()
+        for loss in loss_dict.values(): assert loss == loss, 'NaN detected'
         # log before update
         self.loss = loss_dict['NLL'].detach().cpu().numpy()
         for k, v in loss_dict.items():

@@ -30,19 +30,26 @@ def _command_line_parser():
     parser.add_argument('--temperature', type=float, nargs='+', default=[1.0])
     parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     parser.add_argument('--label', choices=['action', 'abs'], default='action')
+    parser.add_argument('--weight', type=str, default=None)
+    parser.add_argument('--fix_abs', action='store_true')
     parser.add_argument('-d', action='store_true')
     return parser
 
 def set_optimizer_fn(args, config):
     if len(args.lr) < 2: args.lr.append(args.lr[0])
     if args.opt == 'vanilla':
-        config.optimizer_fn = \
-            lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(model.parameters(), lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
+        def optimizer_fn(model):
+            params = filter(lambda p: p.requires_grad, model.parameters())
+            return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
+        config.optimizer_fn = optimizer_fn
     elif args.opt == 'alt':
         def optimizer_fn(model):
             abs_params = list(model.abs_encoder.parameters())
             abs_ids = set(id(param) for param in abs_params)
             actor_params = list(model.actor.parameters()) + [param for param in model.critic.parameters() if id(param) not in abs_ids]
+            # filter
+            abs_params = filter(lambda p: p.requires_grad, abs_params)
+            actor_params = filter(lambda p: p.requires_grad, actor_params)
             abs_opt = torch.optim.RMSprop(abs_params, lr=args.lr[0], alpha=0.99, eps=1e-5)
             actor_opt = torch.optim.RMSprop(actor_params, lr=args.lr[1], alpha=0.99, eps=1e-5)
             return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], args.opt_gap, config.gradient_clip)
@@ -52,6 +59,8 @@ def set_optimizer_fn(args, config):
             abs_params = list(model.abs_encoder.parameters())
             abs_ids = set(id(param) for param in abs_params)
             actor_params = list(model.actor.parameters()) + [param for param in model.critic.parameters() if id(param) not in abs_ids]
+            abs_params = filter(lambda p: p.requires_grad, abs_params)
+            actor_params = filter(lambda p: p.requires_grad, actor_params)
             return VanillaOptimizer(model.parameters(), 
                 torch.optim.RMSprop(
                     [{'params': abs_params, 'lr': args.lr[0]}, 
@@ -117,6 +126,14 @@ def set_network_fn(args, config):
     ### aux loss ###
     config.action_predictor = ActionPredictor(config.action_dim, visual_body)
     ##########
+    if args.weight is not None:
+        weight_dict = torch.load(args.weight, map_location=lambda storage, loc: storage)
+        network.load_state_dict(weight_dict['network'])
+        if 'action_predictor' in weight_dict:
+            config.action_predictor.load_state_dict(weight_dict['action_predictor'])
+    if args.fix_abs:
+        for p in network.abs_encoder.parameters():
+            p.requires_grad = False
 
 def ppo_pixel_tsa(args):
     config = Config()
@@ -199,7 +216,6 @@ def supervised_tsa(args):
         env_config['window'] = args.window
         n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
         config.env_config = env_config
-    config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     if args.opt == 'vanilla':
@@ -217,16 +233,18 @@ def supervised_tsa(args):
         with open(args.abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
             n_abs = len(set(abs_dict[0].values())) # only have 1 map!
-        config.n_abs = n_abs
+            print(abs_dict)
+        args.n_abs = n_abs # important!
         config.abs_network_fn = lambda: PosAbstractEncoder(n_abs, abs_dict)
     set_network_fn(args, config)
     #config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window'])) # debug
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.log_interval = 1
-    config.max_steps = 120 if args.d else int(10000)
-    config.save_interval = 0 # how many steps to save a model
+    config.max_steps = 10000 if args.d else int(10000)
+    config.save_interval = 1 # how many steps to save a model
     config.eval_interval = 100
+    config.log_name += '-label-{}'.format(args.label)
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{

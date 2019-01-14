@@ -180,13 +180,13 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body)
         self.to(Config.DEVICE)
 
-    def get_probs(self, obs, info):
+    def get_logprobs(self, obs, info):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
         phi_a = self.network.actor_body(phi) # maybe need info here, but not now
         phi_v = self.network.critic_body(phi)
         logits = self.network.fc_action(phi_a, info)
-        return nn.functional.softmax(logits, dim=1)
+        return F.log_softmax(logits, dim=1)
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
@@ -234,8 +234,10 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
 
     def forward(self, inputs, info):
         y = super().forward(inputs) / self.cur_t
-        self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean()
-        return nn.functional.softmax(y, dim=1)
+        assert (y == y).all(), 'NaN detected'
+        self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean() if self.loss_weight else 0.0
+        assert self._loss == self._loss, 'NaN detected'
+        return F.log_softmax(y, dim=1)
 
     def entropy(self, inputs, info, logits=None):
         if logits is None:
@@ -278,16 +280,20 @@ class EmbeddingActorNet(nn.Module, BaseNet):
         super().__init__()
         self.weight = nn.Parameter(weight_init(torch.randn(n_tasks, n_abs, action_dim), w_scale=1e-3))
 
-    def get_probs(self, cs, info):
+    def get_logprobs(self, cs, info):
         assert cs.dim() == 2, 'dimension of cs should be 2'
-        weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
-        probs = batch_linear(cs, weight=weights)
+        #weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
+        #probs = batch_linear(cs, weight=weights)
+        
+        weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
+        probs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1) # debug
+        assert (probs == probs).all(), 'NaN detected'
+
         return probs       
 
     def forward(self, cs, info, action=None):
-        probs = self.get_probs(cs, info)
-        assert np.allclose(probs.detach().cpu().numpy().sum(1), np.ones(probs.size(0)))
-        dist = torch.distributions.Categorical(probs=probs)
+        logprobs = self.get_logprobs(cs, info)
+        dist = torch.distributions.Categorical(logits=logprobs)
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
@@ -339,14 +345,14 @@ class LinearActorNet(MultiLinear, BaseNet):
     def __init__(self, abs_dim, action_dim, n_tasks):
         super().__init__(abs_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 
-    def get_probs(self, xs, info):
+    def get_logprobs(self, xs, info):
         output = super().forward(xs, info)
-        probs = nn.functional.softmax(output, dim=1)
+        probs = nn.functional.log_softmax(output, dim=1)
         return probs
 
     def forward(self, xs, info, action=None):
-        probs = self.get_probs(xs, info)
-        dist = torch.distributions.Categorical(probs=probs)
+        logprobs = self.get_logprobs(xs, info)
+        dist = torch.distributions.Categorical(logits=logprobs)
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
@@ -361,15 +367,15 @@ class NonLinearActorNet(nn.Module, BaseNet):
         self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
         self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 
-    def get_probs(self, xs, info):
+    def get_logprobs(self, xs, info):
         output = F.relu(self.fc1(xs, info))
         output = self.fc2(output, info)
-        probs = nn.functional.softmax(output, dim=1)
+        probs = nn.functional.log_softmax(output, dim=1)
         return probs
 
     def forward(self, xs, info, action=None):
-        probs = self.get_probs(xs, info)
-        dist = torch.distributions.Categorical(probs=probs)
+        logprobs = self.get_logprobs(xs, info)
+        dist = torch.distributions.Categorical(logits=logprobs)
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
@@ -432,22 +438,22 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
         self.feature_dim = embed_dim
         self.denominator = np.sqrt(body.feature_dim)
     
-    def entropy(self, inputs, info, probs=None):
-        if probs is None:
-            probs = self.get_probs(inputs, info)
-        dist = torch.distributions.Categorical(probs=probs)
+    def entropy(self, inputs, info, logits=None):
+        if logits is None:
+            logits = self.get_logprobs(inputs, info)
+        dist = torch.distributions.Categorical(logits=logits)
         return dist.entropy()
 
-    def get_probs(self, inputs, info):
-        return F.softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
+    def get_logprobs(self, inputs, info):
+        return F.log_softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
 
     def get_indices(self, inputs, info):
-        return self.get_probs(inputs, info).argmax(dim=1)
+        return self.get_logprobs(inputs, info).argmax(dim=1)
 
     def forward(self, inputs, info):
-        probs = self.get_probs(inputs, info)
-        self._loss = self.loss_weight * self.entropy(inputs, info, probs=probs).mean()
-        return self.value(probs)
+        logprobs = self.get_logprobs(inputs, info)
+        self._loss = self.loss_weight * self.entropy(inputs, info, logits=logprobs).mean()
+        return self.value(F.softmax(logprobs, dim=1))
 
 # input: abstract dictionary
 class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
@@ -483,10 +489,10 @@ class TSANet(nn.Module, BaseNet):
 
         self.to(Config.DEVICE)
 
-    def get_probs(self, obs, info):
+    def get_logprobs(self, obs, info):
         obs = tensor(obs)
         abs_s = self.abs_encoder(obs, info) # abstract state
-        return self.actor.get_probs(abs_s, info)
+        return self.actor.get_logprobs(abs_s, info)
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)

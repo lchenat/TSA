@@ -73,6 +73,8 @@ def collect_stats(agent):
    
 def run_supervised_steps(agent):
     config = agent.config
+    save_dir = Path('data', 'models', config.log_name)
+    mkdir(save_dir)
     t0 = time.time()
     while True:
         if config.log_interval and not agent.total_steps % config.log_interval and agent.total_steps:
@@ -81,10 +83,14 @@ def run_supervised_steps(agent):
                 agent.loss,
                 config.log_interval / (time.time() - t0)))
             t0 = time.time()
-            if config.save_interval and not agent.total_steps % (config.save_interval * config.log_interval):
-                agent.save('data/{}/step-{}-NLL-{}' % (config.log_name, agent.total_steps, agent.loss))
         if config.eval_interval and not agent.total_steps % config.eval_interval:
-            agent.eval_episodes()
+            acc = agent.eval_episodes()
+            if config.save_interval * config.eval_interval and not agent.total_steps % (config.save_interval * config.eval_interval):
+                weight_dict = dict(
+                    network=agent.network.state_dict(),
+                    action_predictor=config.action_predictor.state_dict(),
+                )
+                torch.save(weight_dict, Path(save_dir, 'step-{}-acc-{:.2f}'.format(agent.total_steps, acc)))
         if config.max_steps and agent.total_steps >= config.max_steps:
             agent.close()
             break
@@ -103,10 +109,14 @@ def run_steps(agent):
                 config.log_interval / (time.time() - t0)))
             config.logger.add_scalar('mean-returns', stats['mean returns'], stats['steps'])
             t0 = time.time()
-            if config.save_interval and not agent.total_steps % (config.save_interval * config.log_interval):
-                agent.save('data/{}/step-{}-mean-{}' % (config.log_name, stats['steps'], stats['mean returns']))
         if config.eval_interval and not agent.total_steps % config.eval_interval:
             agent.eval_episodes()
+            weight_dict = dict(
+                network=agent.network.state_dict(),
+                action_predictor=config.action_predictor,
+            )
+            if config.save_interval * config.eval_interval and not agent.total_steps % (config.save_interval * config.eval_interval):
+                torch.save(weight_dict, Path(save_dir, 'step-{}-mean-{:.2f}'.format(stats['steps'], stats['mean returns'])))
         if config.max_steps and agent.total_steps >= config.max_steps:
             agent.close()
             break
