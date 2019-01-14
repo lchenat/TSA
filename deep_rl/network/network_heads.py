@@ -216,6 +216,20 @@ class AbstractEncoder(ABC):
     def forward(self, inputs, info):
         pass
 
+class IdentityActor(nn.Module, BaseNet): # only works for single environment!
+    def get_logprobs(self, x, info):
+        return F.log_softmax(x, dim=1)
+
+    def forward(self, x, info, action=None):
+        dist = torch.distributions.Categorical(logits=x)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
 ### a simple baseline ###
 # a network that output probability
 class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
@@ -286,7 +300,6 @@ class EmbeddingActorNet(nn.Module, BaseNet):
         
         weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
         probs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1) # debug
-        assert (probs == probs).all(), 'NaN detected'
 
         return probs       
 

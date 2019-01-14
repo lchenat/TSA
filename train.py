@@ -17,7 +17,7 @@ import dill
 def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised'])
-    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv'])
+    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
@@ -116,6 +116,18 @@ def set_network_fn(args, config):
             actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
         else:
             actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+    elif args.net == 'id':
+        if len(args.temperature) == 1:
+            args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
+        elif len(args.temperature) == 3:
+            args.temperature[2] = int(args.temperature[2])
+            args.temperature = linspace(*args.temperature, repeat_end=True)
+        else:
+            raise Exception('this length is not gonna work')
+        config.n_abs = config.action_dim
+        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+        abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
+        actor = IdentityActor()
     if args.critic == 'visual':
         critic_body = visual_body
     elif args.critic == 'abs':
