@@ -77,7 +77,8 @@ def set_optimizer_fn(args, config):
 
 def set_network_fn(args, config):
     config.abs_dim = 512
-    visual_body = TSAConvBody(3*config.env_config['window']) # TSAMiniConvBody()
+    visual_body = TSAMiniConvBody(3*config.env_config['window'])
+    #visual_body = TSAConvBody(3*config.env_config['window']) 
     if args.net == 'vq':
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)

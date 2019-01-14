@@ -22,11 +22,11 @@ class TSAConvBody(nn.Module):
         self.conv4_2 = layer_init(nn.Conv2d(128, 128,         kernel_size=3, padding=1)) # 2->2
         self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
 
-    def forward(self, x):
-        y = F.relu(self.conv1_2(self.conv1_1(x)))
-        y = F.relu(self.conv2_2(self.conv2_1(y)))
-        y = F.relu(self.conv3_2(self.conv3_1(y)))
-        y = F.relu(self.conv4_2(self.conv4_1(y)))
+    def forward(self, x): # you must add relu between every ConvNet!
+        y = F.relu(self.conv1_2(F.relu(self.conv1_1(x))))
+        y = F.relu(self.conv2_2(F.relu(self.conv2_1(y))))
+        y = F.relu(self.conv3_2(F.relu(self.conv3_1(y))))
+        y = F.relu(self.conv4_2(F.relu(self.conv4_1(y))))
         y = y.view(y.size(0), -1)
         y = F.relu(self.fc(y))
         return y
