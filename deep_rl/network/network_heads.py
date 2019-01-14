@@ -234,9 +234,7 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
 
     def forward(self, inputs, info):
         y = super().forward(inputs) / self.cur_t
-        assert (y == y).all(), 'NaN detected'
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean() if self.loss_weight else 0.0
-        assert self._loss == self._loss, 'NaN detected'
         return F.log_softmax(y, dim=1)
 
     def entropy(self, inputs, info, logits=None):
@@ -249,6 +247,7 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         self.cur_t = next(self.temperature)
         BaseNet.step(self)
 
+# haven't finished
 class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
     def __init__(self, n_abs, body, abstract_type='sample'):
         super().__init__(n_abs, body)
