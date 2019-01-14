@@ -29,6 +29,7 @@ def _command_line_parser():
     parser.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
     parser.add_argument('--temperature', type=float, nargs='+', default=[1.0])
     parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
+    parser.add_argument('--label', choices=['action', 'abs'], default='action')
     parser.add_argument('-d', action='store_true')
     return parser
 
@@ -210,6 +211,14 @@ def supervised_tsa(args):
         )
     else:
         raise Exception('unsupported optimizer type')
+    config.label = args.label
+    if args.label == 'abs': # for prob only
+        assert args.abs_fn is not None, 'need args.abs_fn'
+        with open(args.abs_fn, 'rb') as f:
+            abs_dict = dill.load(f)
+            n_abs = len(set(abs_dict[0].values())) # only have 1 map!
+        config.n_abs = n_abs
+        config.abs_network_fn = lambda: PosAbstractEncoder(n_abs, abs_dict)
     set_network_fn(args, config)
     #config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window'])) # debug
     config.state_normalizer = ImageNormalizer()

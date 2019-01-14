@@ -33,6 +33,8 @@ class SupervisedAgent(SupervisedBaseAgent):
         self.config = config
         self.task = config.task_fn()
         self.network = config.network_fn()
+        if config.label == 'abs':
+            self.abs_network = config.abs_network_fn()
         self.opt = config.optimizer_fn(self.network)
         self.total_steps = 0
  
@@ -41,19 +43,30 @@ class SupervisedAgent(SupervisedBaseAgent):
         states, infos = config.eval_env.env.envs[0].last.get_teleportable_states(config.discount)
         states = tensor(states)
         infos = stack_dict(infos)
-        probs = self.network.get_probs(states, infos)
+        if config.label == 'action':
+            probs = self.network.get_probs(states, infos)
+            labels = tensor(infos['opt_a'], dtype=torch.long)
+        elif config.label == 'abs':
+            probs = self.network.abs_encoder(states, infos)
+            labels = self.abs_network(states, infos)          
+        else:
+            raise Exception('unsupported label')
         pred_labels = probs.argmax(dim=1)
-        labels = tensor(infos['opt_a'], dtype=torch.long)
-        return (pred_labels == labels).float().mean()
-       
+        return (pred_labels == labels).float().mean() 
 
     def step(self):
         config = self.config
         states, infos = config.eval_env.env.envs[0].last.get_teleportable_states(config.discount)
         states = tensor(states)
         infos = stack_dict(infos)
-        probs = self.network.get_probs(states, infos)
-        labels = one_hot.encode(tensor(infos['opt_a'], dtype=torch.long), config.action_dim)
+        if config.label == 'action':
+            probs = self.network.get_probs(states, infos)
+            labels = one_hot.encode(tensor(infos['opt_a'], dtype=torch.long), config.action_dim)
+        elif config.label == 'abs':
+            probs = self.network.abs_encoder(states, infos)
+            labels = self.abs_network(states, infos)
+        else:
+            raise Exception('unsupported label')
         loss_dict = dict()
         loss_dict['NLL'] = (-torch.log(probs) * labels).sum(dim=1).mean()
         loss_dict['network'] = self.network.loss()
