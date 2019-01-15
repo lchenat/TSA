@@ -296,7 +296,6 @@ class EmbeddingActorNet(nn.Module, BaseNet):
     def get_logprobs(self, cs, info):
         assert cs.dim() == 2, 'dimension of cs should be 2'
         #weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
-        #probs = batch_linear(cs, weight=weights)
         
         weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
         probs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1) # debug
