@@ -297,9 +297,10 @@ class EmbeddingActorNet(nn.Module, BaseNet):
         assert cs.dim() == 2, 'dimension of cs should be 2'
         weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
         #weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
-        probs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1) # debug
+        #logprobs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1) # debug
+        logprobs = torch.log(batch_linear(torch.exp(cs), weights))
 
-        return probs       
+        return logprobs       
 
     def forward(self, cs, info, action=None):
         logprobs = self.get_logprobs(cs, info)
