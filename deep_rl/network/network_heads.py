@@ -298,7 +298,7 @@ class EmbeddingActorNet(nn.Module, BaseNet):
         weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
         #weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
         #logprobs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1) # debug
-        logprobs = torch.log(batch_linear(torch.exp(cs), weights))
+        logprobs = F.log_softmax(batch_linear(F.softmax(cs), weights), dim=1)
 
         return logprobs       
 
@@ -442,7 +442,7 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_embed, embed_dim, body, abstract_type='prob'):
         super().__init__()
         self.body = body
-        self.key = nn.Linear(body.feature_dim, n_embed, bias=False)
+        self.key = nn.Linear(body.feature_dim, n_embed, bias=False),
         self.value = nn.Linear(n_embed, embed_dim, bias=False)
         self.abstract_type = abstract_type
         self.loss_weight = 0.0
@@ -458,13 +458,16 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def get_logprobs(self, inputs, info):
         return F.log_softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
 
+    def get_probs(self, inputs, info):
+        return F.softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
+
     def get_indices(self, inputs, info):
         return self.get_logprobs(inputs, info).argmax(dim=1)
 
     def forward(self, inputs, info):
         logprobs = self.get_logprobs(inputs, info)
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=logprobs).mean()
-        return self.value(F.softmax(logprobs, dim=1))
+        return self.value(self.get_probs(inputs, info))
 
 # input: abstract dictionary
 class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
