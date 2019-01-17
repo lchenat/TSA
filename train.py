@@ -109,7 +109,8 @@ def set_network_fn(args, config):
         config.log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
         print(abs_dict)
         abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
-        actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+        #actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+        actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'kv': # key-value
         config.n_abs = args.n_abs
         config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
