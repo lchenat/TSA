@@ -100,3 +100,4 @@ tf_log
 data/models
 
 *.swp
+old_tf_log
