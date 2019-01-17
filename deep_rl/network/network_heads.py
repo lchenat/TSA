@@ -236,18 +236,17 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
     def __init__(self, n_abs, body, temperature, abstract_type='prob'):
         super().__init__(n_abs, body)
         self.abstract_type = abstract_type
-        self.temperature = temperature
         self.loss_weight = 0.0
         self.feature_dim = n_abs # output_dim
         self.temperature = temperature
-        self.cur_t = next(temperature)
+        next(temperature)
 
     def get_indices(self, inputs, info):
         y = super().forward(inputs)
         return torch.argmax(y, dim=1)
 
     def forward(self, inputs, info):
-        y = super().forward(inputs) / self.cur_t
+        y = super().forward(inputs) / self.temperature.cur
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean() if self.loss_weight else 0.0
         return F.log_softmax(y, dim=1)
 
@@ -258,34 +257,33 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         return dist.entropy()
 
     def step(self):
-        self.cur_t = next(self.temperature)
+        next(self.temperature)
         BaseNet.step(self)
 
-# haven't finished
+# gumbel softmax sampling
 class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
-    def __init__(self, n_abs, body, abstract_type='sample'):
+    def __init__(self, n_abs, body, temperature, base=10, abstract_type='sample'):
+        assert n_abs % base == 0
         super().__init__(n_abs, body)
         self.abstract_type = abstract_type
-        self.loss_weight = 0.001
-        self.feature_dim = n_abs # output_dim
+        self.feature_dim = n_abs
+        self.temperature = temperature
+        next(temperature)
+        self.base = base
 
     def get_indices(self, inputs, info):
-        y = super().forward(inputs)
-        return torch.argmax(y, dim=1)
+        raise NotImplementedError
+        #y = super().forward(inputs)
+        #return torch.argmax(y, dim=1)
 
     def forward(self, inputs, info):
-        y = super().forward(inputs)
-        self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean()
-        dist = torch.distributions.Categorical(logits=y)
+        y = super().forward(inputs).view(inputs.size(0), -1, self.base)
+        out = gumbel_softmax.hard_sample(y, self.temperature.cur)
+        return out.view(y.size(0), -1)
 
-        return nn.functional.softmax(y, dim=1)
-
-    def entropy(self, inputs, info, logits=None):
-        if logits is None:
-            logits = self.forward(inputs, info)
-        dist = torch.distributions.Categorical(logits=logits)
-        return dist.entropy()
-
+    def step(self):
+        next(self.temperature)
+        BaseNet.step(self)
 
 # maintain embeddings for abstract state
 class EmbeddingActorNet(nn.Module, BaseNet):
@@ -297,7 +295,7 @@ class EmbeddingActorNet(nn.Module, BaseNet):
         assert cs.dim() == 2, 'dimension of cs should be 2'
         weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
         #weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
-        #logprobs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1) # debug
+        #logprobs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1)
         logprobs = F.log_softmax(batch_linear(F.softmax(cs), weights), dim=1)
 
         return logprobs       
@@ -442,8 +440,10 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_embed, embed_dim, body, abstract_type='prob'):
         super().__init__()
         self.body = body
-        self.key = nn.Linear(body.feature_dim, n_embed, bias=False),
-        self.value = nn.Linear(n_embed, embed_dim, bias=False)
+        #self.key = nn.Linear(body.feature_dim, n_embed, bias=False),
+        self.key = nn.Linear(body.feature_dim, embed_dim)
+        #self.value = nn.Linear(n_embed, embed_dim, bias=False)
+        self.value = nn.Parameter(weight_init(torch.randn(n_embed, embed_dim)))
         self.abstract_type = abstract_type
         self.loss_weight = 0.0
         self.feature_dim = embed_dim
@@ -456,10 +456,14 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
         return dist.entropy()
 
     def get_logprobs(self, inputs, info):
-        return F.log_softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
+        key = self.key(self.body(inputs))
+        return F.softmax(torch.matmul(F.normalize(key, dim=1), F.normalize(self.value, dim=1).t()), dim=1) 
+        #return F.log_softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
 
     def get_probs(self, inputs, info):
-        return F.softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
+        key = self.key(self.body(inputs))
+        return F.softmax(torch.matmul(F.normalize(key, dim=1), F.normalize(self.value, dim=1).t()), dim=1) 
+        #return F.softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
 
     def get_indices(self, inputs, info):
         return self.get_logprobs(inputs, info).argmax(dim=1)
@@ -467,7 +471,7 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def forward(self, inputs, info):
         logprobs = self.get_logprobs(inputs, info)
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=logprobs).mean()
-        return self.value(self.get_probs(inputs, info))
+        return torch.matmul(self.get_probs(inputs, info), self.value)
 
 # input: abstract dictionary
 class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):

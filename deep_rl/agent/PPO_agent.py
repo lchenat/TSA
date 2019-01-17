@@ -111,7 +111,7 @@ class PPOAgent(BaseAgent):
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         # log the abs_encoder
-        if hasattr(self.network, 'abs_encoder'):
+        if hasattr(self.network, 'abs_encoder') and self.network.abs_encoder.abstract_type != 'sample': # temp forbided for sample
             states, infos = config.eval_env.env.envs[0].last.get_teleportable_states(config.discount)
             states = tensor(states)
             infos = stack_dict(infos)

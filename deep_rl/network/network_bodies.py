@@ -8,6 +8,16 @@ from .network_utils import *
 
 ### tsa ###
 
+class MLPBody(nn.Module):
+    def __init__(self, input_dim, feature_dim=512, hidden_dim=512):
+        super().__init__()
+        self.fc1 = layer_init(nn.Linear(input_dim, hidden_dim))
+        self.fc2 = layer_init(nn.Linear(hidden_dim, feature_dim))
+        self.feature_dim = feature_dim
+
+    def forward(self, x):
+        return self.fc2(F.relu(self.fc1(x.view(x.size(0), -1))))
+
 class TSAConvBody(nn.Module):
     def __init__(self, in_channels=12, feature_dim=512):
         super().__init__()

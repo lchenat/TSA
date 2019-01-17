@@ -9,6 +9,7 @@ import torch
 import os
 import random
 from torch import nn
+import torch.nn.functional as F
 
 def select_device(gpu_id):
     # if torch.cuda.is_available() and gpu_id >= 0:
@@ -72,23 +73,20 @@ def batch_linear(input, weight, bias=None):
         return torch.bmm(input.unsqueeze(1), weight).squeeze(1)
 
 class one_hot:
-    # input should be 1-dim indices or 2-dim with second dim 1
-    # input should be LongTensor
-    # output is FloatTensor
+    # input: LongTensor of any shape
+    # output one dim more, with one-hot on new dim
     @staticmethod
     def encode(indices, dim):
-        if len(indices.shape) == 1:
-            indices = indices.unsqueeze(1)
-        assert len(indices.shape) == 2 and indices.shape[1] == 1, 'shape error'
-
-        encodings = torch.zeros(indices.shape[0], dim).to(indices.device)
-        encodings.scatter_(1, indices, 1)
+        encodings = torch.zeros(*indices.shape, dim).to(indices.device)
+        encodings.scatter_(-1, indices.view(*indices.shape, 1), 1)
         return encodings
 
+    # input: one_hot of any shape, last dim is one hot
+    # output: indices of that shape
     @staticmethod
     def decode(encodings):
-        indices = encodings.nonzero()
-        return indices[:, 1]
+        _, indices = encodings.max(dim=-1)
+        return indices
 
 ### optimizer ###
 class VanillaOptimizer:
@@ -124,3 +122,24 @@ class AlternateOptimizer:
         if self.t >= self.freq_list[self.cur]:
             self.t = 0
             self.cur = 1 - self.cur
+
+# https://gist.github.com/yzh119/fd2146d2aeb329d067568a493b20172f
+class gumbel_softmax:
+    @staticmethod
+    def sample_gumbel(shape, eps=1e-20):
+        U = torch.rand(shape)
+        return -torch.log(-torch.log(U + eps) + eps)
+
+    @staticmethod
+    def soft_sample(logits, temperature):
+        y = logits + gumbel_softmax.sample_gumbel(logits.size()).to(logits.device)
+        return F.softmax(y / temperature, dim=-1)
+
+    @staticmethod
+    def hard_sample(logits, temperature):
+        y = gumbel_softmax.soft_sample(logits, temperature)
+        ind = y.argmax(dim=-1)
+        y_hard = one_hot.encode(ind, logits.size(-1))
+        return (y_hard - y).detach() + y
+
+    

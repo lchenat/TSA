@@ -247,7 +247,7 @@ def make_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
         env = ReachGridWorld(**env_config, seed=seed+rank)
-        env = PORGBEnv(env, l=16)
+        env = PORGBEnv(env, l=3) # l=16
         env = FiniteHorizonEnv(env, T=100)
 
         return env

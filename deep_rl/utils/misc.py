@@ -22,6 +22,23 @@ except:
     # python == 2.7
     from pathlib2 import Path
 
+# for generator (function defined) to be able to get the current value
+class with_cur:
+    def __init__(self, generator):
+        self.__gen = generator
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self.cur = next(self.__gen)
+        return self.cur
+
+    def __call__(self, *args, **kwargs): # don't call it twice!
+        self.__gen = self.__gen(*args, **kwargs)
+        return self
+
+@with_cur
 def linspace(start, end, n, repeat_end=False):
     assert n > 1 
     cur = start
