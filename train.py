@@ -219,7 +219,8 @@ def ppo_pixel_baseline(args):
             lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(model.parameters(), lr=0.00025, alpha=0.99, eps=1e-5), config.gradient_clip)
     else:
         raise Exception('unsupported optimizer type')
-    config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window']))
+    visual_body = TSAMiniConvBody(3*env_config['window'])
+    config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, visual_body)
     if args.recon:
         config.recon = UNetReconstructor(visual_body, 3*config.env_config['window'])
     config.state_normalizer = ImageNormalizer()
