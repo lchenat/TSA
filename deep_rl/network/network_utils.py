@@ -43,7 +43,7 @@ class MultiLinear(nn.Module):
 def layer_init(layer, w_scale=1.0):
     nn.init.orthogonal_(layer.weight.data)
     layer.weight.data.mul_(w_scale)
-    nn.init.constant_(layer.bias.data, 0)
+    if layer.bias is not None: nn.init.constant_(layer.bias.data, 0)
     return layer
 
 def weight_init(weight, w_scale=1.0):

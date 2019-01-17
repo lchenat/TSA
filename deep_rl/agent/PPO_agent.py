@@ -106,6 +106,10 @@ class PPOAgent(BaseAgent):
                     action_prediction_loss = 0.05 * config.action_predictor.loss(sampled_states[indices], sampled_next_states[indices], sampled_actions[indices])
                     loss_dict['action'].append(action_prediction_loss)
                     aux_loss += action_prediction_loss
+                if getattr(config, 'recon', None) is not None:
+                    recon_loss = config.recon.loss(sampled_states)
+                    loss_dict['recon'].append(recon_loss)
+                    aux_loss += recon_loss
                 ### optimization ###
                 self.opt.step(policy_loss + value_loss + aux_loss) # try first
         steps = config.rollout_length * config.num_workers

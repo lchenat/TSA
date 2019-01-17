@@ -73,6 +73,8 @@ class SupervisedAgent(SupervisedBaseAgent):
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
         loss_dict['NLL'] = self.loss_f(logprobs, labels)
         loss_dict['network'] = self.network.loss()
+        if hasattr(config, 'recon'):
+            loss_dict['recon'] = config.recon.loss(states)
         for loss in loss_dict.values(): assert loss == loss, 'NaN detected'
         # log before update
         self.loss = loss_dict['NLL'].detach().cpu().numpy()

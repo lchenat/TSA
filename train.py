@@ -32,6 +32,8 @@ def _command_line_parser():
     parser.add_argument('--label', choices=['action', 'abs'], default='action')
     parser.add_argument('--weight', type=str, default=None)
     parser.add_argument('--fix_abs', action='store_true')
+    parser.add_argument('--pred_action', action='store_true')
+    parser.add_argument('--recon', action='store_true')
     parser.add_argument('-d', action='store_true')
     return parser
 
@@ -152,7 +154,10 @@ def set_network_fn(args, config):
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
     config.network_fn = lambda: network
     ### aux loss ###
-    config.action_predictor = ActionPredictor(config.action_dim, visual_body)
+    if args.pred_action:
+        config.action_predictor = ActionPredictor(config.action_dim, visual_body)
+    if args.recon:
+        config.recon = UNetReconstructor(visual_body, 3*config.env_config['window'])
     ##########
     if args.weight is not None:
         weight_dict = torch.load(args.weight, map_location=lambda storage, loc: storage)
@@ -215,6 +220,8 @@ def ppo_pixel_baseline(args):
     else:
         raise Exception('unsupported optimizer type')
     config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window']))
+    if args.recon:
+        config.recon = UNetReconstructor(visual_body, 3*config.env_config['window'])
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True

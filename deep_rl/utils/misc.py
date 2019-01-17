@@ -105,7 +105,7 @@ def run_supervised_steps(agent):
             if config.save_interval * config.eval_interval and not agent.total_steps % (config.save_interval * config.eval_interval):
                 weight_dict = dict(
                     network=agent.network.state_dict(),
-                    action_predictor=config.action_predictor.state_dict(),
+                    action_predictor=config.action_predictor.state_dict() if hasattr(config, 'action_predictor') else None,
                 )
                 torch.save(weight_dict, Path(save_dir, 'step-{}-acc-{:.2f}'.format(agent.total_steps, acc)))
         if config.max_steps and agent.total_steps >= config.max_steps:

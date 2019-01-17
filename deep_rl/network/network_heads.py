@@ -262,7 +262,7 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
 
 # gumbel softmax sampling
 class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
-    def __init__(self, n_abs, body, temperature, base=10, abstract_type='sample'):
+    def __init__(self, n_abs, body, temperature, base=2, abstract_type='sample'):
         assert n_abs % base == 0
         super().__init__(n_abs, body)
         self.abstract_type = abstract_type
@@ -531,6 +531,8 @@ class TSACriticNet(nn.Module, BaseNet):
             return self.fc(self.body(inputs, info), info)
         return self.fc(self.body(inputs), info)
 
+### auxiliary networks
+
 class ActionPredictor(nn.Module):
     def __init__(self, action_dim, state_encoder, hidden_dim=256):
         super().__init__()
@@ -552,5 +554,21 @@ class ActionPredictor(nn.Module):
     def loss(self, states, next_states, actions):
         predicted_actions = self(states, next_states)
         return F.cross_entropy(predicted_actions, actions)
+
+class UNetReconstructor(nn.Module):
+    def __init__(self, encoder, in_channels):
+        super().__init__()
+        #self.encoder = UnetEncoder(in_channels)
+        self.encoder = encoder
+        self.decoder = UnetDecoder(in_channels)
+        self.loss_weight = 1.0
+        self.to(Config.DEVICE)
+
+    def forward(self, states):
+        return self.decoder(self.encoder(states))
+
+    def loss(self, states):
+        pred_states = self(states)
+        return self.loss_weight * F.binary_cross_entropy(pred_states, states / 255.0)
 
 ### end of tsa ###
