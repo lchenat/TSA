@@ -1,6 +1,14 @@
 from ..network import *
 from ..component import *
 
+def get_states_infos(env, discount):
+    states, infos = [], []
+    for index in env.unwrapped.train_combos:
+        _states, _infos = env.last.get_teleportable_states(discount, index=index)
+        states += _states
+        infos += _infos 
+    return states, infos
+
 class SupervisedBaseAgent:
     def __init__(self, config):
         self.config = config
@@ -41,7 +49,8 @@ class SupervisedAgent(SupervisedBaseAgent):
  
     def eval_episode(self):
         config = self.config
-        states, infos = config.eval_env.env.envs[0].last.get_teleportable_states(config.discount)
+        env = config.eval_env.env.envs[0]
+        states, infos = get_states_infos(env, config.discount)
         states = tensor(states)
         infos = stack_dict(infos)
         if config.label == 'action':
@@ -57,7 +66,8 @@ class SupervisedAgent(SupervisedBaseAgent):
 
     def step(self):
         config = self.config
-        states, infos = config.eval_env.env.envs[0].last.get_teleportable_states(config.discount)
+        env = config.eval_env.env.envs[0]
+        states, infos = get_states_infos(env, config.discount)
         states = tensor(states)
         infos = stack_dict(infos)
         if config.label == 'action':
