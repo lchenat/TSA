@@ -17,7 +17,7 @@ import dill
 def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised'])
-    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample'])
+    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
@@ -82,78 +82,83 @@ def set_network_fn(args, config):
     #visual_body = MLPBody(3*config.env_config['window']*256)
     visual_body = TSAMiniConvBody(3*config.env_config['window'])
     #visual_body = TSAConvBody(3*config.env_config['window']) 
-    if args.net == 'vq':
-        config.n_abs = args.n_abs
-        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-        abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
-        if args.actor == 'nonlinear':
-            actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-        else:
-            actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-    elif args.net == 'prob':
-        config.n_abs = args.n_abs
-        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-        if len(args.temperature) == 1:
-            args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
-        elif len(args.temperature) == 3:
-            args.temperature[2] = int(args.temperature[2])
-            args.temperature = linspace(*args.temperature, repeat_end=True)
-        else:
-            raise Exception('this length is not gonna work')
-        abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-        #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks) # this cannot converge
-        actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
-    elif args.net == 'pos':
-        assert args.abs_fn is not None, 'need args.abs_fn'
-        with open(args.abs_fn, 'rb') as f:
-            abs_dict = dill.load(f)
-            n_abs = len(set(abs_dict[0].values())) # only have 1 map!
-        config.n_abs = n_abs
-        config.log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
-        print(abs_dict)
-        abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
-        #actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-        actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-    elif args.net == 'kv': # key-value
-        config.n_abs = args.n_abs
-        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-        abs_encoder = KVAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
-        if args.actor == 'nonlinear':
-            actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-        else:
-            actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-    elif args.net == 'id':
-        if len(args.temperature) == 1:
-            args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
-        elif len(args.temperature) == 3:
-            args.temperature[2] = int(args.temperature[2])
-            args.temperature = linspace(*args.temperature, repeat_end=True)
-        else:
-            raise Exception('this length is not gonna work')
-        config.n_abs = config.action_dim
-        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-        abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-        actor = IdentityActor()
-    elif args.net == 'sample':
-        config.n_abs = args.n_abs
-        if len(args.temperature) == 1:
-            args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
-        elif len(args.temperature) == 3:
-            args.temperature[2] = int(args.temperature[2])
-            args.temperature = linspace(*args.temperature, repeat_end=True)
-        else:
-            raise Exception('this length is not gonna work')
-        config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-        abs_encoder = SampleAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-        actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
-        #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
-    if args.critic == 'visual':
-        critic_body = visual_body
-    elif args.critic == 'abs':
-        critic_body = abs_encoder
-    critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
-    network = TSANet(config.action_dim, abs_encoder, actor, critic)
-    config.network_fn = lambda: network
+    if args.net == 'baseline':
+        config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+        config.network_fn = lambda: CategoricalActorCriticNet(config.eval_env.n_tasks, config.state_dim, config.action_dim, visual_body)
+    else:
+        if args.net == 'vq':
+            config.n_abs = args.n_abs
+            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+            abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
+            if args.actor == 'nonlinear':
+                actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+            else:
+                actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        elif args.net == 'prob':
+            config.n_abs = args.n_abs
+            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+            if len(args.temperature) == 1:
+                args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
+            elif len(args.temperature) == 3:
+                args.temperature[2] = int(args.temperature[2])
+                args.temperature = linspace(*args.temperature, repeat_end=True)
+            else:
+                raise Exception('this length is not gonna work')
+            abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
+            #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks) # this cannot converge
+            actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+        elif args.net == 'pos':
+            assert args.abs_fn is not None, 'need args.abs_fn'
+            with open(args.abs_fn, 'rb') as f:
+                abs_dict = dill.load(f)
+                n_abs = len(set(abs_dict[0].values())) # only have 1 map!
+            config.n_abs = n_abs
+            config.log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
+            print(abs_dict)
+            abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
+            #actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+            actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+        elif args.net == 'kv': # key-value
+            config.n_abs = args.n_abs
+            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+            abs_encoder = KVAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
+            if args.actor == 'nonlinear':
+                actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+            else:
+                actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        elif args.net == 'id':
+            if len(args.temperature) == 1:
+                args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
+            elif len(args.temperature) == 3:
+                args.temperature[2] = int(args.temperature[2])
+                args.temperature = linspace(*args.temperature, repeat_end=True)
+            else:
+                raise Exception('this length is not gonna work')
+            config.n_abs = config.action_dim
+            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+            abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
+            actor = IdentityActor()
+        elif args.net == 'sample':
+            config.n_abs = args.n_abs
+            if len(args.temperature) == 1:
+                args.temperature = linspace(args.temperature[0], args.temperature[0], 2, repeat_end=True)
+            elif len(args.temperature) == 3:
+                args.temperature[2] = int(args.temperature[2])
+                args.temperature = linspace(*args.temperature, repeat_end=True)
+            else:
+                raise Exception('this length is not gonna work')
+            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+            abs_encoder = SampleAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
+            actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+            #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+        if args.critic == 'visual':
+            critic_body = visual_body
+        elif args.critic == 'abs':
+            critic_body = abs_encoder
+        critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
+        network = TSANet(config.action_dim, abs_encoder, actor, critic)
+        config.network_fn = lambda: network
+
     ### aux loss ###
     if args.pred_action:
         config.action_predictor = ActionPredictor(config.action_dim, visual_body)
@@ -161,8 +166,10 @@ def set_network_fn(args, config):
         config.recon = UNetReconstructor(visual_body, 3*config.env_config['window'])
     ##########
     if args.weight is not None:
-        weight_dict = torch.load(args.weight, map_location=lambda storage, loc: storage)
-        network.load_state_dict(weight_dict['network'])
+        weight_dict = network.state_dict()
+        loaded_weight_dict = {k: v for k, v in torch.load(args.weight, map_location=lambda storage, loc: storage).items() if k in weight_dict}
+        weight_dict.update(loaded_weight_dict)
+        network.load_state_dict(weight_dict)
         if 'action_predictor' in weight_dict:
             config.action_predictor.load_state_dict(weight_dict['action_predictor'])
     if args.fix_abs:
