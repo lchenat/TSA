@@ -101,7 +101,8 @@ def set_network_fn(args, config):
         else:
             raise Exception('this length is not gonna work')
         abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-        actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+        #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks) # this cannot converge
+        actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
     elif args.net == 'pos':
         assert args.abs_fn is not None, 'need args.abs_fn'
         with open(args.abs_fn, 'rb') as f:

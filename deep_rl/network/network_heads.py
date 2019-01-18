@@ -249,6 +249,7 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         y = super().forward(inputs) / self.temperature.cur
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean() if self.loss_weight else 0.0
         return F.log_softmax(y, dim=1)
+        #return F.softmax(y, dim=1) # debug
 
     def entropy(self, inputs, info, logits=None):
         if logits is None:
@@ -272,9 +273,8 @@ class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
         self.base = base
 
     def get_indices(self, inputs, info):
-        raise NotImplementedError
-        #y = super().forward(inputs)
-        #return torch.argmax(y, dim=1)
+        y = super().forward(inputs).view(inputs.size(0), -1, self.base)
+        return torch.argmax(y, dim=2) # this indices it not the same as the others
 
     def forward(self, inputs, info):
         y = super().forward(inputs).view(inputs.size(0), -1, self.base)
@@ -295,7 +295,7 @@ class EmbeddingActorNet(nn.Module, BaseNet):
         assert cs.dim() == 2, 'dimension of cs should be 2'
         weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
         #weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
-        #logprobs = nn.functional.log_softmax(batch_linear(cs, weight=weights), dim=1)
+        #logprobs = F.log_softmax(batch_linear(cs, weight=weights), dim=1)
         logprobs = F.log_softmax(batch_linear(F.softmax(cs), weights), dim=1)
 
         return logprobs       
@@ -457,7 +457,7 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
 
     def get_logprobs(self, inputs, info):
         key = self.key(self.body(inputs))
-        return F.softmax(torch.matmul(F.normalize(key, dim=1), F.normalize(self.value, dim=1).t()), dim=1) 
+        return F.log_softmax(torch.matmul(F.normalize(key, dim=1), F.normalize(self.value, dim=1).t()), dim=1) 
         #return F.log_softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
 
     def get_probs(self, inputs, info):

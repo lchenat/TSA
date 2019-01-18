@@ -22,6 +22,12 @@ except:
     # python == 2.7
     from pathlib2 import Path
 
+def index_dict(l):
+    l = list(enumerate(set(l)))
+    i2e = dict(l)
+    e2i = dict([(e, i) for i, e in l])
+    return i2e, e2i
+
 # for generator (function defined) to be able to get the current value
 class with_cur:
     def __init__(self, generator):

@@ -80,9 +80,16 @@ class SupervisedAgent(SupervisedBaseAgent):
         self.loss = loss_dict['NLL'].detach().cpu().numpy()
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=v, step=self.total_steps)
-        if hasattr(self.network, 'abs_encoder') and self.network.abs_encoder.abstract_type != 'sample':
-            indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
+        if hasattr(self.network, 'abs_encoder'):
+            if self.network.abs_encoder.abstract_type == 'sample':
+                indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
+                indices = [tuple(index) for index in indices]
+                i2e, e2i = index_dict(indices)
+                indices = [e2i[index] for index in indices]
+            else:
+                indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
             abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
+            config.logger.add_scalar(tag='n_abs', value=len(set(abs_map.values())), step=self.total_steps)
             config.logger.add_file('abs_map', abs_map, step=self.total_steps)
         self.opt.step(sum(loss_dict.values(), 0.0))
         self.total_steps += 1
