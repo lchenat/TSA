@@ -1,5 +1,6 @@
 from ..network import *
 from ..component import *
+from collections import defaultdict
 
 def get_states_infos(env, discount):
     states, infos = [], []
@@ -98,8 +99,12 @@ class SupervisedAgent(SupervisedBaseAgent):
                 indices = [e2i[index] for index in indices]
             else:
                 indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
-            abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
-            config.logger.add_scalar(tag='n_abs', value=len(set(abs_map.values())), step=self.total_steps)
+            abs_map = defaultdict(dict)
+            for map_id, task_id, pos, i in zip(infos['map_id'], infos['task_id'], infos['pos'], indices):
+                index = (map_id, task_id)
+                abs_map[index][pos] = i
+            #abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
+            config.logger.add_scalar(tag='n_abs', value=len(set(indices)), step=self.total_steps)
             config.logger.add_file('abs_map', abs_map, step=self.total_steps)
         self.opt.step(sum(loss_dict.values(), 0.0))
         self.total_steps += 1
