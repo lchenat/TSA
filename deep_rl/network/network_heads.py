@@ -285,6 +285,33 @@ class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
         next(self.temperature)
         BaseNet.step(self)
 
+# use relaxed Bernoulli
+class I2AAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
+    def __init__(self, n_abs, body, temperature, feature_dim=512):
+        super().__init__()
+        self.abstract_type = 'sample'
+        self.feature_dim = feature_dim
+        self.temperature = temperature
+        next(temperature)
+        self.body = body
+        self.mask_fc = nn.Linear(body.feature_dim, n_abs)
+        self.feat_fc = nn.Linear(body.feature_dim, n_abs) # the feature dim along each abs is only 1 now
+
+    def get_indices(self, inputs, info):
+        xs = self.body(inputs)
+        mask = relaxed_Bernolli.hard_sample(self.mask_fc(xs), self.temperature.cur)
+        return mask
+
+    def forward(self, inputs, info):
+        xs = self.body(inputs)
+        mask = relaxed_Bernolli.hard_sample(self.mask_fc(xs), self.temperature.cur)
+        feat = self.feat_fc(xs)
+        return mask * feat
+
+    def step(self):
+        next(self.temperature)
+        BaseNet.step(self)
+
 # maintain embeddings for abstract state
 class EmbeddingActorNet(nn.Module, BaseNet):
     def __init__(self, n_abs, action_dim, n_tasks):

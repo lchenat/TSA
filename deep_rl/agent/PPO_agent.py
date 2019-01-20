@@ -136,6 +136,10 @@ class PPOAgent(BaseAgent):
                     config.logger.add_scalar(tag='UB_on_abstract_states', value=torch.exp(entropy).mean().detach().cpu().numpy(), step=self.total_steps)
                 elif self.network.abs_encoder.abstract_type == 'sample':
                     pass
+        else: # count by clipping, categoricalactorcriticnet
+            indices = (self.network.phi_body(states, infos).detach().cpu().numpy() * 1e5).astype(int)
+            indices = [tuple(index) for index in indices]
+            config.logger.add_scalar(tag='n_abs', value=len(set(indices)), step=self.total_steps)
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
         self.network.step() # do all adaptive update

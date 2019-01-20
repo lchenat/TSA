@@ -142,4 +142,23 @@ class gumbel_softmax:
         y_hard = one_hot.encode(ind, logits.size(-1))
         return (y_hard - y).detach() + y
 
+class relaxed_Bernolli:
+    @staticmethod
+    def sample_logit(shape, eps=1e-20):
+        U = torch.rand(shape)
+        return torch.log(U + eps) - torch.log(1 - U + eps)
+
+    @staticmethod
+    def sample(logits):
+        return logits + relaxed_Bernolli.sample_logit(logits.size()).to(logits.device)
     
+    @staticmethod
+    def soft_sample(logits, temperature):
+        return F.sigmoid(relaxed_Bernolli.sample(logits) / temperature)
+
+    @staticmethod
+    def hard_sample(logits, temperature):
+        y = relaxed_Bernolli.soft_sample(logits, temperature)
+        y_hard = (y > 0.5).type(y.dtype)
+        return (y_hard - y).detach() + y
+

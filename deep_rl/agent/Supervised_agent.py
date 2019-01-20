@@ -106,6 +106,10 @@ class SupervisedAgent(SupervisedBaseAgent):
             #abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
             config.logger.add_scalar(tag='n_abs', value=len(set(indices)), step=self.total_steps)
             config.logger.add_file('abs_map', abs_map, step=self.total_steps)
+        else: # count by clipping, categoricalactorcriticnet
+            indices = (self.network.network.phi_body(states).detach().cpu().numpy() * 10).astype(int)
+            indices = [tuple(index) for index in indices]
+            config.logger.add_scalar(tag='n_abs', value=len(set(indices)), step=self.total_steps)
         self.opt.step(sum(loss_dict.values(), 0.0))
         self.total_steps += 1
         self.network.step() # do all adaptive update
