@@ -89,6 +89,7 @@ def process_temperature(temperature):
 
 def set_network_fn(args, config):
     config.abs_dim = 512
+    #visual_body = TSAOneConvBody(3*config.env_config['window'])
     #visual_body = MLPBody(3*config.env_config['window']*256)
     visual_body = TSAMiniConvBody(3*config.env_config['window'])
     #visual_body = TSAConvBody(3*config.env_config['window']) 

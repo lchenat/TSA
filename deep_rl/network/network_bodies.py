@@ -58,6 +58,25 @@ class TSAMiniConvBody(nn.Module):
         y = F.relu(self.fc(y))
         return y
 
+class TSAOneConvBody(nn.Module):
+    def __init__(self, in_channels=12, feature_dim=512):
+        super().__init__()
+        self.feature_dim = feature_dim
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=1, kernel_size=3)) # 16->14
+        self.conv2 = layer_init(nn.Conv2d(32, 32, stride=1, kernel_size=3)) # 14->12
+        self.conv3 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=4)) # 12->5
+        self.conv4 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3)) # 5->2
+        self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
+
+    def forward(self, x):
+        y = F.relu(self.conv1(x))
+        y = F.relu(self.conv2(y))
+        y = F.relu(self.conv3(y))
+        y = F.relu(self.conv4(y))
+        y = y.view(y.size(0), -1)
+        y = F.relu(self.fc(y))
+        return y
+
 class UnetEncoder(nn.Module):
     def __init__(self, in_channels=12, feature_dim=512):
         super().__init__()
