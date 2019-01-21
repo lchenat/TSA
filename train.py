@@ -17,6 +17,7 @@ import dill
 def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised'])
+    parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
@@ -309,6 +310,10 @@ if __name__ == '__main__':
     if not args.d and is_git_diff():
         print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
         exit()
+    if args.env == 'pick':
+        GridWorldTask = PickGridWorldTask
+    elif args.env == 'reach':
+        GridWorldTask = ReachGridWorldTask
 
     mkdir('log')
     mkdir('tf_log')

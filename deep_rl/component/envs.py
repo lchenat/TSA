@@ -208,7 +208,7 @@ class Task:
         return self.env.step(actions)
 
 ### tsa ###
-from ..gridworld import ReachGridWorld, PORGBEnv
+from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld
 
 class LastWrapper(gym.Wrapper):
     def __init__(self, env):
@@ -243,7 +243,7 @@ class FiniteHorizonEnv(gym.Wrapper):
     def last(self):
         return LastWrapper(self)
 
-def make_gridworld_env(env_config, seed, rank):
+def make_reach_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
         env = ReachGridWorld(**env_config, seed=seed+rank)
@@ -254,14 +254,25 @@ def make_gridworld_env(env_config, seed, rank):
 
     return _thunk
 
-class GridWorldTask:
+def make_pick_gridworld_env(env_config, seed, rank):
+    def _thunk():
+        random_seed(seed)
+        env = PickGridWorld(**env_config, task_length=1,seed=seed+rank)
+        env = PORGBEnv(env, l=16)
+        env = FiniteHorizonEnv(env, T=100)
+
+        return env
+
+    return _thunk
+
+class ReachGridWorldTask:
     def __init__(self,
                  env_config,
                  num_envs=1,
                  seed=np.random.randint(int(1e5))):
-        envs = [make_gridworld_env(env_config, seed, i) for i in range(num_envs)]
+        envs = [make_reach_gridworld_env(env_config, seed, i) for i in range(num_envs)]
         self.env = DummyVecEnv(envs)
-        self.name = 'GridWorld'
+        self.name = 'ReachGridWorld'
         self.observation_space = self.env.observation_space
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
         self.n_maps = len(env_config['map_names'])
@@ -285,6 +296,39 @@ class GridWorldTask:
 
     def get_info(self): # retrieve map_id and goal position
         return self.env.get_info()
+
+class PickGridWorldTask:
+    def __init__(self,
+                 env_config,
+                 num_envs=1,
+                 seed=np.random.randint(int(1e5))):
+        envs = [make_pick_gridworld_env(env_config, seed, i) for i in range(num_envs)]
+        self.env = DummyVecEnv(envs)
+        self.name = 'PickGridWorld'
+        self.observation_space = self.env.observation_space
+        self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
+        self.n_maps = len(env_config['map_names'])
+        self.n_tasks = self.env.envs[0].unwrapped.num_obj_types
+
+        self.action_space = self.env.action_space
+        if isinstance(self.action_space, Discrete):
+            self.action_dim = self.action_space.n
+        elif isinstance(self.action_space, Box):
+            self.action_dim = self.action_space.shape[0]
+        else:
+            assert 'unknown action space'
+
+    def reset(self, index=None, train=True):
+        return self.env.reset(index=index, train=train, sample_obj_pos=False)
+
+    def step(self, actions):
+        if isinstance(self.action_space, Box):
+            actions = np.clip(actions, self.action_space.low, self.action_space.high)
+        return self.env.step(actions)
+
+    def get_info(self): # retrieve map_id and goal position
+        return self.env.get_info()
+
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)

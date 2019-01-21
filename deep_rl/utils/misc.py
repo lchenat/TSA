@@ -13,6 +13,7 @@ import datetime
 import torch
 import time
 import dill
+import shutil
 from PIL import Image
 from .torch_utils import *
 try:
@@ -97,6 +98,7 @@ def collect_stats(agent):
 def run_supervised_steps(agent):
     config = agent.config
     save_dir = Path('data', 'models', config.log_name)
+    if save_dir.exists(): shutil.rmtree(save_dir)
     mkdir(save_dir)
     t0 = time.time()
     while True:
@@ -121,6 +123,9 @@ def run_supervised_steps(agent):
 
 def run_steps(agent):
     config = agent.config
+    save_dir = Path('data', 'models', config.log_name)
+    if save_dir.exists(): shutil.rmtree(save_dir)
+    mkdir(save_dir)
     agent_name = agent.__class__.__name__
     t0 = time.time()
     while True:
