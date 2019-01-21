@@ -259,7 +259,7 @@ def make_pick_gridworld_env(env_config, seed, rank):
         random_seed(seed)
         env = PickGridWorld(**env_config, task_length=1,seed=seed+rank)
         env = PORGBEnv(env, l=16)
-        env = FiniteHorizonEnv(env, T=100)
+        env = FiniteHorizonEnv(env, T=200) # debug, T=100
 
         return env
 
