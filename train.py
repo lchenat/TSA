@@ -18,7 +18,7 @@ def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised'])
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
-    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a'])
+    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
@@ -157,6 +157,12 @@ def set_network_fn(args, config):
             args.temperature = process_temperature(args.temperature)
             config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
             abs_encoder = I2AAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
+            actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+        elif args.net == 'bernoulli':
+            config.n_abs = args.n_abs
+            args.temperature = process_temperature(args.temperature)
+            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
+            abs_encoder = BernoulliAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
             actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
         if args.critic == 'visual':
             critic_body = visual_body

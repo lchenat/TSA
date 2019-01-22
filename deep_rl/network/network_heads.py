@@ -285,6 +285,25 @@ class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
         next(self.temperature)
         BaseNet.step(self)
 
+class BernoulliAbstractEncoder(VanillaNet, AbstractEncoder):
+    def __init__(self, n_abs, body, temperature, abstract_type='sample'):
+        super().__init__(n_abs, body)
+        self.abstract_type = abstract_type
+        self.feature_dim = n_abs
+        self.temperature = temperature
+        next(temperature)
+
+    def get_indices(self, inputs, info):
+        return self.forward(inputs, info)
+
+    def forward(self, inputs, info):
+        y = super().forward(inputs)
+        return relaxed_Bernolli.hard_sample(y, self.temperature.cur) # this is sampling
+
+    def step(self):
+        next(self.temperature)
+        BaseNet.step(self)
+
 # use relaxed Bernoulli
 class I2AAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_abs, body, temperature, feature_dim=512):
