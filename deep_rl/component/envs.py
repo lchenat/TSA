@@ -246,8 +246,8 @@ class FiniteHorizonEnv(gym.Wrapper):
 def make_reach_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
-        env = ReachGridWorld(**env_config, seed=seed+rank)
-        env = PORGBEnv(env, l=16)
+        env = ReachGridWorld(**env_config['main'], seed=seed+rank)
+        env = PORGBEnv(env, l=env_config['l'])
         env = FiniteHorizonEnv(env, T=100)
 
         return env
@@ -257,8 +257,8 @@ def make_reach_gridworld_env(env_config, seed, rank):
 def make_pick_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
-        env = PickGridWorld(**env_config, task_length=1,seed=seed+rank)
-        env = PORGBEnv(env, l=16)
+        env = PickGridWorld(**env_config['main'], task_length=1,seed=seed+rank)
+        env = PORGBEnv(env, l=env_config['l'])
         env = FiniteHorizonEnv(env, T=200) # debug, T=100
 
         return env
@@ -275,7 +275,7 @@ class ReachGridWorldTask:
         self.name = 'ReachGridWorld'
         self.observation_space = self.env.observation_space
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
-        self.n_maps = len(env_config['map_names'])
+        self.n_maps = len(env_config['main']['map_names'])
         self.n_tasks = len(self.env.envs[0].unwrapped.g2i)
 
         self.action_space = self.env.action_space
@@ -297,6 +297,9 @@ class ReachGridWorldTask:
     def get_info(self): # retrieve map_id and goal position
         return self.env.get_info()
 
+    def get_opt_action(self):
+        return [env.last.get_random_opt_action(0.99) for env in self.env.envs]
+
 class PickGridWorldTask:
     def __init__(self,
                  env_config,
@@ -307,7 +310,7 @@ class PickGridWorldTask:
         self.name = 'PickGridWorld'
         self.observation_space = self.env.observation_space
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
-        self.n_maps = len(env_config['map_names'])
+        self.n_maps = len(env_config['main']['map_names'])
         self.n_tasks = self.env.envs[0].unwrapped.num_obj_types
 
         self.action_space = self.env.action_space
@@ -329,6 +332,8 @@ class PickGridWorldTask:
     def get_info(self): # retrieve map_id and goal position
         return self.env.get_info()
 
+    def get_opt_action(self):
+        return [env.get_random_opt_action() for env in self.env.envs]
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)

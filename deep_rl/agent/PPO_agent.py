@@ -27,7 +27,7 @@ class PPOAgent(BaseAgent):
 
     def step(self):
         config = self.config
-        storage = Storage(config.rollout_length, keys=['info'])
+        storage = Storage(config.rollout_length)
         states = self.states
         infos = self.infos
         for t in range(config.rollout_length):

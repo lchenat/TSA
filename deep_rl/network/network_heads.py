@@ -615,6 +615,6 @@ class UNetReconstructor(nn.Module):
 
     def loss(self, states):
         pred_states = self(states)
-        return self.loss_weight * F.binary_cross_entropy(pred_states, states / 255.0)
+        return self.loss_weight * F.binary_cross_entropy(pred_states, states)
 
 ### end of tsa ###

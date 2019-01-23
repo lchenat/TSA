@@ -141,7 +141,7 @@ def run_steps(agent):
             agent.eval_episodes()
             weight_dict = dict(
                 network=agent.network.state_dict(),
-                action_predictor=config.action_predictor,
+                action_predictor=config.action_predictor.state_dict() if hasattr(config, 'action_predictor') else None,
             )
             if config.save_interval * config.eval_interval and not agent.total_steps % (config.save_interval * config.eval_interval):
                 torch.save(weight_dict, Path(save_dir, 'step-{}-mean-{:.2f}'.format(stats['steps'], stats['mean returns'])))
