@@ -333,7 +333,7 @@ class PickGridWorldTask:
         return self.env.get_info()
 
     def get_opt_action(self):
-        return [env.get_random_opt_action() for env in self.env.envs]
+        return [env.last.get_random_opt_action(0.99) for env in self.env.envs]
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)
