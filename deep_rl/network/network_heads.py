@@ -615,6 +615,22 @@ class UNetReconstructor(nn.Module):
 
     def loss(self, states):
         pred_states = self(states)
-        return self.loss_weight * F.binary_cross_entropy(pred_states, states / 255.0)
+        return self.loss_weight * F.binary_cross_entropy(pred_states, states)
 
-### end of tsa ###
+class TransitionModel(nn.Module):
+    def __init__(self, encoder, action_dim, in_channels):
+        self.encoder = encoder
+        self.action_embed = nn.Embedding(action_dim, self.encoder.feature_dim)
+        self.fusion_fc = nn.Linear(3*self.encoder.feature_dim, self.encoder.feature_dim)
+        self.decoder = UnetDecoder(in_channels)
+        self.loss_weight = 1.0
+
+    def forward(self, states, actions, next_states):
+        state_features = self.encoder(states)
+        next_state_features = self.encoder(next_states)
+        action_features = nn.Embedding(actions)
+        features = torch.cat([state_features, next_state_features, action_features])
+        return self.decoder(features)
+
+    def loss(self, states, actions, next_states):
+        return self.loss_weight * F.binary_cross_entropy(self(states, actions, next_states), (next_states - states + 1.0) / 2)

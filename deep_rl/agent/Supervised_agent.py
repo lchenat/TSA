@@ -52,7 +52,7 @@ class SupervisedAgent(SupervisedBaseAgent):
         config = self.config
         env = config.eval_env.env.envs[0]
         states, infos = get_states_infos(env, config.discount)
-        states = tensor(states)
+        states = tensor(config.state_normalizer(states))
         infos = stack_dict(infos)
         if config.label == 'action':
             logprobs = self.network.get_logprobs(states, infos)
@@ -69,7 +69,7 @@ class SupervisedAgent(SupervisedBaseAgent):
         config = self.config
         env = config.eval_env.env.envs[0]
         states, infos = get_states_infos(env, config.discount)
-        states = tensor(states)
+        states = tensor(config.state_normalizer(states))
         infos = stack_dict(infos)
         if config.label == 'action':
             logprobs = self.network.get_logprobs(states, infos)
@@ -113,3 +113,4 @@ class SupervisedAgent(SupervisedBaseAgent):
         self.opt.step(sum(loss_dict.values(), 0.0))
         self.total_steps += 1
         self.network.step() # do all adaptive update
+

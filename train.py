@@ -16,8 +16,10 @@ import dill
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised'])
+    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised', 'imitation'])
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
+    parser.add_argument('-l', type=int, default=16)
+    parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
@@ -35,6 +37,7 @@ def _command_line_parser():
     parser.add_argument('--fix_abs', action='store_true')
     parser.add_argument('--pred_action', action='store_true')
     parser.add_argument('--recon', action='store_true')
+    parser.add_argument('--trans', action='store_true')
     parser.add_argument('-d', action='store_true')
     return parser
 
@@ -88,13 +91,24 @@ def process_temperature(temperature):
         raise Exception('this length is not gonna work')
     return temperature
 
+def get_visual_body(args, config):
+    #visual_body = TSAOneConvBody(3*config.env_config['window'])
+    #visual_body = MLPBody(3*config.env_config['window']*256)
+    if args.visual == 'mini':
+        visual_body = TSAMiniConvBody(3*config.env_config['main']['window'])
+    elif args.visual == 'normal':
+        visual_body = TSAConvBody(3*config.env_config['main']['window']) 
+    elif args.visual == 'large':
+        visual_body = LargeTSAMiniConvBody(3*config.env_config['main']['window'])
+    return visual_body
+
 def set_network_fn(args, config):
     config.abs_dim = 512
     #visual_body = TSAOneConvBody(3*config.env_config['window'])
     #visual_body = MLPBody(3*config.env_config['window']*256)
     #visual_body = TSAMiniConvBody(3*config.env_config['window'])
-    #visual_body = TSAConvBody(3*config.env_config['window']) 
-    visual_body = LargeTSAMiniConvBody(3*config.env_config['window'])
+    visual_body = get_visual_body(args, config)
+    #visual_body = LargeTSAMiniConvBody(3*config.env_config['window'])
     if args.net == 'baseline':
         config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
         config.network_fn = lambda: CategoricalActorCriticNet(
@@ -176,7 +190,9 @@ def set_network_fn(args, config):
     if args.pred_action:
         config.action_predictor = ActionPredictor(config.action_dim, visual_body)
     if args.recon:
-        config.recon = UNetReconstructor(visual_body, 3*config.env_config['window'])
+        config.recon = UNetReconstructor(visual_body, 3*config.env_config['main']['window'])
+    if args.trans:
+        config.trans = TransitionModel(visual_body, config.action_dim, 3*config.env_config['main']['window'])
     ##########
     if args.weight is not None:
         weight_dict = network.state_dict()
@@ -194,6 +210,10 @@ def ppo_pixel_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+        )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
@@ -220,7 +240,7 @@ def ppo_pixel_tsa(args):
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config, 'env_config')
+    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(PPOAgent(config))
 
 def ppo_pixel_baseline(args):
@@ -229,6 +249,10 @@ def ppo_pixel_baseline(args):
         env_config = dill.load(f)
         env_config['window'] = args.window
         n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+        )
         config.env_config = env_config
     config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
@@ -240,10 +264,10 @@ def ppo_pixel_baseline(args):
             lambda model: VanillaOptimizer(model.parameters(), torch.optim.RMSprop(model.parameters(), lr=0.00025, alpha=0.99, eps=1e-5), config.gradient_clip)
     else:
         raise Exception('unsupported optimizer type')
-    visual_body = TSAMiniConvBody(3*env_config['window'])
+    visual_body = TSAMiniConvBody(3*env_config['main']['window'])
     config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, visual_body)
     if args.recon:
-        config.recon = UNetReconstructor(visual_body, 3*config.env_config['window'])
+        config.recon = UNetReconstructor(visual_body, 3*config.env_config['main']['window'])
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True
@@ -263,7 +287,7 @@ def ppo_pixel_baseline(args):
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config, 'env_config')
+    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(PPOAgent(config))
 
 def supervised_tsa(args):
@@ -272,6 +296,10 @@ def supervised_tsa(args):
         env_config = dill.load(f)
         env_config['window'] = args.window
         n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+        )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
@@ -308,8 +336,42 @@ def supervised_tsa(args):
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config, 'env_config')
+    config.logger.save_file(env_config['main'], 'env_config')
     run_supervised_steps(SupervisedAgent(config))
+
+def imitation_tsa(args):
+    config = Config()
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+        )
+        config.env_config = env_config
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
+    config.num_workers = 8
+    set_network_fn(args, config)
+    set_optimizer_fn(args, config)
+    config.state_normalizer = ImageNormalizer()
+    config.discount = 0.99
+    config.gradient_clip = 0.5
+    config.rollout_length = 128
+    config.log_interval = config.num_workers * config.rollout_length
+    config.eval_interval = config.log_interval * 100
+    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.save_interval = 0 # how many steps to save a model
+    if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.logger = get_logger(tag=config.log_name)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    config.logger.save_file(env_config['main'], 'env_config')
+    run_steps(ImitationAgent(config))
+
 
 if __name__ == '__main__':
     parser = _command_line_parser()
@@ -339,4 +401,6 @@ if __name__ == '__main__':
             ppo_pixel_baseline(args)
         elif args.agent == 'supervised':
             supervised_tsa(args)
+        elif args.agent == 'imitation':
+            imitation_tsa(args)
 
