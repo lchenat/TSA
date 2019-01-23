@@ -49,21 +49,24 @@ class ImitationAgent(BaseAgent):
             prediction = self.network(states, infos)
             #next_states, rewards, terminals, _ = self.task.step(to_np(prediction['a']))
             opt_a = self.task.get_opt_action()
-            next_states, rewards, terminals, infos = self.task.step(opt_a)
+            next_states, rewards, terminals, next_infos = self.task.step(opt_a)
             self.online_rewards += rewards
             rewards = config.reward_normalizer(rewards)
             for i, terminal in enumerate(terminals):
                 if terminals[i]:
                     self.episode_rewards.append(self.online_rewards[i])
                     self.online_rewards[i] = 0
+            next_states = config.state_normalizer(next_states)
             storage.add(prediction)
             storage.add({'r': tensor(rewards).unsqueeze(-1),
                          'm': tensor(1 - terminals).unsqueeze(-1),
                          's': tensor(states),
+                         'ns': tensor(next_states),
                          'info': infos,
                          'opt_a': tensor(opt_a, dtype=torch.long)})
 
-            states = config.state_normalizer(next_states)
+            states = next_states
+            infos = next_infos
 
         self.states = states
         self.infos = infos
@@ -77,8 +80,8 @@ class ImitationAgent(BaseAgent):
             storage.ret[i] = returns.detach()
 
         loss_dict = dict()
-        states, infos, opt_a = storage.cat(['s', 'info', 'opt_a'])
-        log_prob = self.network.get_logprobs(states, infos) # get states, get log_probs
+        states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
+        log_prob = self.network.get_logprobs(states, infos)
         loss_dict['NLL'] = F.nll_loss(log_prob, opt_a)
         if hasattr(config, 'trans'):
             loss_dict['trans'] = config.trans.loss(states, opt_a, next_states)
