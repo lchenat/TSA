@@ -37,6 +37,7 @@ def _command_line_parser():
     parser.add_argument('--fix_abs', action='store_true')
     parser.add_argument('--pred_action', action='store_true')
     parser.add_argument('--recon', action='store_true')
+    parser.add_argument('--trans', action='store_true')
     parser.add_argument('-d', action='store_true')
     return parser
 
@@ -190,6 +191,8 @@ def set_network_fn(args, config):
         config.action_predictor = ActionPredictor(config.action_dim, visual_body)
     if args.recon:
         config.recon = UNetReconstructor(visual_body, 3*config.env_config['main']['window'])
+    if args.trans:
+        config.trans = TransitionModel(visual_body, config.action_dim, 3*config.env_config['main']['window'])
     ##########
     if args.weight is not None:
         weight_dict = network.state_dict()
