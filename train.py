@@ -16,7 +16,7 @@ import dill
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised', 'imitation'])
+    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised', 'imitation', 'transfer'])
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
     parser.add_argument('-l', type=int, default=16)
     parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
@@ -92,8 +92,6 @@ def process_temperature(temperature):
     return temperature
 
 def get_visual_body(args, config):
-    #visual_body = TSAOneConvBody(3*config.env_config['window'])
-    #visual_body = MLPBody(3*config.env_config['window']*256)
     if args.visual == 'mini':
         visual_body = TSAMiniConvBody(3*config.env_config['main']['window'])
     elif args.visual == 'normal':
@@ -102,13 +100,29 @@ def get_visual_body(args, config):
         visual_body = LargeTSAMiniConvBody(3*config.env_config['main']['window'])
     return visual_body
 
-def set_network_fn(args, config):
+def set_aux_network(visual_body, args, config):
+    if args.pred_action:
+        config.action_predictor = ActionPredictor(config.action_dim, visual_body)
+    if args.recon:
+        config.recon = UNetReconstructor(visual_body, 3*config.env_config['main']['window'])
+    if args.trans:
+        config.trans = TransitionModel(visual_body, config.action_dim, 3*config.env_config['main']['window'])
+
+# deal with loading and fixing weight
+def process_weight(network, args, config):
+    if args.weight is not None:
+        weight_dict = network.state_dict()
+        loaded_weight_dict = {k: v for k, v in torch.load(args.weight, map_location=lambda storage, loc: storage).items() if k in weight_dict}
+        weight_dict.update(loaded_weight_dict)
+        network.load_state_dict(weight_dict)
+        if 'action_predictor' in weight_dict:
+            config.action_predictor.load_state_dict(weight_dict['action_predictor'])
+    if args.fix_abs:
+        for p in network.abs_encoder.parameters():
+            p.requires_grad = False
+
+def get_network(visual_body, args, config):
     config.abs_dim = 512
-    #visual_body = TSAOneConvBody(3*config.env_config['window'])
-    #visual_body = MLPBody(3*config.env_config['window']*256)
-    #visual_body = TSAMiniConvBody(3*config.env_config['window'])
-    visual_body = get_visual_body(args, config)
-    #visual_body = LargeTSAMiniConvBody(3*config.env_config['window'])
     if args.net == 'baseline':
         config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
         config.network_fn = lambda: CategoricalActorCriticNet(
@@ -184,26 +198,7 @@ def set_network_fn(args, config):
             critic_body = abs_encoder
         critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
         network = TSANet(config.action_dim, abs_encoder, actor, critic)
-        config.network_fn = lambda: network
-
-    ### aux loss ###
-    if args.pred_action:
-        config.action_predictor = ActionPredictor(config.action_dim, visual_body)
-    if args.recon:
-        config.recon = UNetReconstructor(visual_body, 3*config.env_config['main']['window'])
-    if args.trans:
-        config.trans = TransitionModel(visual_body, config.action_dim, 3*config.env_config['main']['window'])
-    ##########
-    if args.weight is not None:
-        weight_dict = network.state_dict()
-        loaded_weight_dict = {k: v for k, v in torch.load(args.weight, map_location=lambda storage, loc: storage).items() if k in weight_dict}
-        weight_dict.update(loaded_weight_dict)
-        network.load_state_dict(weight_dict)
-        if 'action_predictor' in weight_dict:
-            config.action_predictor.load_state_dict(weight_dict['action_predictor'])
-    if args.fix_abs:
-        for p in network.abs_encoder.parameters():
-            p.requires_grad = False
+        return network
 
 def ppo_pixel_tsa(args):
     config = Config()
@@ -219,7 +214,11 @@ def ppo_pixel_tsa(args):
     config.eval_env = GridWorldTask(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
-    set_network_fn(args, config)
+    visual_body = get_visual_body(args, config)
+    network = get_network(visual_body, args, config)
+    config.network_fn = lambda: network
+    set_aux_network(visual_body, args, config)
+    process_weight(network, args, config)
     set_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
@@ -321,7 +320,11 @@ def supervised_tsa(args):
             print(abs_dict)
         args.n_abs = n_abs # important!
         config.abs_network_fn = lambda: PosAbstractEncoder(n_abs, abs_dict)
-    set_network_fn(args, config)
+    visual_body = get_visual_body(args, config)
+    network = get_network(visual_body, args, config)
+    config.network_fn = lambda: network
+    set_aux_network(visual_body, args, config)
+    process_weight(network, args, config)
     #config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window'])) # debug
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
@@ -353,7 +356,11 @@ def imitation_tsa(args):
     config.eval_env = GridWorldTask(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
-    set_network_fn(args, config)
+    visual_body = get_visual_body(args, config)
+    network = get_network(visual_body, args, config)
+    config.network_fn = lambda: network
+    set_aux_network(visual_body, args, config)
+    process_weight(network, args, config)
     set_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
@@ -371,6 +378,48 @@ def imitation_tsa(args):
         }])
     config.logger.save_file(env_config['main'], 'env_config')
     run_steps(ImitationAgent(config))
+
+def transfer_tsa(args): # subject to change
+    config = Config()
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+        )
+        config.env_config = env_config
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
+    config.num_workers = 8
+    visual_body = get_visual_body(args, config)
+    network = get_network(visual_body, args, config)
+    config.network_fn = lambda: network
+    set_aux_network(visual_body, args, config)
+    process_weight(network, args, config)
+    set_optimizer_fn(args, config)
+    config.state_normalizer = ImageNormalizer()
+    config.discount = 0.99
+    config.use_gae = True
+    config.gae_tau = 0.95
+    config.entropy_weight = 0.01
+    config.gradient_clip = 0.5
+    config.rollout_length = 128
+    config.optimization_epochs = 3
+    config.mini_batch_size = 32 * 8
+    config.ppo_ratio_clip = 0.1
+    config.log_interval = 128 * 8
+    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.save_interval = 0 # how many steps to save a model
+    if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.logger = get_logger(tag=config.log_name)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    config.logger.save_file(env_config['main'], 'env_config')
+    run_steps(PPOAgent(config))
 
 
 if __name__ == '__main__':

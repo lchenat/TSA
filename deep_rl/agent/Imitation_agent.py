@@ -92,4 +92,15 @@ class ImitationAgent(BaseAgent):
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
+        if hasattr(self.network, 'abs_encoder'): # temp forbided for sample
+            if self.network.abs_encoder.abstract_type == 'sample':
+                indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
+                indices = [tuple(index) for index in indices]
+                i2e, e2i = index_dict(indices)
+                indices = [e2i[index] for index in indices]
+            else:
+                indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
+            abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
+            config.logger.add_scalar(tag='n_abs', value=len(set(abs_map.values())), step=self.total_steps)
+            config.logger.add_file('abs_map', abs_map, step=self.total_steps)
         self.network.step()
