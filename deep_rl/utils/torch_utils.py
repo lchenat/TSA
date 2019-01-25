@@ -95,9 +95,9 @@ class VanillaOptimizer:
         self.opt = opt # params already passed in
         self.grad_clip = grad_clip
 
-    def step(self, loss):
+    def step(self, loss, retain_graph=False):
         self.opt.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=retain_graph)
         if self.grad_clip:
             nn.utils.clip_grad_norm_(self.params, self.grad_clip)
         self.opt.step()
@@ -112,10 +112,10 @@ class AlternateOptimizer:
         self.cur = 0 # current parameter to update
         self.t = 0 # count how many times the current parameter has been update
         
-    def step(self, loss):
+    def step(self, loss, retain_graph=False):
         opt = self.opt_list[self.cur]
         opt.zero_grad()
-        loss.backward()
+        loss.backward(retain_graph=retain_graph)
         nn.utils.clip_grad_norm_(self.params_list[self.cur], self.grad_clip)
         opt.step()
         self.t += 1

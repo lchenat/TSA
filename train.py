@@ -13,31 +13,44 @@ from ipdb import slaunch_ipdb_on_exception
 from termcolor import colored
 import argparse
 import dill
+import copy
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised', 'imitation', 'transfer'])
+    # environment
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
     parser.add_argument('-l', type=int, default=16)
+    parser.add_argument('--window', type=int, default=1)
+    parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
+    # network
     parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
     parser.add_argument('--n_abs', type=int, default=512)
     parser.add_argument('--abs_fn', type=str, default=None)
-    parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
-    parser.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
-    parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
-    parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
-    parser.add_argument('--tag', type=str, default=None)
-    parser.add_argument('--window', type=int, default=1)
     parser.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
-    parser.add_argument('--temperature', type=float, nargs='+', default=[1.0])
-    parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
+    parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
+    # transfer network
+    parser.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
+    parser.add_argument('--t_n_abs', type=int, default=512)
+    parser.add_argument('--t_abs_fn', type=str, default=None)
+    parser.add_argument('--t_actor', choices=['linear', 'nonlinear'], default='nonlinear')
+    parser.add_argument('--distill_w', type=float, default=0.1)
+    # network setting
     parser.add_argument('--label', choices=['action', 'abs'], default='action')
     parser.add_argument('--weight', type=str, default=None)
     parser.add_argument('--fix_abs', action='store_true')
+    parser.add_argument('--temperature', type=float, nargs='+', default=[1.0])
+    # aux loss
     parser.add_argument('--pred_action', action='store_true')
     parser.add_argument('--recon', action='store_true')
     parser.add_argument('--trans', action='store_true')
+    # optimization
+    parser.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
+    parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
+    parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
+    # others
+    parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('-d', action='store_true')
     return parser
 
@@ -122,10 +135,9 @@ def process_weight(network, args, config):
             p.requires_grad = False
 
 def get_network(visual_body, args, config):
-    config.abs_dim = 512
     if args.net == 'baseline':
-        config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
-        config.network_fn = lambda: CategoricalActorCriticNet(
+        log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+        network = CategoricalActorCriticNet(
             config.eval_env.n_tasks,
             config.state_dim,
             config.action_dim, 
@@ -134,71 +146,64 @@ def get_network(visual_body, args, config):
         )
     else:
         if args.net == 'vq':
-            config.n_abs = args.n_abs
-            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-            abs_encoder = VQAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
+            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            abs_encoder = VQAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
             if args.actor == 'nonlinear':
                 actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
             else:
                 actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'prob':
-            config.n_abs = args.n_abs
-            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-            args.temperature = process_temperature(args.temperature)
-            abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-            #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks) # this cannot converge
-            actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            temperature = process_temperature(args.temperature)
+            abs_encoder = ProbAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
+            #actor = EmbeddingActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks) # this cannot converge
+            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'pos':
             assert args.abs_fn is not None, 'need args.abs_fn'
             with open(args.abs_fn, 'rb') as f:
                 abs_dict = dill.load(f)
                 n_abs = len(set(abs_dict[0].values())) # only have 1 map!
-            config.n_abs = n_abs
-            config.log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
+            log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
             print(abs_dict)
             abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
             #actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'kv': # key-value
-            config.n_abs = args.n_abs
-            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-            abs_encoder = KVAbstractEncoder(config.n_abs, config.abs_dim, visual_body)
+            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            abs_encoder = KVAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
             if args.actor == 'nonlinear':
                 actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
             else:
                 actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'id':
-            args.temperature = process_temperature(args.temperature)
-            config.n_abs = config.action_dim
-            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-            abs_encoder = ProbAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
+            temperature = process_temperature(args.temperature)
+            n_abs = config.action_dim
+            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), n_abs)
+            abs_encoder = ProbAbstractEncoder(n_abs, visual_body, temperature=temperature)
             actor = IdentityActor()
         elif args.net == 'sample':
-            config.n_abs = args.n_abs
-            args.temperature = process_temperature(args.temperature)
-            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-            abs_encoder = SampleAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-            actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
-            #actor = EmbeddingActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+            temperature = process_temperature(args.temperature)
+            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            abs_encoder = SampleAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
+            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+            #actor = EmbeddingActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'i2a':
-            config.n_abs = args.n_abs
-            args.temperature = process_temperature(args.temperature)
-            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-            abs_encoder = I2AAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-            actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+            temperature = process_temperature(args.temperature)
+            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            abs_encoder = I2AAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
+            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'bernoulli':
-            config.n_abs = args.n_abs
-            args.temperature = process_temperature(args.temperature)
-            config.log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), config.n_abs)
-            abs_encoder = BernoulliAbstractEncoder(config.n_abs, visual_body, temperature=args.temperature)
-            actor = LinearActorNet(config.n_abs, config.action_dim, config.eval_env.n_tasks)
+            temperature = process_temperature(args.temperature)
+            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            abs_encoder = BernoulliAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
+            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         if args.critic == 'visual':
             critic_body = visual_body
         elif args.critic == 'abs':
             critic_body = abs_encoder
         critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
         network = TSANet(config.action_dim, abs_encoder, actor, critic)
-        return network
+    return network, log_name
 
 def ppo_pixel_tsa(args):
     config = Config()
@@ -215,7 +220,7 @@ def ppo_pixel_tsa(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     visual_body = get_visual_body(args, config)
-    network = get_network(visual_body, args, config)
+    network, config.log_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
@@ -321,7 +326,7 @@ def supervised_tsa(args):
         args.n_abs = n_abs # important!
         config.abs_network_fn = lambda: PosAbstractEncoder(n_abs, abs_dict)
     visual_body = get_visual_body(args, config)
-    network = get_network(visual_body, args, config)
+    network, config.log_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
@@ -357,7 +362,7 @@ def imitation_tsa(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     visual_body = get_visual_body(args, config)
-    network = get_network(visual_body, args, config)
+    network, config.log_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
@@ -379,7 +384,9 @@ def imitation_tsa(args):
     config.logger.save_file(env_config['main'], 'env_config')
     run_steps(ImitationAgent(config))
 
-def transfer_tsa(args): # subject to change
+# TODO:
+# you need to set log_name
+def transfer_tsa(args):
     config = Config()
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
@@ -393,11 +400,22 @@ def transfer_tsa(args): # subject to change
     config.eval_env = GridWorldTask(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
+    # source: the one with abstraction, try to process weight
     visual_body = get_visual_body(args, config)
-    network = get_network(visual_body, args, config)
-    config.network_fn = lambda: network
-    set_aux_network(visual_body, args, config)
+    network, config.log_name = get_network(visual_body, args, config)
+    config.source_fn = lambda: network
     process_weight(network, args, config)
+    # target: the one transfer to, aux for this
+    t_args = copy.deepcopy(args)
+    t_args.net = args.t_net
+    t_args.n_abs = args.t_n_abs
+    t_args.abs_fn = args.t_abs_fn
+    t_args.actor = args.t_actor
+    visual_body = get_visual_body(t_args, config)
+    network, _ = get_network(visual_body, t_args, config)
+    config.target_fn = lambda: network
+    set_aux_network(visual_body, t_args, config)
+    config.distill_w = args.distill_w
     set_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
@@ -419,7 +437,7 @@ def transfer_tsa(args): # subject to change
         **vars(args),
         }])
     config.logger.save_file(env_config['main'], 'env_config')
-    run_steps(PPOAgent(config))
+    run_steps(TransferAgent(config))
 
 
 if __name__ == '__main__':
@@ -452,4 +470,5 @@ if __name__ == '__main__':
             supervised_tsa(args)
         elif args.agent == 'imitation':
             imitation_tsa(args)
-
+        elif args.agent == 'transfer':
+            transfer_tsa(args)

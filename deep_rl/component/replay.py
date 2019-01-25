@@ -165,8 +165,8 @@ class Storage:
             keys = []
         keys = keys + ['s', 'a', 'r', 'm', 'ns',
                        'v', 'q', 'pi', 'log_pi', 'ent',
-                       'adv', 'ret', 'q_a', 'log_pi_a',
-                       'mean', 'opt_a', 'info']
+                       'adv', 'ret', 'q_a', 'log_pi_a', 'source_log_ret',
+                       'mean', 'opt_a', 'info', 'source_log_pi_a']
         self.keys = keys
         self.size = size
         self.reset()
@@ -174,7 +174,6 @@ class Storage:
     def add(self, data):
         for k, v in data.items():
             assert k in self.keys
-            #if k in self.keys: # error prone
             getattr(self, k).append(v)
 
     def placeholder(self):
