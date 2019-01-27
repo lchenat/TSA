@@ -122,8 +122,8 @@ class TransferAgent(BaseAgent):
         # source loss
         source_prob = self.source.get_probs(states, infos)
         target_prob = self.target.get_probs(states, infos)
-        target_loss = F.kl_div(target_prob, source_prob.detach())
-        source_loss = F.kl_div(source_prob, target_prob.detach())
+        target_loss = config.distill_w * F.kl_div(target_prob, source_prob.detach())
+        source_loss = config.distill_w * F.kl_div(source_prob, target_prob.detach())
         self.source_opt.step(source_loss, retain_graph=True)
         self.target_opt.step(target_loss)
 
