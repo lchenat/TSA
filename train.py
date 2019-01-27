@@ -430,6 +430,7 @@ def transfer_tsa(args):
     config.log_interval = 128 * 8
     config.max_steps = 1e4 if args.d else int(1.5e7)
     config.save_interval = 0 # how many steps to save a model
+    config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
