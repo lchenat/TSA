@@ -188,6 +188,14 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         logits = self.network.fc_action(phi_a, info)
         return F.log_softmax(logits, dim=1)
 
+    def get_probs(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
+        phi_v = self.network.critic_body(phi)
+        logits = self.network.fc_action(phi_a, info)
+        return F.softmax(logits, dim=1)
+
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
@@ -402,7 +410,12 @@ class LinearActorNet(MultiLinear, BaseNet):
 
     def get_logprobs(self, xs, info):
         output = super().forward(xs, info)
-        probs = nn.functional.log_softmax(output, dim=1)
+        logprobs = nn.functional.log_softmax(output, dim=1)
+        return logprobs
+
+    def get_probs(self, xs, info):
+        output = super().forward(xs, info)
+        probs = nn.functional.softmax(output, dim=1)
         return probs
 
     def forward(self, xs, info, action=None):
@@ -553,6 +566,11 @@ class TSANet(nn.Module, BaseNet):
         self.critic_params = list(self.critic.parameters())
 
         self.to(Config.DEVICE)
+
+    def get_probs(self, obs, info):
+        obs = tensor(obs)
+        abs_s = self.abs_encoder(obs, info) # abstract state
+        return self.actor.get_probs(abs_s, info)
 
     def get_logprobs(self, obs, info):
         obs = tensor(obs)
