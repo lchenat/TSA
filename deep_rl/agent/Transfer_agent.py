@@ -5,15 +5,16 @@ from .BaseAgent import *
 from collections import defaultdict
 
 
-class TransferAgent(BaseAgent):
+class TransferPPOAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)
         self.config = config
         self.task = config.task_fn()
         self.source = config.source_fn()
         self.target = config.target_fn()
-        self.source_opt = config.optimizer_fn(self.source)
-        self.target_opt = config.optimizer_fn(self.target)
+        #self.source_opt = config.optimizer_fn(self.source)
+        #self.target_opt = config.optimizer_fn(self.target)
+        self.opt = config.optimizer_fn(self.source, self.target)
         self.total_steps = 0
         self.online_rewards = np.zeros(config.num_workers)
         self.episode_rewards = []
@@ -56,18 +57,18 @@ class TransferAgent(BaseAgent):
 
         advantages = tensor(np.zeros((config.num_workers, 1)))
         returns = prediction['v'].detach()
-        #discount = tensor(np.ones((config.num_workers, 1))) # discount sum of log_probability
+        discount = tensor(np.ones((config.num_workers, 1))) # discount sum of log_probability
         for i in reversed(range(config.rollout_length)):
-            #returns = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * returns
-            returns = storage.r[i] + config.discount * storage.m[i] * returns
-            #storage.discount_source_log_pi_a[i] = discount * storage.source_log_pi_a[i]
-            #discount = discount * storage.m[i] * config.discount + (1 - storage.m[i])
+            returns = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * returns
+            #returns = storage.r[i] + config.discount * storage.m[i] * returns
+            storage.discount_source_log_pi_a[i] = discount * storage.source_log_pi_a[i]
+            discount = discount * storage.m[i] * config.discount + (1 - storage.m[i])
             if not config.use_gae:
                 advantages = returns - storage.v[i].detach()
             else:
-                #td_error = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
+                td_error = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
 
-                td_error = storage.r[i] + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
+                #td_error = storage.r[i] + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
                 advantages = advantages * config.gae_tau * config.discount * storage.m[i] + td_error
             storage.adv[i] = advantages.detach()
             storage.ret[i] = returns.detach()
@@ -93,6 +94,8 @@ class TransferAgent(BaseAgent):
                 sampled_returns = returns[batch_indices]
                 sampled_advantages = advantages[batch_indices]
                 sampled_infos = {k: [v[n] for n in to_np(batch_indices)] for k, v in infos.items()}
+                #sampled_discount_source_log_pi_a = discount_source_log_pi_a[batch_indices]
+                sampled_source_log_pi_a = self.source(sampled_states, sampled_infos, action=sampled_actions)['log_pi_a']
 
                 # target loss
                 prediction = self.target(sampled_states, sampled_infos, sampled_actions)
@@ -117,15 +120,17 @@ class TransferAgent(BaseAgent):
                     loss_dict['recon'].append(recon_loss)
                     aux_loss += recon_loss
                 ### optimization ###
-                self.target_opt.step(policy_loss + value_loss + aux_loss, retain_graph=True)
+                #self.target_opt.step(policy_loss + value_loss + aux_loss, retain_graph=True)
+                self.opt.step(policy_loss + value_loss + aux_loss - config.distill_w * torch.mean(sampled_source_log_pi_a))
 
         # source loss
-        source_prob = self.source.get_probs(states, infos)
-        target_prob = self.target.get_probs(states, infos)
-        target_loss = config.distill_w * F.kl_div(target_prob, source_prob.detach())
-        source_loss = config.distill_w * F.kl_div(source_prob, target_prob.detach())
-        self.source_opt.step(source_loss, retain_graph=True)
-        self.target_opt.step(target_loss)
+        #source_prob = self.source.get_probs(states, infos)
+        #target_prob = self.target.get_probs(states, infos)
+        #target_loss = config.distill_w * F.kl_div(target_prob, source_prob.detach())
+        #source_loss = config.distill_w * F.kl_div(source_prob, target_prob.detach())
+        #source_loss = -torch.mean(discount_source_log_pi_a)
+        #self.source_opt.step(source_loss)
+        #self.target_opt.step(target_loss)
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
@@ -134,3 +139,144 @@ class TransferAgent(BaseAgent):
         self.source.step()
         self.target.step() # do all adaptive update
         
+class TransferA2CAgent(BaseAgent):
+    def __init__(self, config):
+        BaseAgent.__init__(self, config)
+        self.config = config
+        self.task = config.task_fn()
+        self.source = config.source_fn()
+        self.target = config.target_fn()
+        self.source_opt = config.optimizer_fn(self.source)
+        self.target_opt = config.optimizer_fn(self.target)
+        self.total_steps = 0
+        self.states = config.state_normalizer(self.task.reset())
+        self.infos = self.task.get_info()
+
+        self.episode_rewards = []
+        self.online_rewards = np.zeros(config.num_workers)
+
+    def step(self):
+        config = self.config
+        storage = Storage(config.rollout_length)
+        states = self.states
+        infos = self.infos
+        for _ in range(config.rollout_length):
+            prediction = self.target(states, infos)
+            source_log_pi_a = self.source(states, infos, action=prediction['a'])['log_pi_a']
+            next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a']))
+            self.online_rewards += rewards
+            rewards = config.reward_normalizer(rewards)
+            for i, terminal in enumerate(terminals):
+                if terminals[i]:
+                    self.episode_rewards.append(self.online_rewards[i])
+                    self.online_rewards[i] = 0
+            next_states = config.state_normalizer(next_states)
+            storage.add(prediction)
+            storage.add({'r': tensor(rewards).unsqueeze(-1),
+                         'm': tensor(1 - terminals).unsqueeze(-1),
+                         'source_log_pi_a': source_log_pi_a,
+            })
+
+            states = next_states
+            infos = next_infos
+
+        self.states = states
+        self.infos = infos
+        prediction = self.target(states, infos)
+        storage.add(prediction)
+        storage.placeholder()
+
+        advantages = tensor(np.zeros((config.num_workers, 1)))
+        returns = prediction['v'].detach()
+        for i in reversed(range(config.rollout_length)):
+            returns = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * returns
+            if not config.use_gae:
+                advantages = returns - storage.v[i].detach()
+            else:
+                td_error = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
+                advantages = advantages * config.gae_tau * config.discount * storage.m[i] + td_error
+            storage.adv[i] = advantages.detach()
+            storage.ret[i] = returns.detach()
+
+        log_prob, value, returns, advantages, entropy, source_log_pi_a = storage.cat(['log_pi_a', 'v', 'ret', 'adv', 'ent', 'source_log_pi_a'])
+        policy_loss = -(log_prob * advantages).mean()
+        value_loss = 0.5 * (returns - value).pow(2).mean()
+        entropy_loss = entropy.mean()
+
+        self.target_opt.step(policy_loss - config.entropy_weight * entropy_loss +
+         config.value_loss_weight * value_loss, retain_graph=True)
+        self.source_opt.step(-torch.mean(config.distill_w * source_log_pi_a)) # undiscounted
+
+        steps = config.rollout_length * config.num_workers
+        self.total_steps += steps
+
+class TransferDistralAgent(BaseAgent):
+    def __init__(self, config):
+        BaseAgent.__init__(self, config)
+        self.config = config
+        self.task = config.task_fn()
+        self.source = config.source_fn()
+        self.target = config.target_fn()
+        self.source_opt = config.optimizer_fn(self.source)
+        self.target_opt = config.optimizer_fn(self.target)
+        self.total_steps = 0
+        self.states = config.state_normalizer(self.task.reset())
+        self.infos = self.task.get_info()
+
+        self.episode_rewards = []
+        self.online_rewards = np.zeros(config.num_workers)
+
+    def step(self):
+        config = self.config
+        storage = Storage(config.rollout_length)
+        states = self.states
+        infos = self.infos
+        for _ in range(config.rollout_length):
+            prediction = self.target(states, infos)
+            source_log_pi_a = self.source(states, infos, action=prediction['a'])['log_pi_a']
+            next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a']))
+            self.online_rewards += rewards
+            rewards = config.reward_normalizer(rewards)
+            for i, terminal in enumerate(terminals):
+                if terminals[i]:
+                    self.episode_rewards.append(self.online_rewards[i])
+                    self.online_rewards[i] = 0
+            next_states = config.state_normalizer(next_states)
+            storage.add(prediction)
+            storage.add({'r': tensor(rewards).unsqueeze(-1),
+                         'm': tensor(1 - terminals).unsqueeze(-1),
+                         'source_log_pi_a': source_log_pi_a,
+            })
+
+            states = next_states
+            infos = next_infos
+
+        self.states = states
+        self.infos = infos
+        prediction = self.target(states, infos)
+        storage.add(prediction)
+        storage.placeholder()
+
+        advantages = tensor(np.zeros((config.num_workers, 1)))
+        returns = prediction['v'].detach()
+        for i in reversed(range(config.rollout_length)):
+            returns = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * returns
+            if not config.use_gae:
+                advantages = returns - storage.v[i].detach()
+            else:
+                td_error = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
+                advantages = advantages * config.gae_tau * config.discount * storage.m[i] + td_error
+            storage.adv[i] = advantages.detach()
+            storage.ret[i] = returns.detach()
+
+        log_prob, value, returns, advantages, entropy, source_log_pi_a = storage.cat(['log_pi_a', 'v', 'ret', 'adv', 'ent', 'source_log_pi_a'])
+        policy_loss = -(log_prob * advantages).mean()
+        value_loss = 0.5 * (returns - value).pow(2).mean()
+        entropy_loss = entropy.mean()
+
+        self.target_opt.step(policy_loss - config.entropy_weight * entropy_loss +
+         config.value_loss_weight * value_loss, retain_graph=True)
+        self.source_opt.step(-torch.mean(config.distill_w * source_log_pi_a)) # undiscounted
+
+        steps = config.rollout_length * config.num_workers
+        self.total_steps += steps

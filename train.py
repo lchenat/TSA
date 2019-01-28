@@ -17,7 +17,7 @@ import copy
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised', 'imitation', 'transfer'])
+    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised', 'imitation', 'transfer_a2c', 'transfer_ppo', 'transfer_distral'])
     # environment
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
     parser.add_argument('-l', type=int, default=16)
@@ -386,7 +386,7 @@ def imitation_tsa(args):
 
 # TODO:
 # you need to set log_name
-def transfer_tsa(args):
+def transfer_ppo_tsa(args):
     config = Config()
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
@@ -416,7 +416,11 @@ def transfer_tsa(args):
     config.target_fn = lambda: network
     set_aux_network(visual_body, t_args, config)
     config.distill_w = args.distill_w
-    set_optimizer_fn(args, config)
+    #set_optimizer_fn(args, config)
+    def optimizer_fn(source, target):
+        params = filter(lambda p: p.requires_grad, list(source.parameters())+list(target.parameters()))
+        return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
+    config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True
@@ -428,7 +432,7 @@ def transfer_tsa(args):
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
-    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.max_steps = 1.5e7 if args.d else int(1.5e7)
     config.save_interval = 0 # how many steps to save a model
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
@@ -438,7 +442,107 @@ def transfer_tsa(args):
         **vars(args),
         }])
     config.logger.save_file(env_config['main'], 'env_config')
-    run_steps(TransferAgent(config))
+    run_steps(TransferPPOAgent(config))
+
+def transfer_a2c_tsa(args):
+    config = Config()
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+        )
+        config.env_config = env_config
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
+    config.num_workers = 16
+    visual_body = get_visual_body(args, config)
+    network, config.log_name = get_network(visual_body, args, config)
+    config.source_fn = lambda: network
+    process_weight(network, args, config)
+    # target: the one transfer to, aux for this
+    t_args = copy.deepcopy(args)
+    t_args.net = args.t_net
+    t_args.n_abs = args.t_n_abs
+    t_args.abs_fn = args.t_abs_fn
+    t_args.actor = args.t_actor
+    visual_body = get_visual_body(t_args, config)
+    network, _ = get_network(visual_body, t_args, config)
+    config.target_fn = lambda: network
+    set_aux_network(visual_body, t_args, config)
+    config.distill_w = args.distill_w
+    set_optimizer_fn(args, config)
+    config.state_normalizer = ImageNormalizer()
+    config.discount = 0.99
+    config.use_gae = True
+    config.gae_tau = 1.0
+    config.entropy_weight = 0.01
+    config.rollout_length = 5
+    config.gradient_clip = 5
+    config.max_steps = 1.5e7 if args.d else int(1.5e7)
+    config.save_interval = 0 # how many steps to save a model
+    config.log_name += '-w-{}'.format(config.distill_w)
+    if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.logger = get_logger(tag=config.log_name)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    config.logger.save_file(env_config['main'], 'env_config')
+    run_steps(TransferA2CAgent(config))
+
+def transfer_distral_tsa(args):
+    config = Config()
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+        )
+        config.env_config = env_config
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
+    config.num_workers = 16
+    visual_body = get_visual_body(args, config)
+    network, config.log_name = get_network(visual_body, args, config)
+    config.source_fn = lambda: network
+    process_weight(network, args, config)
+    # target: the one transfer to, aux for this
+    t_args = copy.deepcopy(args)
+    t_args.net = args.t_net
+    t_args.n_abs = args.t_n_abs
+    t_args.abs_fn = args.t_abs_fn
+    t_args.actor = args.t_actor
+    visual_body = get_visual_body(t_args, config)
+    network, _ = get_network(visual_body, t_args, config)
+    config.target_fn = lambda: network
+    set_aux_network(visual_body, t_args, config)
+    config.distill_w = args.distill_w
+    set_optimizer_fn(args, config)
+    config.state_normalizer = ImageNormalizer()
+    config.discount = 0.99
+    config.use_gae = True
+    config.gae_tau = 1.0
+    #config.entropy_weight = 0.01
+    config.alpha = 0.5
+    config.beta = 1.0
+    config.rollout_length = 5
+    config.gradient_clip = 5
+    config.max_steps = 1.5e7 if args.d else int(1.5e7)
+    config.save_interval = 0 # how many steps to save a model
+    config.log_name += '-w-{}'.format(config.distill_w)
+    if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.logger = get_logger(tag=config.log_name)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    config.logger.save_file(env_config['main'], 'env_config')
+    run_steps(TransferDistralAgent(config))
 
 
 if __name__ == '__main__':
@@ -471,5 +575,9 @@ if __name__ == '__main__':
             supervised_tsa(args)
         elif args.agent == 'imitation':
             imitation_tsa(args)
-        elif args.agent == 'transfer':
-            transfer_tsa(args)
+        elif args.agent == 'transfer_ppo':
+            transfer_ppo_tsa(args)
+        elif args.agent == 'transfer_a2c':
+            transfer_a2c_tsa(args)
+        elif args.agent == 'transfer_distral':
+            transfer_distral_tsa(args)
