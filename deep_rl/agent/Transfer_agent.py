@@ -146,8 +146,7 @@ class TransferA2CAgent(BaseAgent):
         self.task = config.task_fn()
         self.source = config.source_fn()
         self.target = config.target_fn()
-        self.source_opt = config.optimizer_fn(self.source)
-        self.target_opt = config.optimizer_fn(self.target)
+        self.opt = config.optimizer_fn(self.source, self.target)
         self.total_steps = 0
         self.states = config.state_normalizer(self.task.reset())
         self.infos = self.task.get_info()
@@ -203,9 +202,8 @@ class TransferA2CAgent(BaseAgent):
         value_loss = 0.5 * (returns - value).pow(2).mean()
         entropy_loss = entropy.mean()
 
-        self.target_opt.step(policy_loss - config.entropy_weight * entropy_loss +
-         config.value_loss_weight * value_loss, retain_graph=True)
-        self.source_opt.step(-torch.mean(config.distill_w * source_log_pi_a)) # undiscounted
+        self.opt.step(policy_loss - config.entropy_weight * entropy_loss +
+         config.value_loss_weight * value_loss - torch.mean(config.distill_w * source_log_pi_a))
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
@@ -217,8 +215,7 @@ class TransferDistralAgent(BaseAgent):
         self.task = config.task_fn()
         self.source = config.source_fn()
         self.target = config.target_fn()
-        self.source_opt = config.optimizer_fn(self.source)
-        self.target_opt = config.optimizer_fn(self.target)
+        self.opt = config.optimizer_fn(self.source, self.target)
         self.total_steps = 0
         self.states = config.state_normalizer(self.task.reset())
         self.infos = self.task.get_info()

@@ -22,7 +22,8 @@ def _command_line_parser():
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
     parser.add_argument('-l', type=int, default=16)
     parser.add_argument('--window', type=int, default=1)
-    parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
+    #parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
+    parser.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     # network
     parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
@@ -156,7 +157,6 @@ def get_network(visual_body, args, config):
             log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             temperature = process_temperature(args.temperature)
             abs_encoder = ProbAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
-            #actor = EmbeddingActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks) # this cannot converge
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'pos':
             assert args.abs_fn is not None, 'need args.abs_fn'
@@ -166,7 +166,6 @@ def get_network(visual_body, args, config):
             log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
             print(abs_dict)
             abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
-            #actor = EmbeddingActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'kv': # key-value
             log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
@@ -186,7 +185,6 @@ def get_network(visual_body, args, config):
             log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             abs_encoder = SampleAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
-            #actor = EmbeddingActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'i2a':
             temperature = process_temperature(args.temperature)
             log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
@@ -473,7 +471,10 @@ def transfer_a2c_tsa(args):
     config.target_fn = lambda: network
     set_aux_network(visual_body, t_args, config)
     config.distill_w = args.distill_w
-    set_optimizer_fn(args, config)
+    def optimizer_fn(source, target):
+        params = filter(lambda p: p.requires_grad, list(source.parameters())+list(target.parameters()))
+        return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
+    config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True
@@ -522,7 +523,10 @@ def transfer_distral_tsa(args):
     config.target_fn = lambda: network
     set_aux_network(visual_body, t_args, config)
     config.distill_w = args.distill_w
-    set_optimizer_fn(args, config)
+    def optimizer_fn(source, target):
+        params = filter(lambda p: p.requires_grad, list(source.parameters())+list(target.parameters()))
+        return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
+    config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
     config.discount = 0.99
     config.use_gae = True

@@ -24,72 +24,6 @@ class VanillaNet(nn.Module, BaseNet):
         y = self.fc_head(phi)
         return y
 
-class DuelingNet(nn.Module, BaseNet):
-    def __init__(self, action_dim, body):
-        super(DuelingNet, self).__init__()
-        self.fc_value = layer_init(nn.Linear(body.feature_dim, 1))
-        self.fc_advantage = layer_init(nn.Linear(body.feature_dim, action_dim))
-        self.body = body
-        self.to(Config.DEVICE)
-
-    def forward(self, x, to_numpy=False):
-        phi = self.body(tensor(x))
-        value = self.fc_value(phi)
-        advantange = self.fc_advantage(phi)
-        q = value.expand_as(advantange) + (advantange - advantange.mean(1, keepdim=True).expand_as(advantange))
-        return q
-
-class CategoricalNet(nn.Module, BaseNet):
-    def __init__(self, action_dim, num_atoms, body):
-        super(CategoricalNet, self).__init__()
-        self.fc_categorical = layer_init(nn.Linear(body.feature_dim, action_dim * num_atoms))
-        self.action_dim = action_dim
-        self.num_atoms = num_atoms
-        self.body = body
-        self.to(Config.DEVICE)
-
-    def forward(self, x):
-        phi = self.body(tensor(x))
-        pre_prob = self.fc_categorical(phi).view((-1, self.action_dim, self.num_atoms))
-        prob = F.softmax(pre_prob, dim=-1)
-        log_prob = F.log_softmax(pre_prob, dim=-1)
-        return prob, log_prob
-
-class QuantileNet(nn.Module, BaseNet):
-    def __init__(self, action_dim, num_quantiles, body):
-        super(QuantileNet, self).__init__()
-        self.fc_quantiles = layer_init(nn.Linear(body.feature_dim, action_dim * num_quantiles))
-        self.action_dim = action_dim
-        self.num_quantiles = num_quantiles
-        self.body = body
-        self.to(Config.DEVICE)
-
-    def forward(self, x):
-        phi = self.body(tensor(x))
-        quantiles = self.fc_quantiles(phi)
-        quantiles = quantiles.view((-1, self.action_dim, self.num_quantiles))
-        return quantiles
-
-class OptionCriticNet(nn.Module, BaseNet):
-    def __init__(self, body, action_dim, num_options):
-        super(OptionCriticNet, self).__init__()
-        self.fc_q = layer_init(nn.Linear(body.feature_dim, num_options))
-        self.fc_pi = layer_init(nn.Linear(body.feature_dim, num_options * action_dim))
-        self.fc_beta = layer_init(nn.Linear(body.feature_dim, num_options))
-        self.num_options = num_options
-        self.action_dim = action_dim
-        self.body = body
-        self.to(Config.DEVICE)
-
-    def forward(self, x):
-        phi = self.body(tensor(x))
-        q = self.fc_q(phi)
-        beta = F.sigmoid(self.fc_beta(phi))
-        pi = self.fc_pi(phi)
-        pi = pi.view(-1, self.num_options, self.action_dim)
-        log_pi = F.log_softmax(pi, dim=-1)
-        return q, beta, log_pi
-
 class ActorCriticNet(nn.Module, BaseNet):
     def __init__(self, n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(ActorCriticNet, self).__init__()
@@ -101,72 +35,10 @@ class ActorCriticNet(nn.Module, BaseNet):
         self.critic_body = critic_body
         self.fc_action = MultiLinear(actor_body.feature_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
         self.fc_critic = MultiLinear(critic_body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
-        #self.fc_action = layer_init(nn.Linear(actor_body.feature_dim, action_dim), 1e-3)
-        #self.fc_critic = layer_init(nn.Linear(critic_body.feature_dim, 1), 1e-3) 
 
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
-
-class DeterministicActorCriticNet(nn.Module, BaseNet):
-    def __init__(self,
-                 state_dim,
-                 action_dim,
-                 actor_opt_fn,
-                 critic_opt_fn,
-                 phi_body=None,
-                 actor_body=None,
-                 critic_body=None):
-        super(DeterministicActorCriticNet, self).__init__()
-        self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
-        self.actor_opt = actor_opt_fn(self.network.actor_params + self.network.phi_params)
-        self.critic_opt = critic_opt_fn(self.network.critic_params + self.network.phi_params)
-        self.to(Config.DEVICE)
-
-    def forward(self, obs):
-        phi = self.feature(obs)
-        action = self.actor(phi)
-        return action
-
-    def feature(self, obs):
-        obs = tensor(obs)
-        return self.network.phi_body(obs)
-
-    def actor(self, phi):
-        return F.tanh(self.network.fc_action(self.network.actor_body(phi)))
-
-    def critic(self, phi, a):
-        return self.network.fc_critic(self.network.critic_body(phi, a))
-
-class GaussianActorCriticNet(nn.Module, BaseNet):
-    def __init__(self,
-                 state_dim,
-                 action_dim,
-                 phi_body=None,
-                 actor_body=None,
-                 critic_body=None):
-        super(GaussianActorCriticNet, self).__init__()
-        self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body)
-        self.std = nn.Parameter(torch.zeros(action_dim))
-        self.to(Config.DEVICE)
-
-    def forward(self, obs, action=None):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs)
-        phi_a = self.network.actor_body(phi)
-        phi_v = self.network.critic_body(phi)
-        mean = F.tanh(self.network.fc_action(phi_a))
-        v = self.network.fc_critic(phi_v)
-        dist = torch.distributions.Normal(mean, F.softplus(self.std))
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).sum(-1).unsqueeze(-1)
-        entropy = dist.entropy().sum(-1).unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy,
-                'mean': mean,
-                'v': v}
 
 class CategoricalActorCriticNet(nn.Module, BaseNet):
     def __init__(self,
@@ -180,21 +52,18 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body)
         self.to(Config.DEVICE)
 
-    def get_logprobs(self, obs, info):
+    def get_logits(self, obs, info):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
         phi_a = self.network.actor_body(phi) # maybe need info here, but not now
-        phi_v = self.network.critic_body(phi)
         logits = self.network.fc_action(phi_a, info)
-        return F.log_softmax(logits, dim=1)
+        return logits
+
+    def get_logprobs(self, obs, info):
+        return F.log_softmax(self.get_logits(obs, info), dim=1)
 
     def get_probs(self, obs, info):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs)
-        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
-        phi_v = self.network.critic_body(phi)
-        logits = self.network.fc_action(phi_a, info)
-        return F.softmax(logits, dim=1)
+        return F.softmax(self.get_logits(obs, info), dim=1)
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
@@ -224,21 +93,6 @@ class AbstractEncoder(ABC):
     def forward(self, inputs, info):
         pass
 
-class IdentityActor(nn.Module, BaseNet): # only works for single environment!
-    def get_logprobs(self, x, info):
-        return F.log_softmax(x, dim=1)
-
-    def forward(self, x, info, action=None):
-        dist = torch.distributions.Categorical(logits=x)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
-
-### a simple baseline ###
 # a network that output probability
 class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
     def __init__(self, n_abs, body, temperature, abstract_type='prob'):
@@ -339,119 +193,6 @@ class I2AAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
         next(self.temperature)
         BaseNet.step(self)
 
-# maintain embeddings for abstract state
-class EmbeddingActorNet(nn.Module, BaseNet):
-    def __init__(self, n_abs, action_dim, n_tasks):
-        super().__init__()
-        self.weight = nn.Parameter(weight_init(torch.randn(n_tasks, n_abs, action_dim), w_scale=1e-3))
-
-    def get_logprobs(self, cs, info):
-        assert cs.dim() == 2, 'dimension of cs should be 2'
-        weights = nn.functional.softmax(self.weight[tensor(info['task_id'], torch.int64),:,:], dim=2)
-        #weights = self.weight[tensor(info['task_id'], torch.int64),:,:]
-        #logprobs = F.log_softmax(batch_linear(cs, weight=weights), dim=1)
-        logprobs = F.log_softmax(batch_linear(F.softmax(cs), weights), dim=1)
-
-        return logprobs       
-
-    def forward(self, cs, info, action=None):
-        logprobs = self.get_logprobs(cs, info)
-        dist = torch.distributions.Categorical(logits=logprobs)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
-
-### directly calculate embedding
-
-class AbstractedStateEncoder(nn.Module, BaseNet):
-    def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
-        super().__init__()
-        self.aux_weight = 1
-        self.temperature = 0.1
-        self.abstract_type = abstract_type
-
-        self.fc_head = layer_init(nn.Linear(body.feature_dim, output_dim))
-        self.body = body
-        self.abs_states = nn.Parameter(weight_init(torch.randn(n_embed, embed_dim)))
-
-    def forward(self, x):
-        z = self.fc_head(F.relu(self.body(tensor(x))))
-        abs_loss = 0
-        if self.abstract_type == 'max':
-            normalized_states = F.normalize(self.abs_states)
-            normalized_z = F.normalize(z)
-            quantization_score = F.softmax(F.linear(normalized_z, normalized_states) / self.temperature, dim=1) # probability quantization
-            abs_ind = quantization_score.argmax(dim=1)
-            # print(set(to_np(abs_ind).tolist()))
-
-            abs_state = F.embedding(abs_ind, normalized_states)
-            compatible_scores = F.softmax(F.linear(normalized_z, abs_state) / self.temperature, dim=1)
-            abs_loss += F.cross_entropy(compatible_scores, diag_gt(compatible_scores))
-
-            # Regularization#1: Diagnalize normalized similairity matrix
-            abs_sim = F.softmax(F.linear(normalized_states, normalized_states) / self.temperature, dim=1)
-            abs_loss += F.cross_entropy(abs_sim, diag_gt(abs_sim))
-        else:
-            raise ValueError('Only support max out for now')
-
-        self._loss = self.aux_weight * abs_loss
-        return abs_state
-
-# each task maintains a linear layer
-# input: abstract feature
-# output: action
-class LinearActorNet(MultiLinear, BaseNet):
-    def __init__(self, abs_dim, action_dim, n_tasks):
-        super().__init__(abs_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
-
-    def get_logprobs(self, xs, info):
-        output = super().forward(xs, info)
-        logprobs = nn.functional.log_softmax(output, dim=1)
-        return logprobs
-
-    def get_probs(self, xs, info):
-        output = super().forward(xs, info)
-        probs = nn.functional.softmax(output, dim=1)
-        return probs
-
-    def forward(self, xs, info, action=None):
-        logprobs = self.get_logprobs(xs, info)
-        dist = torch.distributions.Categorical(logits=logprobs)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
-
-class NonLinearActorNet(nn.Module, BaseNet):
-    def __init__(self, abs_dim, action_dim, n_tasks, hidden_dim=512):
-        super().__init__()
-        self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
-        self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
-
-    def get_logprobs(self, xs, info):
-        output = F.relu(self.fc1(xs, info))
-        output = self.fc2(output, info)
-        probs = nn.functional.log_softmax(output, dim=1)
-        return probs
-
-    def forward(self, xs, info, action=None):
-        logprobs = self.get_logprobs(xs, info)
-        dist = torch.distributions.Categorical(logits=logprobs)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
-
 class VQAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
         super().__init__()
@@ -550,7 +291,89 @@ class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
         cs = one_hot.encode(tensor(c_indices, dtype=torch.long), dim=self.n_abs)
         return cs
 
-class TSANet(nn.Module, BaseNet):
+####### Actor #######
+class Actor(BaseNet):
+    def get_logits(self, xs, info):
+        raise NotImplementedError
+
+    def get_logprobs(self, xs, info):
+        return F.log_softmax(self.get_logits(xs, info), dim=-1)
+
+    def get_probs(self, xs, info):
+        return F.softmax(self.get_logits(xs, info), dim=-1)
+
+class IdentityActor(nn.Module, BaseNet): # only works for single environment!
+    def get_logits(self, x, info):
+        return x
+
+    def forward(self, x, info, action=None):
+        dist = torch.distributions.Categorical(logits=x)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
+# each task maintains a linear layer
+# input: abstract feature
+# output: action
+class LinearActorNet(MultiLinear, BaseNet):
+    def __init__(self, abs_dim, action_dim, n_tasks):
+        super().__init__(abs_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
+
+    def get_logits(self, xs, info):
+        output = super().forward(xs, info)
+        return output
+
+    def forward(self, xs, info, action=None):
+        #logprobs = self.get_logprobs(xs, info)
+        #dist = torch.distributions.Categorical(logits=logprobs)
+        dist = torch.distribution.Categorical(logits=self.get_logits(xs, info))
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
+class NonLinearActorNet(nn.Module, BaseNet):
+    def __init__(self, abs_dim, action_dim, n_tasks, hidden_dim=512):
+        super().__init__()
+        self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
+        self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
+
+    def get_logits(self, xs, info):
+        output = F.relu(self.fc1(xs, info))
+        output = self.fc2(output, info)
+        return output
+
+    def forward(self, xs, info, action=None):
+        #logprobs = self.get_logprobs(xs, info)
+        #dist = torch.distributions.Categorical(logits=logprobs)
+        dist = torch.distributions.Categorical(logits=self.get_logits(xs, info))
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy}
+
+class TSACriticNet(nn.Module, BaseNet):
+    def __init__(self, body, n_tasks):
+        super().__init__()
+        self.body = body
+        self.fc = MultiLinear(body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
+
+    def forward(self, inputs, info):
+        if isinstance(self.body, AbstractEncoder):
+            return self.fc(self.body(inputs, info), info)
+        return self.fc(self.body(inputs), info)
+
+class TSANet(nn.Module, Actor):
     def __init__(self,
                  action_dim,
                  abs_encoder, # state |-> abstract state
@@ -567,15 +390,10 @@ class TSANet(nn.Module, BaseNet):
 
         self.to(Config.DEVICE)
 
-    def get_probs(self, obs, info):
+    def get_logits(self, obs, info):
         obs = tensor(obs)
         abs_s = self.abs_encoder(obs, info) # abstract state
-        return self.actor.get_probs(abs_s, info)
-
-    def get_logprobs(self, obs, info):
-        obs = tensor(obs)
-        abs_s = self.abs_encoder(obs, info) # abstract state
-        return self.actor.get_logprobs(abs_s, info)
+        return self.actor.get_logits(abs_s, info)
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
@@ -583,17 +401,6 @@ class TSANet(nn.Module, BaseNet):
         output = self.actor(abs_s, info, action=action)
         output['v'] = self.critic(obs, info)
         return output
-
-class TSACriticNet(nn.Module, BaseNet):
-    def __init__(self, body, n_tasks):
-        super().__init__()
-        self.body = body
-        self.fc = MultiLinear(body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
-
-    def forward(self, inputs, info):
-        if isinstance(self.body, AbstractEncoder):
-            return self.fc(self.body(inputs, info), info)
-        return self.fc(self.body(inputs), info)
 
 ### auxiliary networks
 
