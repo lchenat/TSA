@@ -82,6 +82,13 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
                 'ent': entropy,
                 'v': v}
 
+    def value(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        phi_v = self.network.critic_body(phi)
+        v = self.network.fc_critic(phi_v, info)
+        return v
+
 ### tsa ###
 
 class AbstractEncoder(ABC):
@@ -401,6 +408,10 @@ class TSANet(nn.Module, Actor):
         output = self.actor(abs_s, info, action=action)
         output['v'] = self.critic(obs, info)
         return output
+
+    def value(self, obs, info):
+        obs = tensor(obs)
+        return self.critic(obs, info)
 
 ### auxiliary networks
 

@@ -223,13 +223,30 @@ class TransferDistralAgent(BaseAgent):
         self.episode_rewards = []
         self.online_rewards = np.zeros(config.num_workers)
 
+    def predict(self, states, infos, action=None):
+        config = self.config
+        h = self.source.get_logits(states, infos)
+        f = self.target.get_logits(states, infos)
+        logits = config.alpha * h + config.beta * f        
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_pi_a = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_pi_a,
+                'ent': entropy,
+                'v': self.target.value(states, infos),
+                'prob': F.softmax(logits, dim=1),
+                'h': h}
+
     def step(self):
         config = self.config
         storage = Storage(config.rollout_length)
         states = self.states
         infos = self.infos
         for _ in range(config.rollout_length):
-            prediction = self.target(states, infos)
+            prediction = self.predict(states, infos)
             source_log_pi_a = self.source(states, infos, action=prediction['a'])['log_pi_a']
             next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a']))
             self.online_rewards += rewards
@@ -244,36 +261,40 @@ class TransferDistralAgent(BaseAgent):
                          'm': tensor(1 - terminals).unsqueeze(-1),
                          'source_log_pi_a': source_log_pi_a,
             })
-
             states = next_states
             infos = next_infos
-
         self.states = states
         self.infos = infos
-        prediction = self.target(states, infos)
+        prediction = self.predict(states, infos)
         storage.add(prediction)
         storage.placeholder()
 
         advantages = tensor(np.zeros((config.num_workers, 1)))
         returns = prediction['v'].detach()
+        discount = tensor(np.ones((config.num_workers, 1)))
         for i in reversed(range(config.rollout_length)):
-            returns = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * returns
+            r_reg = storage.r[i] + config.alpha / config.beta * storage.source_log_pi_a[i] - 1.0 / config.beta * storage.log_pi_a[i]
+            returns = r_reg + config.discount * storage.m[i] * returns
+            r_source = (storage.prob[i] - F.softmax(storage.h[i])) * discount
+            discount = config.discount * storage.m[i] * discount + (1 - storage.m[i])
             if not config.use_gae:
                 advantages = returns - storage.v[i].detach()
             else:
-                td_error = storage.r[i] + config.distill_w * storage.source_log_pi_a[i] + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
+                td_error = r_reg + config.discount * storage.m[i] * storage.v[i + 1] - storage.v[i]
                 advantages = advantages * config.gae_tau * config.discount * storage.m[i] + td_error
             storage.adv[i] = advantages.detach()
             storage.ret[i] = returns.detach()
+            storage.r_source[i] = r_source.detach()
 
-        log_prob, value, returns, advantages, entropy, source_log_pi_a = storage.cat(['log_pi_a', 'v', 'ret', 'adv', 'ent', 'source_log_pi_a'])
-        policy_loss = -(log_prob * advantages).mean()
+        log_pi_a, value, returns, advantages, entropy, h, r_source = storage.cat(['log_pi_a', 'v', 'ret', 'adv', 'ent', 'h', 'r_source'])
+        policy_loss = -(log_pi_a * advantages).mean()
         value_loss = 0.5 * (returns - value).pow(2).mean()
         entropy_loss = entropy.mean()
+        source_loss = -config.alpha / config.beta * (r_source * h).sum(1).mean()
+        #source_loss = - ((prob - F.softmax(h)).detach() * h).sum(1).mean()
 
-        self.target_opt.step(policy_loss - config.entropy_weight * entropy_loss +
-         config.value_loss_weight * value_loss, retain_graph=True)
-        self.source_opt.step(-torch.mean(config.distill_w * source_log_pi_a)) # undiscounted
+        self.opt.step(policy_loss - config.entropy_weight * entropy_loss +
+         config.value_loss_weight * value_loss + source_loss)
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
