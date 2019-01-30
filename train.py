@@ -37,6 +37,8 @@ def _command_line_parser():
     parser.add_argument('--t_abs_fn', type=str, default=None)
     parser.add_argument('--t_actor', choices=['linear', 'nonlinear'], default='nonlinear')
     parser.add_argument('--distill_w', type=float, default=0.1)
+    parser.add_argument('--alpha', type=float, default=0.5)
+    parser.add_argument('--beta', type=float, default=1.0)
     # network setting
     parser.add_argument('--label', choices=['action', 'abs'], default='action')
     parser.add_argument('--weight', type=str, default=None)
@@ -46,6 +48,7 @@ def _command_line_parser():
     parser.add_argument('--pred_action', action='store_true')
     parser.add_argument('--recon', action='store_true')
     parser.add_argument('--trans', action='store_true')
+    parser.add_argument('--reg_abs_fn', type=str, default=None)
     # optimization
     parser.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
     parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
@@ -112,6 +115,10 @@ def get_visual_body(args, config):
         visual_body = TSAConvBody(3*config.env_config['main']['window']) 
     elif args.visual == 'large':
         visual_body = LargeTSAMiniConvBody(3*config.env_config['main']['window'])
+    if args.reg_abs_fn is not None:
+        with open(args.reg_abs_fn, 'rb') as f:
+            abs_dict = dill.load(f)
+        config.reg_abs = RegAbs(visual_body, abs_dict)
     return visual_body
 
 def set_aux_network(visual_body, args, config):
@@ -532,8 +539,8 @@ def transfer_distral_tsa(args):
     config.use_gae = True
     config.gae_tau = 1.0
     #config.entropy_weight = 0.01
-    config.alpha = 0.5
-    config.beta = 1.0
+    config.alpha = args.alpha
+    config.beta = args.beta
     config.rollout_length = 5
     config.gradient_clip = 5
     config.max_steps = 1.5e7 if args.d else int(1.5e7)

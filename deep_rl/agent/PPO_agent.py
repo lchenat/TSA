@@ -110,6 +110,9 @@ class PPOAgent(BaseAgent):
                     recon_loss = config.recon.loss(sampled_states)
                     loss_dict['recon'].append(recon_loss)
                     aux_loss += recon_loss
+                if hasattr(config, 'reg_abs'):
+                    reg_abs_loss = config.reg_abs.loss(sampled_states, sampled_infos)
+                    loss_dict['reg_abs'].append(reg_abs_loss)
                 ### optimization ###
                 self.opt.step(policy_loss + value_loss + aux_loss) # try first
         steps = config.rollout_length * config.num_workers

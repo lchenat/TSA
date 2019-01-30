@@ -466,3 +466,25 @@ class TransitionModel(nn.Module):
 
     def loss(self, states, actions, next_states):
         return self.loss_weight * F.binary_cross_entropy(self(states, actions, next_states), (next_states - states + 1.0) / 2)
+
+class RegAbs(nn.Module):
+    def __init__(self, body, abs_dict):
+        super().__init__()
+        self.body = body
+        self.abs_dict = abs_dict
+        n_abs = len(set(abs_dict[0].values())) # only one map! Be careful to forward indices below
+        self.embed = torch.nn.Embedding(n_abs, self.body.feature_dim)
+        self.loss_weight = 0.01
+        self.to(Config.DEVICE)
+
+    # output: the features and corresponding dictionary features
+    def forward(self, states, infos):
+        xs = self.body(states)
+        indices = tensor([self.abs_dict[map_id][pos] for map_id, pos in zip(infos['map_id'], infos['pos'])], dtype=torch.long)
+        return xs, self.embed(indices)
+
+    def loss(self, states, infos):
+        xs, embeds = self(states, infos)
+        x_loss = torch.mean((embeds.detach() - xs)**2)
+        embed_loss = torch.mean((embeds - xs.detach())**2)
+        return self.loss_weight * (x_loss + 0.25 * embed_loss)

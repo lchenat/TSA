@@ -4,10 +4,14 @@ from .BaseAgent import *
 
 from collections import defaultdict
 
+eps = 1e-9
 
 # batch of distribution
 def kl(p, log_q):
-    return (p * (torch.log(p) - log_q)).sum(1)
+    #import ipdb; ipdb.set_trace()
+    output = (p * (torch.log(p + eps) - log_q)).sum(1)
+    assert (output == output).all()
+    return output
 
 class TransferPPOAgent(BaseAgent):
     def __init__(self, config):
