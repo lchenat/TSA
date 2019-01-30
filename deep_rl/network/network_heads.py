@@ -40,55 +40,6 @@ class ActorCriticNet(nn.Module, BaseNet):
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
 
-class CategoricalActorCriticNet(nn.Module, BaseNet):
-    def __init__(self,
-                 n_tasks,
-                 state_dim,
-                 action_dim,
-                 phi_body=None,
-                 actor_body=None,
-                 critic_body=None):
-        super(CategoricalActorCriticNet, self).__init__()
-        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body)
-        self.to(Config.DEVICE)
-
-    def get_logits(self, obs, info):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs)
-        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
-        logits = self.network.fc_action(phi_a, info)
-        return logits
-
-    def get_logprobs(self, obs, info):
-        return F.log_softmax(self.get_logits(obs, info), dim=1)
-
-    def get_probs(self, obs, info):
-        return F.softmax(self.get_logits(obs, info), dim=1)
-
-    def forward(self, obs, info, action=None):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs)
-        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
-        phi_v = self.network.critic_body(phi)
-        logits = self.network.fc_action(phi_a, info)
-        v = self.network.fc_critic(phi_v, info)
-        dist = torch.distributions.Categorical(logits=logits)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1)
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy,
-                'v': v}
-
-    def value(self, obs, info):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs)
-        phi_v = self.network.critic_body(phi)
-        v = self.network.fc_critic(phi_v, info)
-        return v
-
 ### tsa ###
 
 class AbstractEncoder(ABC):
@@ -379,6 +330,49 @@ class TSACriticNet(nn.Module, BaseNet):
         if isinstance(self.body, AbstractEncoder):
             return self.fc(self.body(inputs, info), info)
         return self.fc(self.body(inputs), info)
+
+class CategoricalActorCriticNet(nn.Module, Actor):
+    def __init__(self,
+                 n_tasks,
+                 state_dim,
+                 action_dim,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None):
+        super(CategoricalActorCriticNet, self).__init__()
+        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body)
+        self.to(Config.DEVICE)
+
+    def get_logits(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
+        logits = self.network.fc_action(phi_a, info)
+        return logits
+
+    def forward(self, obs, info, action=None):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
+        phi_v = self.network.critic_body(phi)
+        logits = self.network.fc_action(phi_a, info)
+        v = self.network.fc_critic(phi_v, info)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).unsqueeze(-1)
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy,
+                'v': v}
+
+    def value(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        phi_v = self.network.critic_body(phi)
+        v = self.network.fc_critic(phi_v, info)
+        return v
 
 class TSANet(nn.Module, Actor):
     def __init__(self,

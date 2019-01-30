@@ -5,6 +5,10 @@ from .BaseAgent import *
 from collections import defaultdict
 
 
+# batch of distribution
+def kl(p, log_q):
+    return (p * (torch.log(p) - log_q)).sum(1)
+
 class TransferPPOAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)
@@ -248,6 +252,7 @@ class TransferDistralAgent(BaseAgent):
         for _ in range(config.rollout_length):
             prediction = self.predict(states, infos)
             source_log_pi_a = self.source(states, infos, action=prediction['a'])['log_pi_a']
+            #np.testing.assert_almost_equal(source_log_pi_a.detach().cpu().numpy(), F.log_softmax(prediction['h'], dim=-1).gather(1, prediction['a'].view(-1, 1)).detach().cpu().numpy())
             next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a']))
             self.online_rewards += rewards
             rewards = config.reward_normalizer(rewards)
@@ -286,12 +291,12 @@ class TransferDistralAgent(BaseAgent):
             storage.ret[i] = returns.detach()
             storage.r_source[i] = r_source.detach()
 
-        log_pi_a, value, returns, advantages, entropy, h, r_source = storage.cat(['log_pi_a', 'v', 'ret', 'adv', 'ent', 'h', 'r_source'])
+        log_pi_a, value, returns, advantages, entropy, h, r_source, prob = storage.cat(['log_pi_a', 'v', 'ret', 'adv', 'ent', 'h', 'r_source', 'prob'])
         policy_loss = -(log_pi_a * advantages).mean()
         value_loss = 0.5 * (returns - value).pow(2).mean()
         entropy_loss = entropy.mean()
         source_loss = -config.alpha / config.beta * (r_source * h).sum(1).mean()
-        #source_loss = - ((prob - F.softmax(h)).detach() * h).sum(1).mean()
+        config.logger.add_scalar(tag='kl', value=torch.mean(kl(prob, F.log_softmax(h, dim=1))), step=self.total_steps)
 
         self.opt.step(policy_loss - config.entropy_weight * entropy_loss +
          config.value_loss_weight * value_loss + source_loss)
