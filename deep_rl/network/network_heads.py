@@ -474,7 +474,7 @@ class RegAbs(nn.Module):
         self.abs_dict = abs_dict
         n_abs = len(set(abs_dict[0].values())) # only one map! Be careful to forward indices below
         self.embed = torch.nn.Embedding(n_abs, self.body.feature_dim)
-        self.loss_weight = 0.01
+        self.loss_weight = 0.1
         self.to(Config.DEVICE)
 
     # output: the features and corresponding dictionary features
