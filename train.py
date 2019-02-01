@@ -25,6 +25,7 @@ def _command_line_parser():
     parser.add_argument('--window', type=int, default=1)
     #parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
     parser.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
+    parser.add_argument('--discount', type=float, default=0.99)
     # network
     parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
@@ -233,7 +234,7 @@ def ppo_pixel_tsa(args):
     process_weight(network, args, config)
     set_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.99
+    config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 0.95
     config.entropy_weight = 0.01
@@ -281,7 +282,7 @@ def ppo_pixel_baseline(args):
     if args.recon:
         config.recon = UNetReconstructor(visual_body, 3*config.env_config['main']['window'])
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.99
+    config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 0.95
     config.entropy_weight = 0.01
@@ -341,7 +342,7 @@ def supervised_tsa(args):
     process_weight(network, args, config)
     #config.network_fn = lambda: CategoricalActorCriticNet(n_tasks, config.state_dim, config.action_dim, TSAMiniConvBody(3*env_config['window'])) # debug
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.99
+    config.discount = args.discount
     config.log_interval = 1
     config.max_steps = 10000 if args.d else int(10000)
     config.save_interval = 1 # how many steps to save a model
@@ -378,7 +379,7 @@ def imitation_tsa(args):
     process_weight(network, args, config)
     set_optimizer_fn(args, config)
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.99
+    config.discount = args.discount
     config.gradient_clip = 0.5
     config.rollout_length = 128
     config.log_interval = config.num_workers * config.rollout_length
@@ -433,7 +434,7 @@ def transfer_ppo_tsa(args):
         return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
     config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.99
+    config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 0.95
     config.entropy_weight = 0.01
@@ -490,7 +491,7 @@ def transfer_a2c_tsa(args):
         return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
     config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.99
+    config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 1.0
     config.entropy_weight = 0.01
@@ -543,7 +544,7 @@ def transfer_distral_tsa(args):
         return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
     config.optimizer_fn = optimizer_fn
     config.state_normalizer = ImageNormalizer()
-    config.discount = 0.99
+    config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 1.0
     #config.entropy_weight = 0.01
