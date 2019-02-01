@@ -248,7 +248,7 @@ def make_reach_gridworld_env(env_config, seed, rank):
         random_seed(seed)
         env = ReachGridWorld(**env_config['main'], seed=seed+rank)
         env = PORGBEnv(env, l=env_config['l'])
-        env = FiniteHorizonEnv(env, T=100)
+        env = FiniteHorizonEnv(env, T=env_config['T'])
 
         return env
 
@@ -259,7 +259,7 @@ def make_pick_gridworld_env(env_config, seed, rank):
         random_seed(seed)
         env = PickGridWorld(**env_config['main'], task_length=1,seed=seed+rank)
         env = PORGBEnv(env, l=env_config['l'])
-        env = FiniteHorizonEnv(env, T=200) # debug, T=100
+        env = FiniteHorizonEnv(env, T=env_config['T'])
 
         return env
 

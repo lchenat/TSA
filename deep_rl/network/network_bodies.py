@@ -45,10 +45,10 @@ class LargeTSAMiniConvBody(nn.Module):
     def __init__(self, in_channels=12, feature_dim=512):
         super().__init__()
         self.feature_dim = feature_dim
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=4, padding=5)) # 24->16
-        self.conv2 = layer_init(nn.Conv2d(32, 32, stride=2, kernel_size=3, padding=1)) # 16->8
-        self.conv3 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
-        self.conv4 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 32->16
+        self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 16->8
+        self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 8->4
+        self.conv4 = layer_init(nn.Conv2d(128, 128, stride=2,kernel_size=3, padding=1)) # 4->2
         self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
 
     def forward(self, x):

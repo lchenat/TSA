@@ -21,6 +21,7 @@ def _command_line_parser():
     # environment
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
     parser.add_argument('-l', type=int, default=16)
+    parser.add_argument('-T', type=int, default=100)
     parser.add_argument('--window', type=int, default=1)
     #parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
     parser.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
@@ -218,6 +219,7 @@ def ppo_pixel_tsa(args):
         env_config = dict(
             main=env_config,
             l=args.l,
+            T=args.T,
         )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
@@ -261,6 +263,7 @@ def ppo_pixel_baseline(args):
         env_config = dict(
             main=env_config,
             l=args.l,
+            T=args.T,
         )
         config.env_config = env_config
     config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
@@ -308,6 +311,7 @@ def supervised_tsa(args):
         env_config = dict(
             main=env_config,
             l=args.l,
+            T=args.T,
         )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
@@ -360,6 +364,7 @@ def imitation_tsa(args):
         env_config = dict(
             main=env_config,
             l=args.l,
+            T=args.T,
         )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
@@ -399,6 +404,7 @@ def transfer_ppo_tsa(args):
         env_config = dict(
             main=env_config,
             l=args.l,
+            T=args.T,
         )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
@@ -457,6 +463,7 @@ def transfer_a2c_tsa(args):
         env_config = dict(
             main=env_config,
             l=args.l,
+            T=args.T,
         )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
@@ -509,6 +516,7 @@ def transfer_distral_tsa(args):
         env_config = dict(
             main=env_config,
             l=args.l,
+            T=args.T,
         )
         config.env_config = env_config
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
