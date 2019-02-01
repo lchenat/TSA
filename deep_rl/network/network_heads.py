@@ -288,7 +288,7 @@ class LinearActorNet(MultiLinear, BaseNet):
     def forward(self, xs, info, action=None):
         #logprobs = self.get_logprobs(xs, info)
         #dist = torch.distributions.Categorical(logits=logprobs)
-        dist = torch.distribution.Categorical(logits=self.get_logits(xs, info))
+        dist = torch.distributions.Categorical(logits=self.get_logits(xs, info))
         if action is None:
             action = dist.sample()
         log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
