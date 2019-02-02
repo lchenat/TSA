@@ -26,6 +26,7 @@ def _command_line_parser():
     #parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
     parser.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     parser.add_argument('--discount', type=float, default=0.99)
+    parser.add_argument('--min_dis', type=int, default=None)
     # network
     parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
@@ -217,6 +218,7 @@ def ppo_pixel_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
         env_config = dict(
             main=env_config,
             l=args.l,
@@ -260,6 +262,7 @@ def ppo_pixel_baseline(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
         n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
         env_config = dict(
             main=env_config,
@@ -308,6 +311,7 @@ def supervised_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
         n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
         env_config = dict(
             main=env_config,
@@ -362,6 +366,7 @@ def imitation_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
         env_config = dict(
             main=env_config,
             l=args.l,
@@ -402,6 +407,7 @@ def transfer_ppo_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
         env_config = dict(
             main=env_config,
             l=args.l,
@@ -461,6 +467,7 @@ def transfer_a2c_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
         env_config = dict(
             main=env_config,
             l=args.l,
@@ -514,6 +521,7 @@ def transfer_distral_tsa(args):
     with open(args.env_config, 'rb') as f:
         env_config = dill.load(f)
         env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
         env_config = dict(
             main=env_config,
             l=args.l,
