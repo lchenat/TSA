@@ -391,7 +391,7 @@ def imitation_tsa(args):
     config.log_interval = config.num_workers * config.rollout_length
     config.eval_interval = config.log_interval * 100
     config.max_steps = 1e4 if args.d else int(1.5e7)
-    config.save_interval = 0 # how many steps to save a model
+    config.save_interval = 1 # in terms of eval interval
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
