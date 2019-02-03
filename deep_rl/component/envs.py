@@ -244,7 +244,6 @@ class FiniteHorizonEnv(gym.Wrapper):
         return LastWrapper(self)
 
 def make_reach_gridworld_env(env_config, seed, rank):
-    if env_config['main']['min_dis'] is None: env_config['main']['min_dis'] = 10
     def _thunk():
         random_seed(seed)
         env = ReachGridWorld(**env_config['main'], seed=seed+rank)
@@ -256,7 +255,6 @@ def make_reach_gridworld_env(env_config, seed, rank):
     return _thunk
 
 def make_pick_gridworld_env(env_config, seed, rank):
-    if env_config['main']['min_dis'] is None: env_config['main']['min_dis'] = 0
     def _thunk():
         random_seed(seed)
         env = PickGridWorld(**env_config['main'], task_length=1, seed=seed+rank)

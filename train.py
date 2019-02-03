@@ -26,7 +26,7 @@ def _command_line_parser():
     #parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
     parser.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--min_dis', type=int, default=None)
+    parser.add_argument('--min_dis', type=int, default=10)
     # network
     parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
     parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
