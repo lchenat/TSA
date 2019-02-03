@@ -52,6 +52,7 @@ def _command_line_parser():
     parser.add_argument('--recon', action='store_true')
     parser.add_argument('--trans', action='store_true')
     parser.add_argument('--reg_abs_fn', type=str, default=None)
+    parser.add_argument('--reg_abs_weight', type=float, default=1.0)
     # optimization
     parser.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
     parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
@@ -121,7 +122,7 @@ def get_visual_body(args, config):
     if args.reg_abs_fn is not None:
         with open(args.reg_abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
-        config.reg_abs = RegAbs(visual_body, abs_dict)
+        config.reg_abs = RegAbs(visual_body, abs_dict, args.reg_abs_weight)
     return visual_body
 
 def set_aux_network(visual_body, args, config):
