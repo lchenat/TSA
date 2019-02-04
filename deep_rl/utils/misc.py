@@ -138,13 +138,13 @@ def run_steps(agent):
             config.logger.add_scalar('mean-returns', stats['mean returns'], stats['steps'])
             t0 = time.time()
             if config.eval_interval and not agent.total_steps / config.log_interval % config.eval_interval:
-                agent.eval_episodes()
+                acc = agent.eval_episodes()
                 weight_dict = dict(
                     network=agent.network.state_dict(),
                     action_predictor=config.action_predictor.state_dict() if hasattr(config, 'action_predictor') else None,
                 )
                 if config.save_interval and not agent.total_steps / config.log_interval / config.eval_interval % config.save_interval:
-                    torch.save(weight_dict, Path(save_dir, 'step-{}-mean-{:.2f}'.format(stats['steps'], stats['mean returns'])))
+                    torch.save(weight_dict, Path(save_dir, 'step-{}-mean-{:.2f}'.format(stats['steps'], acc)))
         if config.max_steps and agent.total_steps >= config.max_steps:
             agent.close()
             break
