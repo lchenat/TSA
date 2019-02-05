@@ -143,8 +143,12 @@ def process_weight(network, args, config):
         if 'action_predictor' in weight_dict:
             config.action_predictor.load_state_dict(weight_dict['action_predictor'])
     if args.fix_abs:
-        for p in network.abs_encoder.parameters():
-            p.requires_grad = False
+        if hasattr(network, 'abs_encoder'):
+            for p in network.abs_encoder.parameters():
+                p.requires_grad = False
+        else: # baseline
+            for p in network.network.phi_body.parameters():
+                p.requires_grad = False
 
 def get_network(visual_body, args, config):
     if args.net == 'baseline':
