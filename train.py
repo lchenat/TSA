@@ -58,6 +58,7 @@ def _command_line_parser():
     parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
     parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     # others
+    parser.add_argument('--steps', type=int, default=None)
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('-d', action='store_true')
@@ -253,6 +254,7 @@ def ppo_pixel_tsa(args):
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
     config.max_steps = 1e4 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
@@ -302,6 +304,7 @@ def ppo_pixel_baseline(args):
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
     config.max_steps = 1e4 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
@@ -355,6 +358,7 @@ def supervised_tsa(args):
     config.discount = args.discount
     config.log_interval = 1
     config.max_steps = 10000 if args.d else int(10000)
+    if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # how many steps to save a model
     config.eval_interval = 100
     config.log_name += '-label-{}'.format(args.label)
@@ -396,6 +400,7 @@ def imitation_tsa(args):
     config.log_interval = config.num_workers * config.rollout_length
     config.eval_interval = 100 # in terms of log interval
     config.max_steps = 1e4 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # in terms of eval interval
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.logger = get_logger(tag=config.log_name)
@@ -457,6 +462,7 @@ def transfer_ppo_tsa(args):
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
@@ -511,6 +517,7 @@ def transfer_a2c_tsa(args):
     config.rollout_length = 5
     config.gradient_clip = 5
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
@@ -567,6 +574,7 @@ def transfer_distral_tsa(args):
     config.rollout_length = 5
     config.gradient_clip = 5
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
