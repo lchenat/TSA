@@ -58,6 +58,7 @@ def _command_line_parser():
     parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
     parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     # others
+    parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('-d', action='store_true')
     return parser
@@ -593,7 +594,7 @@ if __name__ == '__main__':
     mkdir('tf_log')
     set_one_thread()
     random_seed(0)
-    select_device(0)
+    select_device(-1 if args.cpu else 0)
 
     if args.d:
         context = slaunch_ipdb_on_exception
