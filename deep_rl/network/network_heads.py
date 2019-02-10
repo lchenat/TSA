@@ -260,6 +260,24 @@ class Actor(BaseNet):
     def get_probs(self, xs, info):
         return F.softmax(self.get_logits(xs, info), dim=-1)
 
+class TabularActor:
+    def __init__(self, n_abs, action_dim, n_tasks, eps=0.1):
+        self.policy = torch.ones(n_tasks, n_abs, action_dim) / action_dim
+        self.eps = eps
+
+    def eps_greedy_sample(policy):
+        dist = torch.distributions.Categorical(logits=torch.ones_like(policy))
+        random_sample = dist.sample()
+        dist = torch.distributions.Categorical(probs=policy)
+        sample = dist.sample()
+        mask = torch.rand_like(sample) <= self.eps
+        return random_sample * mask + sample * (1 - mask)
+
+    def forward(self, x, info):
+        policy = self.policy[tensor(info['task_id'], torch.int64),:,:]
+        policy = torch.bmm(x.unsqueeze(1), policy).squeeze(1)
+        return {'a': self.eps_greedy_sample(policy)}
+
 class IdentityActor(nn.Module, BaseNet): # only works for single environment!
     def get_logits(self, x, info):
         return x
@@ -400,7 +418,8 @@ class TSANet(nn.Module, Actor):
         obs = tensor(obs)
         abs_s = self.abs_encoder(obs, info) # abstract state
         output = self.actor(abs_s, info, action=action)
-        output['v'] = self.critic(obs, info)
+        if self.critic is not None:
+            output['v'] = self.critic(obs, info)
         return output
 
     def value(self, obs, info):

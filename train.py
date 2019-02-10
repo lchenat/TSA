@@ -17,7 +17,20 @@ import copy
 
 def _command_line_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('agent', default='tsa', choices=['tsa', 'baseline', 'supervised', 'imitation', 'transfer_a2c', 'transfer_ppo', 'transfer_distral'])
+    parser.add_argument(
+        'agent', 
+        default='tsa', 
+        choices=[
+            'tsa', 
+            'baseline', 
+            'supervised',
+            'imitation',
+            'transfer_a2c',
+            'transfer_ppo',
+            'transfer_distral',
+            'PI',
+        ]
+    )
     # environment
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
     parser.add_argument('-l', type=int, default=16)
@@ -258,6 +271,7 @@ def ppo_pixel_tsa(args):
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -308,6 +322,7 @@ def ppo_pixel_baseline(args):
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -364,6 +379,7 @@ def supervised_tsa(args):
     config.eval_interval = 100
     config.log_name += '-label-{}'.format(args.label)
     if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -404,6 +420,7 @@ def imitation_tsa(args):
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # in terms of eval interval
     if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -467,6 +484,7 @@ def transfer_ppo_tsa(args):
     config.save_interval = 0 # how many steps to save a model
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -522,6 +540,7 @@ def transfer_a2c_tsa(args):
     config.save_interval = 0 # how many steps to save a model
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -579,6 +598,7 @@ def transfer_distral_tsa(args):
     config.save_interval = 0 # how many steps to save a model
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
     config.logger = get_logger(tag=config.log_name)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -587,6 +607,49 @@ def transfer_distral_tsa(args):
     config.logger.save_file(env_config['main'], 'env_config')
     run_steps(TransferDistralAgent(config))
 
+def ppo_pixel_PI(args):
+    config = Config()
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
+        n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+            T=args.T,
+        )
+        config.env_config = env_config
+    config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
+    config.eval_env = GridWorldTask(env_config)
+    config.num_workers = 8
+    #config.state_dim = 512
+    with open(args.abs_fn, 'rb') as f:
+        abs_dict = dill.load(f)
+        n_abs = len(set(abs_dict[0].values())) # only have 1 map!
+        config.n_abs = n_abs
+    log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
+    print(abs_dict)
+    abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
+    actor = TabularActor(n_abs, config.action_dim, config.eval_env.n_tasks)
+    network = TSANet(config.action_dim, abs_encoder, actor, critic=None)
+    config.network_fn = lambda: network
+    #config.state_normalizer = ImageNormalizer()
+    config.discount = args.discount
+    config.log_interval = 128 * 8
+    config.max_steps = 1e4 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
+    config.save_interval = 0 # how many steps to save a model
+    if args.tag: config.log_name += '-{}'.format(args.tag)
+    config.log_name += '-{}'.format(args.seed)
+    config.logger = get_logger(tag=config.log_name)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    config.logger.save_file(env_config['main'], 'env_config')
+    run_steps(PIAgent(config))
 
 if __name__ == '__main__':
     parser = _command_line_parser()
@@ -628,3 +691,5 @@ if __name__ == '__main__':
                 transfer_a2c_tsa(args)
             elif args.agent == 'transfer_distral':
                 transfer_distral_tsa(args)
+            elif args.agent == 'PI':
+                ppo_pixel_PI(args)
