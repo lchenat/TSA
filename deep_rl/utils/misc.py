@@ -10,9 +10,11 @@ import pickle
 import os
 import git
 import datetime
+import filelock
 import torch
 import time
 import dill
+import shlex
 import shutil
 from PIL import Image
 from .torch_utils import *
@@ -22,6 +24,32 @@ try:
 except:
     # python == 2.7
     from pathlib2 import Path
+
+# for bach experiments, but combined with argparse and put this into your main.py
+# batch_exps (or bash_tools exps) is more general. However, it is very difficult for them to control specific behaviour,
+# and they need to deal with messy multi-processes
+def read_args(args_fn, timeout=30):
+    cur_fn = Path(args_fn).with_name('.{}.cur'.format(Path(args_fn).stem))
+    lock_fn = Path(args_fn).with_name('.{}.lock'.format(Path(args_fn).stem))
+    if not cur_fn.exists():
+        shutil.copy(args_fn, str(cur_fn)) # create a new one
+    lock_fn.touch(exist_ok=True) # disadvantages: this will not be cleaned up
+    with filelock.FileLock(lock_fn).acquire(timeout=timeout):
+        with open(cur_fn) as f:
+            jobs = f.read().splitlines(True)
+        if jobs:
+            # skip empty line and comments
+            while not jobs[0] or jobs[0].startswith('#'): jobs = jobs[1:]
+            args = shlex.split(jobs[0])
+            with open(cur_fn, 'w') as f:
+                f.writelines(jobs[1:])
+        else:
+            args = None
+    return args
+
+# push back the args
+def push_args(args_fn):
+    pass
 
 def index_dict(l):
     l = list(enumerate(set(l)))

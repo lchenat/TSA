@@ -58,6 +58,7 @@ def _command_line_parser():
     parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
     parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     # others
+    parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--steps', type=int, default=None)
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--tag', type=str, default=None)
@@ -589,37 +590,41 @@ def transfer_distral_tsa(args):
 
 if __name__ == '__main__':
     parser = _command_line_parser()
-    args = parser.parse_args()
-    if not args.d and is_git_diff():
-        print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
-        exit()
-    if args.env == 'pick':
-        GridWorldTask = PickGridWorldTask
-    elif args.env == 'reach':
-        GridWorldTask = ReachGridWorldTask
+    while True:
+        args = read_args('exps')
+        if args is None: break
+        print(args)
+        args = parser.parse_args(args)
+        if not args.d and is_git_diff():
+            print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
+            break
+        if args.env == 'pick':
+            GridWorldTask = PickGridWorldTask
+        elif args.env == 'reach':
+            GridWorldTask = ReachGridWorldTask
 
-    mkdir('log')
-    mkdir('tf_log')
-    set_one_thread()
-    random_seed(0)
-    select_device(-1 if args.cpu else 0)
+        mkdir('log')
+        mkdir('tf_log')
+        set_one_thread()
+        random_seed(args.seed)
+        select_device(-1 if args.cpu else 0)
 
-    if args.d:
-        context = slaunch_ipdb_on_exception
-    else:
-        context = with_null
-    with context():
-        if args.agent == 'tsa':
-            ppo_pixel_tsa(args)
-        elif args.agent == 'baseline':
-            ppo_pixel_baseline(args)
-        elif args.agent == 'supervised':
-            supervised_tsa(args)
-        elif args.agent == 'imitation':
-            imitation_tsa(args)
-        elif args.agent == 'transfer_ppo':
-            transfer_ppo_tsa(args)
-        elif args.agent == 'transfer_a2c':
-            transfer_a2c_tsa(args)
-        elif args.agent == 'transfer_distral':
-            transfer_distral_tsa(args)
+        if args.d:
+            context = slaunch_ipdb_on_exception
+        else:
+            context = with_null
+        with context():
+            if args.agent == 'tsa':
+                ppo_pixel_tsa(args)
+            elif args.agent == 'baseline':
+                ppo_pixel_baseline(args)
+            elif args.agent == 'supervised':
+                supervised_tsa(args)
+            elif args.agent == 'imitation':
+                imitation_tsa(args)
+            elif args.agent == 'transfer_ppo':
+                transfer_ppo_tsa(args)
+            elif args.agent == 'transfer_a2c':
+                transfer_a2c_tsa(args)
+            elif args.agent == 'transfer_distral':
+                transfer_distral_tsa(args)

@@ -101,3 +101,7 @@ data/models
 
 *.swp
 old_tf_log
+
+exps
+*.lock
+*.cur
