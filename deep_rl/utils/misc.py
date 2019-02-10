@@ -39,7 +39,7 @@ def read_args(args_fn, timeout=30):
             jobs = f.read().splitlines(True)
         if jobs:
             # skip empty line and comments
-            while not jobs[0] or jobs[0].startswith('#'): jobs = jobs[1:]
+            while not jobs[0].strip() or jobs[0].strip().startswith('#'): jobs = jobs[1:]
             args = shlex.split(jobs[0])
             with open(cur_fn, 'w') as f:
                 f.writelines(jobs[1:])
