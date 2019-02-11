@@ -8,6 +8,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from abc import ABC, abstractmethod
+from torch.nn import Parameter
 
 from .network_utils import *
 from .network_bodies import *
@@ -260,20 +261,22 @@ class Actor(BaseNet):
     def get_probs(self, xs, info):
         return F.softmax(self.get_logits(xs, info), dim=-1)
 
-class TabularActor:
+class TabularActor(nn.Module):
     def __init__(self, n_abs, action_dim, n_tasks, eps=0.1):
-        self.policy = torch.ones(n_tasks, n_abs, action_dim) / action_dim
+        super().__init__()
+        self.policy = Parameter(torch.ones(n_tasks, n_abs, action_dim) / action_dim, requires_grad=False)
         self.eps = eps
 
-    def eps_greedy_sample(policy):
+    def eps_greedy_sample(self, policy):
         dist = torch.distributions.Categorical(logits=torch.ones_like(policy))
         random_sample = dist.sample()
         dist = torch.distributions.Categorical(probs=policy)
         sample = dist.sample()
-        mask = torch.rand_like(sample) <= self.eps
+        mask = (torch.rand_like(sample.float()) <= self.eps).long()
         return random_sample * mask + sample * (1 - mask)
 
-    def forward(self, x, info):
+    def forward(self, x, info, action=None):
+        assert action is None, 'TabularActor does not support input action'
         policy = self.policy[tensor(info['task_id'], torch.int64),:,:]
         policy = torch.bmm(x.unsqueeze(1), policy).squeeze(1)
         return {'a': self.eps_greedy_sample(policy)}
@@ -405,7 +408,7 @@ class TSANet(nn.Module, Actor):
 
         self.abs_encoder_params = list(self.abs_encoder.parameters())
         self.actor_params = list(self.actor.parameters())
-        self.critic_params = list(self.critic.parameters())
+        self.critic_params = list(self.critic.parameters()) if critic else None
 
         self.to(Config.DEVICE)
 

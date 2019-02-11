@@ -34,7 +34,7 @@ def _exp_parser():
             'transfer_ppo',
             'transfer_distral',
             'PI',
-        ]
+        ],
     )
     # environment
     parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
@@ -629,6 +629,7 @@ def ppo_pixel_PI(args):
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     config.num_workers = 8
+    config.rollout_length = 300
     #config.state_dim = 512
     with open(args.abs_fn, 'rb') as f:
         abs_dict = dill.load(f)
@@ -642,7 +643,7 @@ def ppo_pixel_PI(args):
     config.network_fn = lambda: network
     #config.state_normalizer = ImageNormalizer()
     config.discount = args.discount
-    config.log_interval = 128 * 8
+    config.log_interval = config.rollout_length * config.num_workers
     config.max_steps = 1e4 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
@@ -686,7 +687,8 @@ if __name__ == '__main__':
                 context = slaunch_ipdb_on_exception
             else:
                 context = with_null
-            with context():
+            # quit ipdb will jump out of this, therefore should put exp_finished inside context
+            with context(): 
                 if args.agent == 'tsa':
                     ppo_pixel_tsa(args)
                 elif args.agent == 'baseline':
@@ -703,7 +705,8 @@ if __name__ == '__main__':
                     transfer_distral_tsa(args)
                 elif args.agent == 'PI':
                     ppo_pixel_PI(args)
-            exp_finished = True
+                exp_finished = True
         finally:
             if not exp_finished:
                 push_args(args_str, command_args.exp)
+                break # should quit immediately
