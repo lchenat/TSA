@@ -15,7 +15,12 @@ import argparse
 import dill
 import copy
 
-def _command_line_parser():
+def _command_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('exp', type=str, default='exps/exp')
+    return parser
+
+def _exp_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         'agent', 
@@ -652,9 +657,10 @@ def ppo_pixel_PI(args):
     run_steps(PIAgent(config))
 
 if __name__ == '__main__':
-    parser = _command_line_parser()
+    command_args = _command_parser().parse_args()
+    parser = _exp_parser()
     while True:
-        args = read_args('exps')
+        args = read_args(command_args.exp)
         if args is None: break
         args_str = ' '.join(args)
         exp_finished = False
@@ -700,4 +706,4 @@ if __name__ == '__main__':
             exp_finished = True
         finally:
             if not exp_finished:
-                push_args(args_str, 'exps')
+                push_args(args_str, command_args.exp)
