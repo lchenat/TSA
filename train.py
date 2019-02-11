@@ -272,7 +272,7 @@ def ppo_pixel_tsa(args):
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -323,7 +323,7 @@ def ppo_pixel_baseline(args):
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -380,7 +380,7 @@ def supervised_tsa(args):
     config.log_name += '-label-{}'.format(args.label)
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -421,7 +421,7 @@ def imitation_tsa(args):
     config.save_interval = 1 # in terms of eval interval
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -485,7 +485,7 @@ def transfer_ppo_tsa(args):
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -541,7 +541,7 @@ def transfer_a2c_tsa(args):
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -599,7 +599,7 @@ def transfer_distral_tsa(args):
     config.log_name += '-w-{}'.format(config.distill_w)
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -643,7 +643,7 @@ def ppo_pixel_PI(args):
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
     config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name)
+    config.logger = get_logger(tag=config.log_name, args_str=args.str)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -655,41 +655,49 @@ if __name__ == '__main__':
     parser = _command_line_parser()
     while True:
         args = read_args('exps')
-        if args is None: break
-        print(args)
-        args = parser.parse_args(args)
-        if not args.d and is_git_diff():
-            print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
-            break
-        if args.env == 'pick':
-            GridWorldTask = PickGridWorldTask
-        elif args.env == 'reach':
-            GridWorldTask = ReachGridWorldTask
+        args_str = ' '.join(args)
+        exp_finished = False
+        try:
+            if args is None: break
+            print(args)
+            args = parser.parse_args(args)
+            args.str = args_str
+            if not args.d and is_git_diff():
+                print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
+                break
+            if args.env == 'pick':
+                GridWorldTask = PickGridWorldTask
+            elif args.env == 'reach':
+                GridWorldTask = ReachGridWorldTask
 
-        mkdir('log')
-        mkdir('tf_log')
-        set_one_thread()
-        random_seed(args.seed)
-        select_device(-1 if args.cpu else 0)
+            mkdir('log')
+            mkdir('tf_log')
+            set_one_thread()
+            random_seed(args.seed)
+            select_device(-1 if args.cpu else 0)
 
-        if args.d:
-            context = slaunch_ipdb_on_exception
-        else:
-            context = with_null
-        with context():
-            if args.agent == 'tsa':
-                ppo_pixel_tsa(args)
-            elif args.agent == 'baseline':
-                ppo_pixel_baseline(args)
-            elif args.agent == 'supervised':
-                supervised_tsa(args)
-            elif args.agent == 'imitation':
-                imitation_tsa(args)
-            elif args.agent == 'transfer_ppo':
-                transfer_ppo_tsa(args)
-            elif args.agent == 'transfer_a2c':
-                transfer_a2c_tsa(args)
-            elif args.agent == 'transfer_distral':
-                transfer_distral_tsa(args)
-            elif args.agent == 'PI':
-                ppo_pixel_PI(args)
+            if args.d:
+                context = slaunch_ipdb_on_exception
+            else:
+                context = with_null
+            with context():
+                if args.agent == 'tsa':
+                    ppo_pixel_tsa(args)
+                elif args.agent == 'baseline':
+                    ppo_pixel_baseline(args)
+                elif args.agent == 'supervised':
+                    supervised_tsa(args)
+                elif args.agent == 'imitation':
+                    imitation_tsa(args)
+                elif args.agent == 'transfer_ppo':
+                    transfer_ppo_tsa(args)
+                elif args.agent == 'transfer_a2c':
+                    transfer_a2c_tsa(args)
+                elif args.agent == 'transfer_distral':
+                    transfer_distral_tsa(args)
+                elif args.agent == 'PI':
+                    ppo_pixel_PI(args)
+            exp_finished = True
+        finally:
+            if not exp_finished:
+                push_args(args_str, 'exps')

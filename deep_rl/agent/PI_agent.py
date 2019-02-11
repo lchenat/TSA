@@ -64,7 +64,7 @@ class PIAgent(BaseAgent):
         q = tensor(np.zeros((config.n_abs, config.action_dim)))
         count = tensor(np.zeros((config.n_abs, config.action_dim)))
         for i in reversed(range(config.rollout_length)):
-
+            pass
         # advantages <- adv
         # cat data from all workers together (mix)
         states, next_states, ms, actions, log_probs_old, returns, advantages, infos = storage.cat(['s', 'ns', 'm', 'a', 'log_pi_a', 'ret', 'adv', 'info'])

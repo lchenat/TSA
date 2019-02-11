@@ -10,16 +10,22 @@ import glob
 import numpy as np
 import torch
 import shutil
+import random
 import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s: %(message)s')
 from .misc import *
-
+from pathlib import Path
 
 base_log_dir = './tf_log'
 
-def get_logger(tag=None, skip=False, level=logging.INFO):
-    logger = logging.getLogger()
+def get_logger(tag=None, skip=False, level=logging.INFO, args_str=''):
+    # save a hash code and push it to a file, so that it is easy to keey track of which program we have running
+    hash_code = '%08x' % random.getrandbits(32) # random seed does not fixed, wierd...
+    logger = logging.getLogger(hash_code)
     logger.setLevel(level)
+    run_path = Path(base_log_dir, 'run')
+    run_path.touch()
+    line_prepend(run_path, '{}: {}'.format(hash_code, args_str))
     if tag is not None:
         fh = logging.FileHandler('./log/%s.txt' % (tag,))
         fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
