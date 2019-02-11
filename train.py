@@ -655,10 +655,10 @@ if __name__ == '__main__':
     parser = _command_line_parser()
     while True:
         args = read_args('exps')
+        if args is None: break
         args_str = ' '.join(args)
         exp_finished = False
         try:
-            if args is None: break
             print(args)
             args = parser.parse_args(args)
             args.str = args_str
