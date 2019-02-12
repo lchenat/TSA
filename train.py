@@ -679,7 +679,7 @@ if __name__ == '__main__':
             shutil.copy(command_args.exp, str(exp_path))
     else: # join
         exp_path = Path(command_args.exp)
-        assert exp_path.suffix == 'run', 'only support run filetype'
+        assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
     while True:
         args = read_args(exp_path)
         if args is None: break
