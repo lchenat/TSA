@@ -20,7 +20,12 @@ import shutil
 
 def _command_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('exp', type=str, default='exps/exp')
+    parser.add_argument('op', type=str, choices=['new', 'join'], # no default!
+        help='create a new exp with name exp-tag or join an old one')
+    parser.add_argument('exp', type=str, default='exps/exp', 
+        help='path of the experiment file')
+    parser.add_argument('--tag', type=str, default='0',
+        help='suffix tag creating a new experiment')
     return parser
 
 def _exp_parser():
@@ -667,10 +672,14 @@ def ppo_pixel_PI(args):
 if __name__ == '__main__':
     command_args = _command_parser().parse_args()
     parser = _exp_parser()
-    while True:
+    if command_args.op == 'new':
+        exp_path = Path('{}-{}'.format(command_args.exp, command_args.tag))
+        if not exp_path.exists() or stdin_choices('{} exists, want to replace?'.format(exp_path), ['y', 'n']):
+            shutil.copy(command_args.exp, str(exp_path))
+    else: # join
         exp_path = Path(command_args.exp)
-        shutil.copy(str(exp_path), str(Path(exp_path.parent, '.{}.bp'.format(exp_path.name)))) # create a backup copy
-        args = read_args(command_args.exp)
+    while True:
+        args = read_args(exp_path)
         if args is None: break
         args_str = ' '.join(args)
         exp_finished = False
@@ -719,5 +728,5 @@ if __name__ == '__main__':
             traceback.print_exc()
         finally:
             if not exp_finished:
-                push_args(args_str, command_args.exp)
+                push_args(args_str, exp_path)
                 break # should quit immediately
