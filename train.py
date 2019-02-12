@@ -706,6 +706,8 @@ if __name__ == '__main__':
                 elif args.agent == 'PI':
                     ppo_pixel_PI(args)
                 exp_finished = True
+        except Exception as e:
+            raise e
         finally:
             if not exp_finished:
                 push_args(args_str, command_args.exp)
