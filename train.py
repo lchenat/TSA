@@ -11,10 +11,12 @@ from deep_rl.utils import *
 
 from ipdb import slaunch_ipdb_on_exception
 from termcolor import colored
+from pathlib import Path
 import argparse
 import dill
 import copy
 import traceback
+import shutil
 
 def _command_parser():
     parser = argparse.ArgumentParser()
@@ -666,6 +668,8 @@ if __name__ == '__main__':
     command_args = _command_parser().parse_args()
     parser = _exp_parser()
     while True:
+        exp_path = Path(command_args.exp)
+        shutil.copy(str(exp_path), str(Path(exp_path.parent, '.{}.bp'.format(exp_path.name)))) # create a backup copy
         args = read_args(command_args.exp)
         if args is None: break
         args_str = ' '.join(args)

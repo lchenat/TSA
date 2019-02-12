@@ -35,34 +35,34 @@ def line_prepend(filename, line):
 # batch_exps (or bash_tools exps) is more general. However, it is very difficult for them to control specific behaviour,
 # and they need to deal with messy multi-processes
 def read_args(args_fn, timeout=30):
-    cur_fn = Path(args_fn).with_name('.{}.cur'.format(Path(args_fn).stem))
     lock_fn = Path(args_fn).with_name('.{}.lock'.format(Path(args_fn).stem))
-    if not cur_fn.exists():
-        shutil.copy(args_fn, str(cur_fn)) # create a new one
-    lock_fn.touch(exist_ok=True) # disadvantages: this will not be cleaned up
+    lock_fn.touch(exist_ok=True)
     with filelock.FileLock(lock_fn).acquire(timeout=timeout):
-        with open(cur_fn) as f:
+        with open(args_fn) as f:
             jobs = f.read().splitlines(True)
-        while jobs and (not jobs[0].strip() or jobs[0].strip().startswith('#')): jobs = jobs[1:]
+        while True:
+            job = jobs[0].strip()
+            if jobs and (not job or job.startswith('#')):
+                jobs = jobs[1:]
+            else:
+                break
         if jobs:
             # skip empty line and comments
             args = shlex.split(jobs[0])
-            with open(cur_fn, 'w') as f:
+            with open(args_fn, 'w') as f:
                 f.writelines(jobs[1:])
         else:
             args = None
     return args
 
 def push_args(args_str, args_fn, timeout=30):
-    cur_fn = Path(args_fn).with_name('.{}.cur'.format(Path(args_fn).stem))
     lock_fn = Path(args_fn).with_name('.{}.lock'.format(Path(args_fn).stem))
     lock_fn.touch(exist_ok=True) # disadvantages: this will not be cleaned up
     with filelock.FileLock(lock_fn).acquire(timeout=timeout):
-        with open(cur_fn) as f:
+        with open(args_fn) as f:
             jobs = f.read().splitlines(True)
-        #jobs.insert(0, ' '.join(args) + '\n')
         jobs.insert(0, args_str + '\n')
-        with open(cur_fn, 'w') as f:
+        with open(args_fn, 'w') as f:
             f.writelines(jobs)
 
 def index_dict(l):
