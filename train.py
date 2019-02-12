@@ -14,6 +14,7 @@ from termcolor import colored
 import argparse
 import dill
 import copy
+import traceback
 
 def _command_parser():
     parser = argparse.ArgumentParser()
@@ -707,7 +708,7 @@ if __name__ == '__main__':
                     ppo_pixel_PI(args)
                 exp_finished = True
         except Exception as e:
-            raise e
+            traceback.print_exc()
         finally:
             if not exp_finished:
                 push_args(args_str, command_args.exp)
