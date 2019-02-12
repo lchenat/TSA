@@ -232,7 +232,10 @@ def get_network(visual_body, args, config):
             temperature = process_temperature(args.temperature)
             log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             abs_encoder = BernoulliAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
-            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+            if args.actor == 'linear':
+                actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+            else:
+                actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         if args.critic == 'visual':
             critic_body = visual_body
         elif args.critic == 'abs':
