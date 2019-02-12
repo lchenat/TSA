@@ -422,7 +422,7 @@ def imitation_tsa(args):
     config.rollout_length = 128
     config.log_interval = config.num_workers * config.rollout_length
     config.eval_interval = 100 # in terms of log interval
-    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.max_steps = 1e4 if args.d else int(3e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # in terms of eval interval
     if args.tag: config.log_name += '-{}'.format(args.tag)
@@ -645,7 +645,7 @@ def ppo_pixel_PI(args):
     #config.state_normalizer = ImageNormalizer()
     config.discount = args.discount
     config.log_interval = config.rollout_length * config.num_workers
-    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.max_steps = 1e4 if args.d else int(2e6)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
