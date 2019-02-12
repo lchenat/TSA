@@ -159,7 +159,8 @@ def set_aux_network(visual_body, args, config):
 def process_weight(network, args, config):
     if args.weight is not None:
         weight_dict = network.state_dict()
-        loaded_weight_dict = {k: v for k, v in torch.load(args.weight, map_location=lambda storage, loc: storage).items() if k in weight_dict}
+        # this is error prone, if I change structure of weight_dict, it does not give error
+        loaded_weight_dict = {k: v for k, v in torch.load(args.weight, map_location=lambda storage, loc: storage)['network'].items() if k in weight_dict}
         weight_dict.update(loaded_weight_dict)
         network.load_state_dict(weight_dict)
         if 'action_predictor' in weight_dict:
