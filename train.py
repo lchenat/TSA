@@ -49,7 +49,6 @@ def _exp_parser():
     parser.add_argument('-l', type=int, default=16)
     parser.add_argument('-T', type=int, default=100)
     parser.add_argument('--window', type=int, default=1)
-    #parser.add_argument('--env_config', type=str, default='data/env_configs/map49-single')
     parser.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--min_dis', type=int, default=10)
@@ -60,6 +59,7 @@ def _exp_parser():
     parser.add_argument('--abs_fn', type=str, default=None)
     parser.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
     parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
+    parser.add_argument('--rate', type=float, default=1)
     # transfer network
     parser.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
     parser.add_argument('--t_n_abs', type=int, default=512)
@@ -654,9 +654,10 @@ def ppo_pixel_PI(args):
     network = TSANet(config.action_dim, abs_encoder, actor, critic=None)
     config.network_fn = lambda: network
     #config.state_normalizer = ImageNormalizer()
+    config.rate = args.rate
     config.discount = args.discount
     config.log_interval = config.rollout_length * config.num_workers
-    config.max_steps = 1e4 if args.d else int(2e6)
+    config.max_steps = 1e4 if args.d else int(1.2e6)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
     if args.tag: config.log_name += '-{}'.format(args.tag)
@@ -673,11 +674,12 @@ if __name__ == '__main__':
     command_args = _command_parser().parse_args()
     parser = _exp_parser()
     if command_args.op == 'new':
-        exp_path = Path('{}-{}'.format(command_args.exp, command_args.tag))
+        exp_path = Path('{}-{}.run'.format(command_args.exp, command_args.tag))
         if not exp_path.exists() or stdin_choices('{} exists, want to replace?'.format(exp_path), ['y', 'n']):
             shutil.copy(command_args.exp, str(exp_path))
     else: # join
         exp_path = Path(command_args.exp)
+        assert exp_path.suffix == 'run', 'only support run filetype'
     while True:
         args = read_args(exp_path)
         if args is None: break

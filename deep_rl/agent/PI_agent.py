@@ -18,7 +18,7 @@ class PIAgent(BaseAgent):
         self.states = self.task.reset()
         self.states = config.state_normalizer(self.states)
         self.infos = self.task.get_info() # store task_ids
-        self.k = 1 # update eps
+        self.k = 0 # update eps
 
     def step(self):
         config = self.config
@@ -64,7 +64,7 @@ class PIAgent(BaseAgent):
                 count[storage.info[i]['task_id'][j]][storage.abs_s[i][j]][storage.a[i][j]] += 1
         q /= count
         new_policy = one_hot.encode(q.argmax(dim=2), config.action_dim)
-        self.network.actor.policy += 1 / self.k * (new_policy - self.network.actor.policy)
+        self.network.actor.policy += config.rate / (config.rate + self.k) * (new_policy - self.network.actor.policy)
         #advantages = tensor(np.zeros((config.num_workers, 1)))
         #returns = prediction['v'].detach()
         #for i in reversed(range(config.rollout_length)):
