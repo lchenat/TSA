@@ -16,22 +16,22 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s: %(message)s'
 from .misc import *
 from pathlib import Path
 
-base_log_dir = './tf_log'
+base_log_dir = './log'
 
-def get_logger(tag=None, skip=False, level=logging.INFO, args_str=''):
-    # save a hash code and push it to a file, so that it is easy to keey track of which program we have running
-    hash_code = '%08x' % random.getrandbits(32) # random seed does not fixed, wierd...
-    logger = logging.getLogger(hash_code)
+def get_logger(name, tags=None, skip=False, level=logging.INFO):
+    log_dir = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
+    if not skip and log_dir.exists() and not stdin_choices('log exists, want to replace?', ['y', 'n']):
+        raise Exception('Error: log directory exists')
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger(name)
     logger.setLevel(level)
-    run_path = Path(base_log_dir, 'run')
-    run_path.touch()
-    line_prepend(run_path, '{}: {}'.format(hash_code, args_str))
-    if tag is not None:
-        fh = logging.FileHandler('./log/%s.txt' % (tag,))
-        fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
-        fh.setLevel(level)
-        logger.addHandler(fh)
-    return Logger(logger, tag, skip)
+    log_path = Path(log_dir, 'log.txt')
+    log_path.touch()
+    fh = logging.FileHandler(log_path) # append?
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
+    fh.setLevel(level)
+    logger.addHandler(fh)
+    return Logger(logger, tags, skip)
 
 def remove_tf_log(log_dir_tag):
     for filename in glob.glob(os.path.join(base_log_dir, '{}*'.format(log_dir_tag))):
@@ -49,11 +49,12 @@ def convert2str(*args):
     return res
 
 class Logger(object):
-    def __init__(self, vanilla_logger, log_dir_tag, skip=False):
-        self.log_dir_tag = log_dir_tag
-        self.log_dir = os.path.join(base_log_dir, '{}-{}'.format(log_dir_tag, get_time_str()))
+    def __init__(self, vanilla_logger, tags, skip=False):
+        self.tags = tags 
+        self.log_dir = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
         if not skip:
-            remove_tf_log(log_dir_tag)
+            #remove_tf_log(self.log_dir)
+            shutil.rmtree(self.log_dir)
             self.writer = SummaryWriter(self.log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info
@@ -82,7 +83,7 @@ class Logger(object):
             step = self.get_step(tag)
         if np.isscalar(value):
             value = np.asarray([value])
-        self.writer.add_scalar(os.path.join(self.log_dir_tag, tag), value, step)
+        self.writer.add_scalar(tag, value, step)
 
     def add_histogram(self, tag, values, step=None):
         if self.skip:
@@ -90,15 +91,21 @@ class Logger(object):
         values = self.to_numpy(values)
         if step is None:
             step = self.get_step(tag)
-        self.writer.add_histogram(os.path.join(self.log_dir_tag, tag), values, step)
+        self.writer.add_histogram(tag, values, step)
 
     def add_text(self, tag, values):
-        self.writer.add_text(os.path.join(self.log_dir_tag, tag), convert2str(*values))
+        if self.skip:
+            return
+        self.writer.add_text(tag, convert2str(*values))
 
     def add_file(self, tag, value, step=None, ftype='pkl'):
         if step is None:
             step = self.get_step(tag)
-        fsave(value, os.path.join(self.log_dir, tag, '{}.{}'.format(step, ftype)), ftype=ftype)
+        fsave(value, Path(self.log_dir, tag, '{}.{}'.format(step, ftype)), ftype=ftype)
 
-    def save_file(self, data, fn, ftype='pkl'):
-        fsave(data, os.path.join(self.log_dir, fn), ftype=ftype)
+    def save_model(self, tag, value):
+        if self.skip:
+            return
+        save_dir = Path(self.log_dir, 'models')
+        mkdir(save_dir)
+        torch.save(value, Path(save_dir, tag))

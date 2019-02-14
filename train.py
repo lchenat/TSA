@@ -10,6 +10,7 @@ from deep_rl.network import *
 from deep_rl.utils import *
 
 from ipdb import slaunch_ipdb_on_exception
+from collections import OrderedDict
 from termcolor import colored
 from pathlib import Path
 import argparse
@@ -30,7 +31,8 @@ def _command_parser():
 
 def _exp_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    algo = parser.add_argument_group('algo')
+    algo.add_argument(
         'agent', 
         default='tsa', 
         choices=[
@@ -44,52 +46,107 @@ def _exp_parser():
             'PI',
         ],
     )
-    # environment
-    parser.add_argument('--env', default='pick', choices=['pick', 'reach'])
-    parser.add_argument('-l', type=int, default=16)
-    parser.add_argument('-T', type=int, default=100)
-    parser.add_argument('--window', type=int, default=1)
-    parser.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
-    parser.add_argument('--discount', type=float, default=0.99)
-    parser.add_argument('--min_dis', type=int, default=10)
+    # environment (the task setting, first level directory)
+    task = parser.add_argument_group('task')
+    task.add_argument('--env', default='pick', choices=['pick', 'reach'])
+    task.add_argument('-l', type=int, default=16)
+    task.add_argument('-T', type=int, default=100)
+    task.add_argument('--window', type=int, default=1)
+    task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
+    task.add_argument('--discount', type=float, default=0.99)
+    task.add_argument('--min_dis', type=int, default=10)
+    task.add_argument('--task_config', type=str, default=None) # read from file
     # network
-    parser.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
-    parser.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
-    parser.add_argument('--n_abs', type=int, default=512)
-    parser.add_argument('--abs_fn', type=str, default=None)
-    parser.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
-    parser.add_argument('--critic', default='visual', choices=['critic', 'abs'])
-    parser.add_argument('--rate', type=float, default=1)
+    algo.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
+    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
+    algo.add_argument('--n_abs', type=int, default=512)
+    algo.add_argument('--abs_fn', type=str, default=None)
+    algo.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
+    algo.add_argument('--critic', default='visual', choices=['critic', 'abs'])
+    algo.add_argument('--rate', type=float, default=1)
+    algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
     # transfer network
-    parser.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
-    parser.add_argument('--t_n_abs', type=int, default=512)
-    parser.add_argument('--t_abs_fn', type=str, default=None)
-    parser.add_argument('--t_actor', choices=['linear', 'nonlinear'], default='nonlinear')
-    parser.add_argument('--distill_w', type=float, default=0.1)
-    parser.add_argument('--alpha', type=float, default=0.5)
-    parser.add_argument('--beta', type=float, default=1.0)
+    algo.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
+    algo.add_argument('--t_n_abs', type=int, default=512)
+    algo.add_argument('--t_abs_fn', type=str, default=None)
+    algo.add_argument('--t_actor', choices=['linear', 'nonlinear'], default='nonlinear')
+    algo.add_argument('--distill_w', type=float, default=0.1)
+    algo.add_argument('--alpha', type=float, default=0.5)
+    algo.add_argument('--beta', type=float, default=1.0)
     # network setting
-    parser.add_argument('--label', choices=['action', 'abs'], default='action')
-    parser.add_argument('--weight', type=str, default=None)
-    parser.add_argument('--fix_abs', action='store_true')
-    parser.add_argument('--temperature', type=float, nargs='+', default=[1.0])
+    algo.add_argument('--label', choices=['action', 'abs'], default='action')
+    algo.add_argument('--weight', type=str, default=None)
+    algo.add_argument('--fix_abs', action='store_true')
+    algo.add_argument('--temperature', type=float, nargs='+', default=[1.0])
     # aux loss
-    parser.add_argument('--pred_action', action='store_true')
-    parser.add_argument('--recon', action='store_true')
-    parser.add_argument('--trans', action='store_true')
-    parser.add_argument('--reg_abs_fn', type=str, default=None)
-    parser.add_argument('--reg_abs_weight', type=float, default=1.0)
+    algo.add_argument('--pred_action', action='store_true')
+    algo.add_argument('--recon', action='store_true')
+    algo.add_argument('--trans', action='store_true')
+    algo.add_argument('--reg_abs_fn', type=str, default=None)
+    algo.add_argument('--reg_abs_weight', type=float, default=1.0)
     # optimization
-    parser.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
-    parser.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
-    parser.add_argument('-lr', nargs='+', type=float, default=[0.00025])
-    # others
+    algo.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
+    algo.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
+    algo.add_argument('-lr', nargs='+', type=float, default=[0.00025])
+    algo.add_argument('--algo_config', type=str, default=None) # read from file
+    # others, should not affect performance (except seed)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--steps', type=int, default=None)
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--tag', type=str, default=None)
+    parser.add_argument('--skip', action='store_true') # skip logging
     parser.add_argument('-d', action='store_true')
     return parser
+
+def record_run(args_str):
+    hash_code = get_hashcode()
+    run_path = Path('log', 'run')
+    run_path.touch()
+    line_prepend(run_path, '{}: {}'.format(hash_code, args_str))
+    return hash_code
+
+# self-defined parse function
+def parse(parser, *args, **kwargs):
+    args = parser.parse_args(*args, **kwargs)
+    for config in [getattr(args, attr) for attr in ['task_config', 'algo_config']]:
+        if config is not None:
+            with open(config) as f:
+                parser.parse_known_args(f.read().split(), args)            
+    return args, group_args(parser, args)
+
+# self-defined logname function
+# return task name, algo name and the rest
+def get_log_tags(args):
+    tags = dict()
+    #attr_dict = OrderDict()
+    if args.task_config:
+        tags['task'] = args.task_config
+        #attr_dict['task_config'] = args.task_config
+    else:
+        tags['task'] = '.'.join([
+            args.env,
+            Path(args.env_config).name,
+            'min_dis-{}'.format(args.min_dis),
+        ])
+        #task_name = '.'.join(['{}-{}'.format(k, v) for k, v in group_args['task'].items()])
+        #attr_dict['env'] = args.env
+        #attr_dict['env_config'] = Path(args.env_config).name
+        #attr_dict['min_dis'] = args.min_dis
+    if args.algo_config:
+        tags['algo'] = args.algo_config
+        #arrt_dict['algo_config'] = args.algo_config
+    else:
+        tags['algo'] = args.algo_name
+        #algo_attrs =  args.algo_attrs # passed in from algorithm
+        #algo_name = '.'.join(['{}-{}'.format(k, v) for k, v in algo_attrs])
+        #algo_name = args.algo_name # since this is too flexible, better to passed in
+        #attr_dict['algo_name'] = args.algo_name
+    #attr_dict['seed'] = args.seed
+    #attr_dict['tag'] = args.tag
+    #return task_name, algo_name, other_name
+    #return synthesize_name(attr_dict)
+    tags['seed'] = args.seed
+    return tags
 
 def set_optimizer_fn(args, config):
     if len(args.lr) < 2: args.lr.append(args.lr[0])
@@ -182,7 +239,8 @@ def process_weight(network, args, config):
 
 def get_network(visual_body, args, config):
     if args.net == 'baseline':
-        log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+        #log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+        algo_name = '.'.join([args.agent, args.net])
         network = CategoricalActorCriticNet(
             config.eval_env.n_tasks,
             config.state_dim,
@@ -192,14 +250,16 @@ def get_network(visual_body, args, config):
         )
     else:
         if args.net == 'vq':
-            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
             abs_encoder = VQAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
             if args.actor == 'nonlinear':
                 actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
             else:
                 actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'prob':
-            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
             temperature = process_temperature(args.temperature)
             abs_encoder = ProbAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
@@ -208,12 +268,14 @@ def get_network(visual_body, args, config):
             with open(args.abs_fn, 'rb') as f:
                 abs_dict = dill.load(f)
                 n_abs = len(set(abs_dict[0].values())) # only have 1 map!
-            log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
+            #log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
+            algo_name = '.'.join([args.agent, args.net, lastname(args.abs_fn)[:-4]])
             print(abs_dict)
             abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'kv': # key-value
-            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
             abs_encoder = KVAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
             if args.actor == 'nonlinear':
                 actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
@@ -222,22 +284,26 @@ def get_network(visual_body, args, config):
         elif args.net == 'id':
             temperature = process_temperature(args.temperature)
             n_abs = config.action_dim
-            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), n_abs)
+            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), n_abs)
+            algo_name = '.'.join([args.agent, args.net])
             abs_encoder = ProbAbstractEncoder(n_abs, visual_body, temperature=temperature)
             actor = IdentityActor()
         elif args.net == 'sample':
             temperature = process_temperature(args.temperature)
-            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
             abs_encoder = SampleAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'i2a':
             temperature = process_temperature(args.temperature)
-            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
             abs_encoder = I2AAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'bernoulli':
             temperature = process_temperature(args.temperature)
-            log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
+            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
             abs_encoder = BernoulliAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             if args.actor == 'linear':
                 actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
@@ -249,7 +315,7 @@ def get_network(visual_body, args, config):
             critic_body = abs_encoder
         critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
         network = TSANet(config.action_dim, abs_encoder, actor, critic)
-    return network, log_name
+    return network, algo_name
 
 def ppo_pixel_tsa(args):
     config = Config()
@@ -268,7 +334,7 @@ def ppo_pixel_tsa(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     visual_body = get_visual_body(args, config)
-    network, config.log_name = get_network(visual_body, args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
@@ -279,7 +345,7 @@ def ppo_pixel_tsa(args):
     config.gae_tau = 0.95
     config.entropy_weight = 0.01
     config.gradient_clip = 0.5
-    config.rollout_length = 128
+    config.rollout_length = args.rollout_length
     config.optimization_epochs = 3
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
@@ -287,14 +353,11 @@ def ppo_pixel_tsa(args):
     config.max_steps = 1e4 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(PPOAgent(config))
 
 def ppo_pixel_baseline(args):
@@ -310,7 +373,7 @@ def ppo_pixel_baseline(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+    args.algo_name = args.agent
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     config.num_workers = 8
@@ -330,7 +393,7 @@ def ppo_pixel_baseline(args):
     config.gae_tau = 0.95
     config.entropy_weight = 0.01
     config.gradient_clip = 0.5
-    config.rollout_length = 128
+    config.rollout_length = args.rollout_length
     config.optimization_epochs = 3
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
@@ -338,14 +401,11 @@ def ppo_pixel_baseline(args):
     config.max_steps = 1e4 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(PPOAgent(config))
 
 def supervised_tsa(args):
@@ -382,7 +442,8 @@ def supervised_tsa(args):
         args.n_abs = n_abs # important!
         config.abs_network_fn = lambda: PosAbstractEncoder(n_abs, abs_dict)
     visual_body = get_visual_body(args, config)
-    network, config.log_name = get_network(visual_body, args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
+    args.algo_name += '.label-{}'.format(args.label)
     config.network_fn = lambda: network
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
@@ -394,15 +455,11 @@ def supervised_tsa(args):
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # how many steps to save a model
     config.eval_interval = 100
-    config.log_name += '-label-{}'.format(args.label)
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_supervised_steps(SupervisedAgent(config))
 
 def imitation_tsa(args):
@@ -422,7 +479,7 @@ def imitation_tsa(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     visual_body = get_visual_body(args, config)
-    network, config.log_name = get_network(visual_body, args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
@@ -430,20 +487,17 @@ def imitation_tsa(args):
     config.state_normalizer = ImageNormalizer()
     config.discount = args.discount
     config.gradient_clip = 0.5
-    config.rollout_length = 128
+    config.rollout_length = args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
     config.eval_interval = 100 # in terms of log interval
     config.max_steps = 1e4 if args.d else int(3e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # in terms of eval interval
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(ImitationAgent(config))
 
 # TODO:
@@ -466,7 +520,7 @@ def transfer_ppo_tsa(args):
     config.num_workers = 8
     # source: the one with abstraction, try to process weight
     visual_body = get_visual_body(args, config)
-    network, config.log_name = get_network(visual_body, args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
     config.source_fn = lambda: network
     process_weight(network, args, config)
     # target: the one transfer to, aux for this
@@ -491,7 +545,7 @@ def transfer_ppo_tsa(args):
     config.gae_tau = 0.95
     config.entropy_weight = 0.01
     config.gradient_clip = 0.5
-    config.rollout_length = 128
+    config.rollout_length = args.rollout_length
     config.optimization_epochs = 3
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
@@ -499,15 +553,12 @@ def transfer_ppo_tsa(args):
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
-    config.log_name += '-w-{}'.format(config.distill_w)
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    args.algo_name += '.w-{}'.format(config.distill_w)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(TransferPPOAgent(config))
 
 def transfer_a2c_tsa(args):
@@ -527,7 +578,7 @@ def transfer_a2c_tsa(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 16
     visual_body = get_visual_body(args, config)
-    network, config.log_name = get_network(visual_body, args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
     config.source_fn = lambda: network
     process_weight(network, args, config)
     # target: the one transfer to, aux for this
@@ -555,15 +606,12 @@ def transfer_a2c_tsa(args):
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
-    config.log_name += '-w-{}'.format(config.distill_w)
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    args.algo_name += '.w-{}'.format(config.distill_w)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(TransferA2CAgent(config))
 
 def transfer_distral_tsa(args):
@@ -583,7 +631,7 @@ def transfer_distral_tsa(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 16
     visual_body = get_visual_body(args, config)
-    network, config.log_name = get_network(visual_body, args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
     config.source_fn = lambda: network
     process_weight(network, args, config)
     # target: the one transfer to, aux for this
@@ -613,15 +661,12 @@ def transfer_distral_tsa(args):
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
-    config.log_name += '-w-{}'.format(config.distill_w)
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    args.algo_name += '-w-{}'.format(config.distill_w)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(TransferDistralAgent(config))
 
 def ppo_pixel_PI(args):
@@ -637,11 +682,11 @@ def ppo_pixel_PI(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
+    args.algo_name = '.'.join([args.agent, args.net])
     config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
     config.eval_env = GridWorldTask(env_config)
     config.num_workers = 8
-    config.rollout_length = 300
+    config.rollout_length = args.rollout_length
     #config.state_dim = 512
     with open(args.abs_fn, 'rb') as f:
         abs_dict = dill.load(f)
@@ -657,17 +702,14 @@ def ppo_pixel_PI(args):
     config.rate = args.rate
     config.discount = args.discount
     config.log_interval = config.rollout_length * config.num_workers
-    config.max_steps = 1e4 if args.d else int(1.2e6)
+    config.max_steps = int(5e5) if args.d else int(5e5)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 0 # how many steps to save a model
-    if args.tag: config.log_name += '-{}'.format(args.tag)
-    config.log_name += '-{}'.format(args.seed)
-    config.logger = get_logger(tag=config.log_name, args_str=args.str)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    config.logger.save_file(env_config['main'], 'env_config')
     run_steps(PIAgent(config))
 
 if __name__ == '__main__':
@@ -684,11 +726,12 @@ if __name__ == '__main__':
         args = read_args(exp_path)
         if args is None: break
         args_str = ' '.join(args)
+        # save a hash code and push it to a file, so that it is easy to keey track of which program we have running
         exp_finished = False
         try:
             print(args)
-            args = parser.parse_args(args)
-            args.str = args_str
+            args, arg_groups = parse(parser, args)
+            args.hash_code = record_run(args_str)
             if not args.d and is_git_diff():
                 print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
                 break
@@ -698,7 +741,6 @@ if __name__ == '__main__':
                 GridWorldTask = ReachGridWorldTask
 
             mkdir('log')
-            mkdir('tf_log')
             set_one_thread()
             random_seed(args.seed)
             select_device(-1 if args.cpu else 0)

@@ -11,11 +11,13 @@ import os
 import git
 import datetime
 import filelock
+import random
 import torch
 import time
 import dill
 import shlex
 import shutil
+import argparse
 from PIL import Image
 from .torch_utils import *
 try:
@@ -25,11 +27,37 @@ except:
     # python == 2.7
     from pathlib2 import Path
 
+# synthesize name for logging
+def sythesize_name(attr_dict, positional=[]):
+    attrs = []
+    for k, v in attr_dict.items():
+        if k in positional:
+            attrs.append(v)
+        else:
+            attrs.append('{}-{}'.format(k, v))
+    return '.'.join(attrs)
+
 def line_prepend(filename, line):
     with open(filename, 'r+') as f:
         content = f.read()
         f.seek(0, 0)
         f.write(line.rstrip('\r\n') + '\n' + content) # \r: return, \n: newline
+
+def get_hashcode():
+    state = random.getstate()
+    random.seed(None)
+    hashcode = '%08x' % random.getrandbits(32) # random seed does not fixed, wierd...
+    random.setstate(state)
+    return hashcode
+
+# extract tuples from dictionary
+def extract(d, keys):
+    return [(key, d[key]) for key in keys]
+
+class LoadArg(argparse.Action):
+    def __call__ (self, parser, namespace, values, option_string=None):
+        with values as f:
+            parser.parse_args(f.read().split(), namespace)
 
 # for bach experiments, but combined with argparse and put this into your main.py
 # batch_exps (or bash_tools exps) is more general. However, it is very difficult for them to control specific behaviour,
@@ -40,9 +68,9 @@ def read_args(args_fn, timeout=30):
     with filelock.FileLock(lock_fn).acquire(timeout=timeout):
         with open(args_fn) as f:
             jobs = f.read().splitlines(True)
-        while True:
+        while jobs:
             job = jobs[0].strip()
-            if jobs and (not job or job.startswith('#')):
+            if not job or job.startswith('#'):
                 jobs = jobs[1:]
             else:
                 break
@@ -64,6 +92,15 @@ def push_args(args_str, args_fn, timeout=30):
         jobs.insert(0, args_str + '\n')
         with open(args_fn, 'w') as f:
             f.writelines(jobs)
+
+# input parser, arguments
+# output a dictionary seperate args into different group
+def group_args(parser, args):
+    arg_groups = {}
+    for group in parser._action_groups:
+        group_dict = {a.dest: getattr(args, a.dest, None) for a in group._group_actions}
+        arg_groups[group.title] = argparse.Namespace(**group_dict)
+    return args, arg_groups
 
 def index_dict(l):
     l = list(enumerate(set(l)))
@@ -139,9 +176,6 @@ def collect_stats(agent):
    
 def run_supervised_steps(agent):
     config = agent.config
-    save_dir = Path('data', 'models', config.log_name)
-    if save_dir.exists(): shutil.rmtree(save_dir)
-    mkdir(save_dir)
     t0 = time.time()
     while True:
         if config.log_interval and not agent.total_steps % config.log_interval and agent.total_steps:
@@ -157,7 +191,7 @@ def run_supervised_steps(agent):
                     network=agent.network.state_dict(),
                     action_predictor=config.action_predictor.state_dict() if hasattr(config, 'action_predictor') else None,
                 )
-                torch.save(weight_dict, Path(save_dir, 'step-{}-acc-{:.2f}'.format(agent.total_steps, acc)))
+                config.logger.save_model(Path(save_dir, 'step-{}-acc-{:.2f}'.format(agent.total_steps, acc)), weight_dict)
         if config.max_steps and agent.total_steps >= config.max_steps:
             agent.close()
             break
@@ -165,9 +199,6 @@ def run_supervised_steps(agent):
 
 def run_steps(agent):
     config = agent.config
-    save_dir = Path('data', 'models', config.log_name)
-    if save_dir.exists(): shutil.rmtree(save_dir)
-    mkdir(save_dir)
     agent_name = agent.__class__.__name__
     t0 = time.time()
     while True:
@@ -180,13 +211,13 @@ def run_steps(agent):
             config.logger.add_scalar('mean-returns', stats['mean returns'], stats['steps'])
             t0 = time.time()
             if config.eval_interval and not agent.total_steps / config.log_interval % config.eval_interval:
-                acc = agent.eval_episodes()
+                mean_return = agent.eval_episodes()
                 weight_dict = dict(
                     network=agent.network.state_dict(),
                     action_predictor=config.action_predictor.state_dict() if hasattr(config, 'action_predictor') else None,
                 )
                 if config.save_interval and not agent.total_steps / config.log_interval / config.eval_interval % config.save_interval:
-                    torch.save(weight_dict, Path(save_dir, 'step-{}-mean-{:.2f}'.format(stats['steps'], acc)))
+                    config.logger.save_model(Path(save_dir, 'step-{}-mean-{:.2f}'.format(stats['steps'], mean_return)), weight_dict)
         if config.max_steps and agent.total_steps >= config.max_steps:
             agent.close()
             break
@@ -194,9 +225,6 @@ def run_steps(agent):
 
 def get_time_str():
     return datetime.datetime.now().strftime("%y%m%d-%H%M%S")
-
-def get_default_log_dir(name):
-    return './log/%s-%s' % (name, get_time_str())
 
 def mkdir(path):
     Path(path).mkdir(parents=True, exist_ok=True)
@@ -215,14 +243,6 @@ def random_sample(indices, batch_size):
         yield indices[-r:]
 
 ### tsa ###
-def get_log_dir(name):
-    if os.path.exists('./log/{}.txt'.format(name)):
-        if stdin_choices('{} exists, do you want to replace?'.format(name), ['y', 'n']) == 'y':
-            return './log/{}'.format(name)
-        else:
-            print('exit the program')
-            exit()
-
 # stack tree built by dictionary
 def stack_dict(args, stack=None):
     ret = {}
