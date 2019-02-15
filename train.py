@@ -33,7 +33,7 @@ def _exp_parser():
     parser = argparse.ArgumentParser()
     algo = parser.add_argument_group('algo')
     algo.add_argument(
-        'agent', 
+        '--agent', 
         default='tsa', 
         choices=[
             'tsa', 
@@ -90,6 +90,7 @@ def _exp_parser():
     algo.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     algo.add_argument('--algo_config', type=str, default=None) # read from file
     # others, should not affect performance (except seed)
+    parser.add_argument('--save_interval', type=int, default=0)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--steps', type=int, default=None)
     parser.add_argument('--cpu', action='store_true')
@@ -108,7 +109,7 @@ def record_run(args_str):
 # self-defined parse function
 def parse(parser, *args, **kwargs):
     args = parser.parse_args(*args, **kwargs)
-    for config in [getattr(args, attr) for attr in ['task_config', 'algo_config']]:
+    for config in [getattr(args, attr) for attr in ['task_config', 'algo_config']]: # no constraint on the argument group
         if config is not None:
             with open(config) as f:
                 parser.parse_known_args(f.read().split(), args)            
@@ -240,7 +241,7 @@ def process_weight(network, args, config):
 def get_network(visual_body, args, config):
     if args.net == 'baseline':
         #log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
-        algo_name = '.'.join([args.agent, args.net])
+        algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
         network = CategoricalActorCriticNet(
             config.eval_env.n_tasks,
             config.state_dim,
@@ -269,7 +270,7 @@ def get_network(visual_body, args, config):
                 abs_dict = dill.load(f)
                 n_abs = len(set(abs_dict[0].values())) # only have 1 map!
             #log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
-            algo_name = '.'.join([args.agent, args.net, lastname(args.abs_fn)[:-4]])
+            algo_name = '.'.join([args.agent, args.net, Path(args.abs_fn).stem])
             print(abs_dict)
             abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
@@ -352,7 +353,7 @@ def ppo_pixel_tsa(args):
     config.log_interval = 128 * 8
     config.max_steps = 1e4 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
-    config.save_interval = 0 # how many steps to save a model
+    config.save_interval = args.save_interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -400,7 +401,7 @@ def ppo_pixel_baseline(args):
     config.log_interval = 128 * 8
     config.max_steps = 1e4 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
-    config.save_interval = 0 # how many steps to save a model
+    config.save_interval = args.save_interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
@@ -490,7 +491,7 @@ def imitation_tsa(args):
     config.rollout_length = args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
     config.eval_interval = 100 # in terms of log interval
-    config.max_steps = 1e4 if args.d else int(3e7)
+    config.max_steps = 3e7 if args.d else int(3e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
@@ -552,7 +553,7 @@ def transfer_ppo_tsa(args):
     config.log_interval = 128 * 8
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
-    config.save_interval = 0 # how many steps to save a model
+    config.save_interval = args.save_interval
     args.algo_name += '.w-{}'.format(config.distill_w)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
@@ -605,7 +606,7 @@ def transfer_a2c_tsa(args):
     config.gradient_clip = 5
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
-    config.save_interval = 0 # how many steps to save a model
+    config.save_interval = args.save_interval
     args.algo_name += '.w-{}'.format(config.distill_w)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
@@ -660,7 +661,7 @@ def transfer_distral_tsa(args):
     config.gradient_clip = 5
     config.max_steps = 1.5e7 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
-    config.save_interval = 0 # how many steps to save a model
+    config.save_interval = args.save_interval
     args.algo_name += '-w-{}'.format(config.distill_w)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
@@ -704,7 +705,7 @@ def ppo_pixel_PI(args):
     config.log_interval = config.rollout_length * config.num_workers
     config.max_steps = int(5e5) if args.d else int(5e5)
     if args.steps is not None: config.max_steps = args.steps
-    config.save_interval = 0 # how many steps to save a model
+    config.save_interval = args.save_interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
