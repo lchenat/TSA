@@ -251,7 +251,7 @@ def get_network(visual_body, args, config):
     else:
         if args.net == 'vq':
             #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
-            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = VQAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
             if args.actor == 'nonlinear':
                 actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
@@ -259,7 +259,7 @@ def get_network(visual_body, args, config):
                 actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'prob':
             #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
-            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             temperature = process_temperature(args.temperature)
             abs_encoder = ProbAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
@@ -275,7 +275,7 @@ def get_network(visual_body, args, config):
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'kv': # key-value
             #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
-            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = KVAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
             if args.actor == 'nonlinear':
                 actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
@@ -291,19 +291,19 @@ def get_network(visual_body, args, config):
         elif args.net == 'sample':
             temperature = process_temperature(args.temperature)
             #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
-            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = SampleAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'i2a':
             temperature = process_temperature(args.temperature)
             #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
-            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = I2AAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'bernoulli':
             temperature = process_temperature(args.temperature)
             #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
-            algo_name = '.'.join(args.agent, args.net, 'n_abs-{}'.format(args.n_abs))
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = BernoulliAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             if args.actor == 'linear':
                 actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)

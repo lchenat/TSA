@@ -19,24 +19,30 @@ from pathlib import Path
 base_log_dir = './log'
 
 def get_logger(name, tags=None, skip=False, level=logging.INFO):
-    log_dir = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
-    if not skip and log_dir.exists():
+    log_format = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
+    log_dir = Path('{}.{}'.format(log_format, get_time_str()))
+    if not skip and log_exist(log_format):
         if stdin_choices('log exists, want to replace?', ['y', 'n']) == 'n':
             raise Exception('Error: log directory exists')
-        shutil.rmtree(log_dir)
+        remove_log(log_format)
     log_dir.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    log_path = Path(log_dir, 'log.txt') # why this is not working???
+    log_path = Path(log_dir, 'log.txt')
     log_path.touch()
-    fh = logging.FileHandler(log_path) # append?
+    fh = logging.FileHandler(log_path)
     fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
     fh.setLevel(level)
     logger.addHandler(fh)
-    return Logger(logger, tags, skip)
+    return Logger(logger, log_dir, skip)
 
-def remove_tf_log(log_dir_tag):
-    for filename in glob.glob(os.path.join(base_log_dir, '{}*'.format(log_dir_tag))):
+def log_exist(log_format):
+    files = glob.glob('{}.*-*'.format(log_format))
+    files = [f for f in files if os.path.isdir(f)]
+    return len(files)
+
+def remove_log(log_format):
+    for filename in glob.glob('{}.*-*'.format(log_format)):
         if os.path.isdir(filename):
             shutil.rmtree(filename)
 
@@ -51,9 +57,8 @@ def convert2str(*args):
     return res
 
 class Logger(object):
-    def __init__(self, vanilla_logger, tags, skip=False):
-        self.tags = tags 
-        self.log_dir = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
+    def __init__(self, vanilla_logger, log_dir, skip=False):
+        self.log_dir = log_dir
         if not skip:
             #remove_tf_log(self.log_dir)
             self.writer = SummaryWriter(self.log_dir)
