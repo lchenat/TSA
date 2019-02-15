@@ -20,12 +20,14 @@ base_log_dir = './log'
 
 def get_logger(name, tags=None, skip=False, level=logging.INFO):
     log_dir = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
-    if not skip and log_dir.exists() and not stdin_choices('log exists, want to replace?', ['y', 'n']):
-        raise Exception('Error: log directory exists')
+    if not skip and log_dir.exists():
+        if stdin_choices('log exists, want to replace?', ['y', 'n']) == 'n':
+            raise Exception('Error: log directory exists')
+        shutil.rmtree(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    log_path = Path(log_dir, 'log.txt')
+    log_path = Path(log_dir, 'log.txt') # why this is not working???
     log_path.touch()
     fh = logging.FileHandler(log_path) # append?
     fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
@@ -54,7 +56,6 @@ class Logger(object):
         self.log_dir = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
         if not skip:
             #remove_tf_log(self.log_dir)
-            shutil.rmtree(self.log_dir)
             self.writer = SummaryWriter(self.log_dir)
         if vanilla_logger is not None:
             self.info = vanilla_logger.info
