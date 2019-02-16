@@ -16,6 +16,7 @@ from pathlib import Path
 import argparse
 import dill
 import copy
+import socket
 import traceback
 import shutil
 
@@ -103,7 +104,7 @@ def record_run(args_str):
     hash_code = get_hashcode()
     run_path = Path('log', 'run')
     run_path.touch()
-    line_prepend(run_path, '{}: {}'.format(hash_code, args_str))
+    line_prepend(run_path, '{} {}: {}'.format(socket.gethostname(), hash_code, args_str))
     return hash_code
 
 # self-defined parse function
@@ -121,7 +122,7 @@ def get_log_tags(args):
     tags = dict()
     #attr_dict = OrderDict()
     if args.task_config:
-        tags['task'] = args.task_config
+        tags['task'] = Path(args.task_config).stem
         #attr_dict['task_config'] = args.task_config
     else:
         tags['task'] = '.'.join([
@@ -134,7 +135,7 @@ def get_log_tags(args):
         #attr_dict['env_config'] = Path(args.env_config).name
         #attr_dict['min_dis'] = args.min_dis
     if args.algo_config:
-        tags['algo'] = args.algo_config
+        tags['algo'] = Path(args.algo_config).stem
         #arrt_dict['algo_config'] = args.algo_config
     else:
         tags['algo'] = args.algo_name
