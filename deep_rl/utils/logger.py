@@ -19,7 +19,10 @@ from pathlib import Path
 base_log_dir = './log'
 
 def get_logger(name, tags=None, skip=False, level=logging.INFO):
-    log_format = Path(base_log_dir, tags['task'], tags['algo'], str(tags['seed']))
+    if tags['others'] is not None:
+        log_format = Path(base_log_dir, tags['task'], tags['algo'], tags['others'], str(tags['seed']))
+    else:
+        log_format = Path(base_log_dir, tags['task'], tags['algo'], '_', str(tags['seed']))
     log_dir = Path('{}.{}'.format(log_format, get_time_str()))
     if not skip and log_exist(log_format):
         if stdin_choices('log exists, want to replace?', ['y', 'n']) == 'n':

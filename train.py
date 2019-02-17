@@ -147,6 +147,7 @@ def get_log_tags(args):
     #attr_dict['tag'] = args.tag
     #return task_name, algo_name, other_name
     #return synthesize_name(attr_dict)
+    tags['others'] = args.tag
     tags['seed'] = args.seed
     return tags
 
