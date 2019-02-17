@@ -25,15 +25,16 @@ def get_logger(name, tags=None, skip=False, level=logging.INFO):
         if stdin_choices('log exists, want to replace?', ['y', 'n']) == 'n':
             raise Exception('Error: log directory exists')
         remove_log(log_format)
-    log_dir.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    log_path = Path(log_dir, 'log.txt')
-    log_path.touch()
-    fh = logging.FileHandler(log_path)
-    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
-    fh.setLevel(level)
-    logger.addHandler(fh)
+    if not skip:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = Path(log_dir, 'log.txt')
+        log_path.touch()
+        fh = logging.FileHandler(log_path)
+        fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: %(message)s'))
+        fh.setLevel(level)
+        logger.addHandler(fh)
     return Logger(logger, log_dir, skip)
 
 def log_exist(log_format):
@@ -105,6 +106,8 @@ class Logger(object):
         self.writer.add_text(tag, convert2str(*values))
 
     def add_file(self, tag, value, step=None, ftype='pkl'):
+        if self.skip:
+            return
         if step is None:
             step = self.get_step(tag)
         fsave(value, Path(self.log_dir, tag, '{}.{}'.format(step, ftype)), ftype=ftype)
