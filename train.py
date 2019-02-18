@@ -77,6 +77,7 @@ def _exp_parser():
     # network setting
     algo.add_argument('--label', choices=['action', 'abs'], default='action')
     algo.add_argument('--weight', type=str, default=None)
+    algo.add_argument('--load_part', default='all', choices=['all', 'abs'])
     algo.add_argument('--fix_abs', action='store_true')
     algo.add_argument('--temperature', type=float, nargs='+', default=[1.0])
     # aux loss
@@ -227,7 +228,11 @@ def process_weight(network, args, config):
     if args.weight is not None:
         weight_dict = network.state_dict()
         # this is error prone, if I change structure of weight_dict, it does not give error
-        loaded_weight_dict = {k: v for k, v in torch.load(args.weight, map_location=lambda storage, loc: storage)['network'].items() if k in weight_dict}
+        load_filter = (lambda x: True) if args.load_part == 'all' else (lambda x: x.startswith('abs_encoder'))
+        loaded_weight_dict = {k: v for k, v in torch.load(
+            args.weight,
+            map_location=lambda storage, loc: storage)['network'].items()
+            if ((k in weight_dict) and load_filter(k))}
         weight_dict.update(loaded_weight_dict)
         network.load_state_dict(weight_dict)
         if 'action_predictor' in weight_dict:
