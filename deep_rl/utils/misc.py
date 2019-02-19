@@ -206,6 +206,33 @@ def run_supervised_steps(agent):
             break
         agent.step()
 
+def get_states_infos(env, discount):
+    states, infos = [], []
+    for index in env.unwrapped.train_combos:
+        _states, _infos = env.last.get_teleportable_states(discount, index=index)
+        states += _states
+        infos += _infos 
+    return states, infos
+
+def save_abs(agent):
+    config = agent.config
+    env = config.eval_env.env.envs[0]
+    all_states, all_infos = get_states_infos(env, config.discount)
+    all_states = tensor(config.state_normalizer(all_states))
+    all_infos = stack_dict(all_infos) 
+    if agent.network.abs_encoder.abstract_type == 'sample':
+        indices = agent.network.abs_encoder.get_indices(all_states, all_infos).detach().cpu().numpy()
+        indices = [tuple(index) for index in indices]
+        i2e, e2i = index_dict(indices)
+        indices = [e2i[index] for index in indices]
+    else:
+        indices = agent.network.abs_encoder.get_indices(all_states, all_infos).detach().cpu().numpy()
+    abs_map = {pos: i for pos, i in zip(all_infos['pos'], indices)}
+    dir_path = Path(config.abs_save_path.parent, 'gen_abs_map')
+    dir_path.mkdir(parents=True, exist_ok=True)
+    with open(Path(dir_path, '{}.pkl'.format(config.abs_save_path.name)), 'wb') as f:
+        dill.dump(abs_map, f)
+
 def run_steps(agent):
     config = agent.config
     agent_name = agent.__class__.__name__

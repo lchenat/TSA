@@ -118,15 +118,19 @@ class PPOAgent(BaseAgent):
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         # log the abs_encoder
+        env = config.eval_env.env.envs[0]
+        all_states, all_infos = get_states_infos(env, config.discount)
+        all_states = tensor(config.state_normalizer(all_states))
+        all_infos = stack_dict(all_infos) 
         if hasattr(self.network, 'abs_encoder'): # temp forbided for sample
             if self.network.abs_encoder.abstract_type == 'sample':
-                indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
+                indices = self.network.abs_encoder.get_indices(all_states, all_infos).detach().cpu().numpy()
                 indices = [tuple(index) for index in indices]
                 i2e, e2i = index_dict(indices)
                 indices = [e2i[index] for index in indices]
             else:
-                indices = self.network.abs_encoder.get_indices(states, infos).detach().cpu().numpy()
-            abs_map = {pos: i for pos, i in zip(infos['pos'], indices)}
+                indices = self.network.abs_encoder.get_indices(all_states, all_infos).detach().cpu().numpy()
+            abs_map = {pos: i for pos, i in zip(all_infos['pos'], indices)}
             config.logger.add_scalar(tag='n_abs', value=len(set(abs_map.values())), step=self.total_steps)
             config.logger.add_file('abs_map', abs_map, step=self.total_steps)
             # log the visualization of the abs
@@ -140,7 +144,7 @@ class PPOAgent(BaseAgent):
                 elif self.network.abs_encoder.abstract_type == 'sample':
                     pass
         else: # count by clipping, categoricalactorcriticnet
-            indices = (self.network.network.phi_body(states).detach().cpu().numpy() * 1e5).astype(int)
+            indices = (self.network.network.phi_body(all_states).detach().cpu().numpy() * 1e5).astype(int)
             indices = [tuple(index) for index in indices]
             config.logger.add_scalar(tag='n_abs', value=len(set(indices)), step=self.total_steps)
         for k, v in loss_dict.items():

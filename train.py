@@ -92,6 +92,7 @@ def _exp_parser():
     algo.add_argument('-lr', nargs='+', type=float, default=[0.00025])
     algo.add_argument('--algo_config', type=str, default=None) # read from file
     # others, should not affect performance (except seed)
+    parser.add_argument('--mode', default='train', choices=['train', 'save_abs'])
     parser.add_argument('--save_interval', type=int, default=0)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--steps', type=int, default=None)
@@ -228,7 +229,13 @@ def process_weight(network, args, config):
     if args.weight is not None:
         weight_dict = network.state_dict()
         # this is error prone, if I change structure of weight_dict, it does not give error
-        load_filter = (lambda x: True) if args.load_part == 'all' else (lambda x: x.startswith('abs_encoder'))
+        if args.load_part == 'all':
+            load_filter = lambda x: True
+        else:
+            if hasattr(network, 'abs_encoder'):
+                load_filter = lambda x: x.startswith('abs_encoder')
+            else:
+                load_filter = lambda x: x.startswith('network.phi_body')
         loaded_weight_dict = {k: v for k, v in torch.load(
             args.weight,
             map_location=lambda storage, loc: storage)['network'].items()
@@ -361,12 +368,16 @@ def ppo_pixel_tsa(args):
     config.max_steps = 1e4 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = args.save_interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
-    config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
-        **vars(args),
-        }])
-    run_steps(PPOAgent(config))
+    if args.mode == 'train':
+        config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
+        config.logger.add_text('Configs', [{
+            'git sha': get_git_sha(),
+            **vars(args),
+            }])
+        run_steps(PPOAgent(config))
+    else:
+        config.abs_save_path = Path(args.weight)
+        save_abs(PPOAgent(config))
 
 def ppo_pixel_baseline(args):
     config = Config()
