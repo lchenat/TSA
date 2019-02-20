@@ -738,6 +738,7 @@ if __name__ == '__main__':
     command_args = _command_parser().parse_args()
     parser = _exp_parser()
     if command_args.op == 'new':
+        assert Path(command_args.exp).suffix == '', 'can only create new experiment on file without suffix'
         exp_path = Path('{}-{}.run'.format(command_args.exp, command_args.tag))
         if not exp_path.exists() or stdin_choices('{} exists, want to replace?'.format(exp_path), ['y', 'n']):
             shutil.copy(command_args.exp, str(exp_path))
