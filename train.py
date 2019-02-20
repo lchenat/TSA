@@ -287,7 +287,10 @@ def get_network(visual_body, args, config):
             algo_name = '.'.join([args.agent, args.net, Path(args.abs_fn).stem])
             print(abs_dict)
             abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
-            actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+            if args.actor == 'linear':
+                actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+            elif args.actor == 'nonlinear':
+                actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'kv': # key-value
             #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
