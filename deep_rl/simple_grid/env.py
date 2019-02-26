@@ -6,6 +6,7 @@ import numpy as np
 from gym import Env, Wrapper, spaces
 from gym.utils import seeding
 from collections import namedtuple
+from pathlib import Path
 if __package__ == '':
     from utils import Render, GridDrawer
 else:
@@ -28,7 +29,6 @@ def read_map(filename):
 
 # discrete gridworld
 class DiscreteGridWorld(Env):
-    control_dict={'w': 0, 's': 1, 'a': 2, 'd': 3} # for control
     color_list = [
         plt.cm.Blues(0.5), # agent
         plt.cm.Greys(0.0), # empty
@@ -68,15 +68,18 @@ class DiscreteGridWorld(Env):
         return dict(
             map_name=self.map_name,
             init_loc=self.init_loc,
-            goal_loc=self.goal_loc,
+            goal=self.goal,
             reward_config=self.reward_config,
         )
 
     def set_parameters(self, params):
         self.map_name = params['map_name']
         self.init_loc = params['init_loc']
-        self.goal_loc = params['goal_loc']
+        self.goal = params['goal']
         self.reward_config = params['reward_config']
+
+    def is_valid_loc(self, loc): # whether it is a nonterminal state in state space
+        return self.map[loc[0]][loc[1]] != '#' and loc != self.goal
 
     def reset(self):
         self.state = self.init_loc
@@ -107,8 +110,7 @@ class DiscreteGridWorld(Env):
     def get_info(self):
         return self.get_parameters()
 
-    # render by text
-    def render(self):
+    def render(self, mode='human'):
         if self._render is None:
             self._render = Render()
             self.drawer = GridDrawer(self.__class__.color_list)
@@ -133,4 +135,5 @@ class SampleParameterEnv(Wrapper):
         self.sample_param_f = sample_param_f # do sampling
 
     def reset(self):
-        self.env.set_parameters(self.sample_param_f())
+        self.env.set_parameters(self.sample_param_f(self.env.get_parameters()))
+        return self.env.reset()
