@@ -24,6 +24,7 @@ class PPOAgent(BaseAgent):
         self.states = self.task.reset()
         self.states = config.state_normalizer(self.states)
         self.infos = self.task.get_info() # store task_ids
+        #check_network_output(self) # debug
 
     def step(self):
         config = self.config

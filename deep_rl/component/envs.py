@@ -209,6 +209,7 @@ class Task:
 
 ### tsa ###
 from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld
+from ..simple_grid.env import DiscreteGridWorld
 
 class LastWrapper(gym.Wrapper):
     def __init__(self, env):
@@ -334,6 +335,40 @@ class PickGridWorldTask:
 
     def get_opt_action(self):
         return [env.last.get_random_opt_action(0.99) for env in self.env.envs]
+
+def make_discrete_grid_env(env_config, seed, rank):
+    def _thunk():
+        random_seed(seed)
+        env = DiscreteGridWorld(**env_config['main'], seed=seed+rank)
+        env = FiniteHorizonEnv(env, T=env_config['T'])
+
+        return env
+
+    return _thunk
+
+class DiscreteGridTask:
+    def __init__(
+        self,
+        env_config,
+        num_envs=1,
+        seed=np.random.randint(int(1e5))):
+
+        envs = [make_discrete_grid_env(env_config, seed, i) for i in range(num_envs)]
+        self.env = DummyVecEnv(envs)
+        self.name = 'DiscreteGridWorld'
+        self.observation_space = self.env.observation_space
+        self.state_dim = len(self.env.observation_space.spaces)
+        self.action_space = self.env.action_space
+        self.action_dim = self.action_space.n
+
+    def reset(self):
+        return self.env.reset()
+
+    def step(self, actions):
+        return self.env.step(actions)
+
+    def get_info(self): # retrieve map_id and goal position
+        return self.env.get_info()
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)

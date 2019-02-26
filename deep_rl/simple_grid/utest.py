@@ -9,7 +9,7 @@ from py_tools.common.test import ipdb_on_exception
 class TestDiscrete(unittest.TestCase):
     @ipdb_on_exception
     def control(self):
-        env = DiscreteGridWorld('maps/fourroom.txt', (1, 1), (9, 9))
+        env = DiscreteGridWorld('fourroom', (1, 1), (9, 9))
         env.reset()
         env.render()
         done = False

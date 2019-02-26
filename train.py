@@ -45,11 +45,13 @@ def _exp_parser():
             'transfer_ppo',
             'transfer_distral',
             'PI',
+            'fc_discrete', # use fc body
+            'fc_continuous', # use fc body
         ],
     )
     # environment (the task setting, first level directory)
     task = parser.add_argument_group('task')
-    task.add_argument('--env', default='pick', choices=['pick', 'reach'])
+    task.add_argument('--env', default='pick', choices=['pick', 'reach', 'grid'])
     task.add_argument('-l', type=int, default=16)
     task.add_argument('-T', type=int, default=100)
     task.add_argument('--window', type=int, default=1)
@@ -347,8 +349,8 @@ def ppo_pixel_tsa(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     visual_body = get_visual_body(args, config)
@@ -382,6 +384,51 @@ def ppo_pixel_tsa(args):
         config.abs_save_path = Path(args.weight)
         save_abs(PPOAgent(config))
 
+def fc_discrete(args):
+    env_config = dict(
+        main=dict(
+            map_name='fourroom',
+            init_loc=(1, 1),
+            goal_loc=(9, 9),
+        ),
+        T=100, # 250?
+    )
+    config = Config()
+    config.num_workers = 5
+    config.task_fn = lambda: DiscreteGridTask(env_config, num_envs=config.num_workers)
+    config.eval_env = DiscreteGridTask(env_config)
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    n_tasks = 1
+    config.network_fn = lambda: CategoricalActorCriticNet(
+        n_tasks,
+        config.state_dim,
+        config.action_dim,
+        FCBody(
+            config.state_dim, 
+            hidden_units=(16,)
+        ),
+    )
+    config.discount = args.discount
+    config.use_gae = True
+    config.gae_tau = 0.95
+    config.entropy_weight = 0.01
+    config.gradient_clip = 5
+    config.rollout_length = args.rollout_length
+    config.optimization_epochs = 10
+    config.mini_batch_size = 32 * 5
+    config.ppo_ratio_clip = 0.2
+    config.log_interval = 128 * 5 * 10
+
+    config.max_steps = 1e4 if args.d else int(1.5e7)
+    if args.steps is not None: config.max_steps = args.steps
+    config.save_interval = args.save_interval
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    run_steps(PPOAgent(config))
+
 def ppo_pixel_baseline(args):
     config = Config()
     with open(args.env_config, 'rb') as f:
@@ -396,8 +443,8 @@ def ppo_pixel_baseline(args):
         )
         config.env_config = env_config
     args.algo_name = args.agent
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     config.num_workers = 8
     config.state_dim = 512
     if args.opt == 'vanilla':
@@ -443,8 +490,8 @@ def supervised_tsa(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     if args.opt == 'vanilla':
         config.optimizer_fn = lambda model: VanillaOptimizer(
             model.parameters(),
@@ -496,8 +543,8 @@ def imitation_tsa(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     visual_body = get_visual_body(args, config)
@@ -536,8 +583,8 @@ def transfer_ppo_tsa(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 8
     # source: the one with abstraction, try to process weight
@@ -595,8 +642,8 @@ def transfer_a2c_tsa(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 16
     visual_body = get_visual_body(args, config)
@@ -648,8 +695,8 @@ def transfer_distral_tsa(args):
             T=args.T,
         )
         config.env_config = env_config
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
     config.num_workers = 16
     visual_body = get_visual_body(args, config)
@@ -705,8 +752,8 @@ def ppo_pixel_PI(args):
         )
         config.env_config = env_config
     args.algo_name = '.'.join([args.agent, args.net])
-    config.task_fn = lambda: GridWorldTask(env_config, num_envs=config.num_workers)
-    config.eval_env = GridWorldTask(env_config)
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
     config.num_workers = 8
     config.rollout_length = args.rollout_length
     #config.state_dim = 512
@@ -759,9 +806,11 @@ if __name__ == '__main__':
                 print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
                 break
             if args.env == 'pick':
-                GridWorldTask = PickGridWorldTask
+                Task = PickGridWorldTask
             elif args.env == 'reach':
-                GridWorldTask = ReachGridWorldTask
+                Task = ReachGridWorldTask
+            elif args.env == 'grid':
+                Task = DiscreteGridTask
 
             mkdir('log')
             set_one_thread()
@@ -790,6 +839,8 @@ if __name__ == '__main__':
                     transfer_distral_tsa(args)
                 elif args.agent == 'PI':
                     ppo_pixel_PI(args)
+                elif args.agent == 'fc_discrete':
+                    fc_discrete(args)
                 exp_finished = True
         except Exception as e:
             traceback.print_exc()

@@ -5,11 +5,22 @@
 #######################################################################
 
 import torch
+import torch.nn.functional as F
 import numpy as np
 from ..utils import *
 import torch.multiprocessing as mp
 from collections import deque
 import sys
+
+def check_network_output(agent):
+    config = agent.config
+    env = config.eval_env.env.envs[0]
+    all_states, all_infos = get_states_infos(env, config.discount)
+    all_states = tensor(config.state_normalizer(all_states))
+    all_infos = stack_dict(all_infos) 
+    output = F.softmax(agent.network.get_logits(all_states, all_infos), dim=1).detach().cpu().numpy()
+    output_dict = {pos: prob for pos, prob in zip(all_infos['pos'], output)}
+    import ipdb; ipdb.set_trace()
 
 class BaseAgent:
     def __init__(self, config):

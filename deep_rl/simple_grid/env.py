@@ -42,7 +42,7 @@ class DiscreteGridWorld(Env):
     }
     def __init__(
         self,
-        mapname, # define height, width, wall, lava
+        map_name, # define height, width, wall, lava
         init_loc,
         goal_loc,
         reward_config=dict(
@@ -52,7 +52,8 @@ class DiscreteGridWorld(Env):
             goal=1.0,
         ),
     ):
-        self.map = read_map(mapname)
+        self.map_name = map_name
+        self.map = read_map(Path('maps', '{}.txt'.format(map_name)))
         self.init_loc = init_loc
         self.goal = goal_loc
         self.reward_config = reward_config
@@ -65,14 +66,14 @@ class DiscreteGridWorld(Env):
     # or inverse engineering data
     def get_parameters(self):
         return dict(
-            map=self.map,
+            map_name=self.map_name,
             init_loc=self.init_loc,
             goal_loc=self.goal_loc,
             reward_config=self.reward_config,
         )
 
     def set_parameters(self, params):
-        self.map = params['map']
+        self.map_name = params['map_name']
         self.init_loc = params['init_loc']
         self.goal_loc = params['goal_loc']
         self.reward_config = params['reward_config']
@@ -101,7 +102,10 @@ class DiscreteGridWorld(Env):
         next_state, done = self._transition(action)
         r = self._r(action, next_state)
         self.state = next_state
-        return self.state, r, done, {}
+        return self.state, r, done, self.get_info()
+
+    def get_info(self):
+        return self.get_parameters()
 
     # render by text
     def render(self):
