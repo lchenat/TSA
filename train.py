@@ -397,7 +397,11 @@ def fc_discrete(args):
     config.num_workers = 5
     config.task_fn = lambda: DiscreteGridTask(env_config, num_envs=config.num_workers)
     config.eval_env = DiscreteGridTask(env_config)
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+    def optimizer_fn(model):
+        params = filter(lambda p: p.requires_grad, model.parameters())
+        return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
+    config.optimizer_fn = optimizer_fn
+    #config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
     n_tasks = 1
     config.network_fn = lambda: CategoricalActorCriticNet(
         n_tasks,
@@ -418,6 +422,7 @@ def fc_discrete(args):
     config.mini_batch_size = 32 * 5
     config.ppo_ratio_clip = 0.2
     config.log_interval = 128 * 5 * 10
+    args.algo_name = 'fc_discrete'
 
     config.max_steps = 1e4 if args.d else int(1.5e7)
     if args.steps is not None: config.max_steps = args.steps
