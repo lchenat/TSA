@@ -31,14 +31,15 @@ def read_map(filename):
 class DiscreteGridWorld(Env):
     color_list = [
         plt.cm.Blues(0.5), # agent
+        plt.cm.Greens(0.5), # goal
         plt.cm.Greys(0.0), # empty
         plt.cm.Oranges(0.95), # wall
         plt.cm.Reds(0.7), # lava
     ]
     color_map = {
-        ' ': 1,
-        '#': 2,
-        '*': 3,
+        ' ': 2,
+        '#': 3,
+        '*': 4,
     }
     def __init__(
         self,
@@ -120,6 +121,8 @@ class DiscreteGridWorld(Env):
             for j in range(self.size[1]):
                 if (i, j) == self.state:
                     indices[i, j] = 0
+                elif (i, j) == self.goal:
+                    indices[i, j] = 1
                 else:
                     indices[i, j] = color_map[self.map[i][j]]
         self._render.render(self.drawer.draw(indices)[:,:,:3])
