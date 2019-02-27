@@ -1,6 +1,7 @@
 # based on simple_rl's gridworld and puddle
 # let's make each env a MDP, and wrapper multitask on top of that
 # also note that gym is a simulation-based environment, therefore reward and transition are only based on current state, action and next state
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 from gym import Env, Wrapper, spaces
@@ -11,6 +12,8 @@ if __package__ == '':
     from utils import Render, GridDrawer
 else:
     from .utils import Render, GridDrawer
+
+DIR = os.path.dirname(__file__)
 
 ds_dict = {
     0: (-1, 0), # up
@@ -51,14 +54,15 @@ class DiscreteGridWorld(Env):
             #wall=0.0,
             goal=1.0,
         ),
+        seed=0, # does not use here
     ):
         self.map_name = map_name
-        self.map = read_map(Path('maps', '{}.txt'.format(map_name)))
+        self.map = read_map(Path(DIR, 'maps', '{}.txt'.format(map_name)))
         self.init_loc = init_loc
         self.goal = goal_loc
         self.reward_config = reward_config
         self.observation_space = spaces.Tuple((spaces.Discrete(len(self.map)), spaces.Discrete(len(self.map[0]))))
-        self.action_spasce = spaces.Discrete(4)
+        self.action_space = spaces.Discrete(4)
         self.size = (len(self.map), len(self.map[0]))
         self._render = None
 
@@ -83,6 +87,7 @@ class DiscreteGridWorld(Env):
 
     def reset(self):
         self.state = self.init_loc
+        return self.state
 
     def _transition(self, action):
         ds = ds_dict[action]

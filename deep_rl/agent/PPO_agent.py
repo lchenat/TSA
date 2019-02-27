@@ -119,10 +119,14 @@ class PPOAgent(BaseAgent):
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
         # log the abs_encoder
-        env = config.eval_env.env.envs[0]
-        all_states, all_infos = get_states_infos(env, config.discount)
-        all_states = tensor(config.state_normalizer(all_states))
-        all_infos = stack_dict(all_infos) 
+        if self.task.env_type == 'full':
+            env = config.eval_env.env.envs[0]
+            all_states, all_infos = get_states_infos(env, config.discount)
+            all_states = tensor(config.state_normalizer(all_states))
+            all_infos = stack_dict(all_infos) 
+        elif self.task.env_type == 'simulation':
+            all_states = states
+            all_infos = infos
         if hasattr(self.network, 'abs_encoder'): # temp forbided for sample
             if self.network.abs_encoder.abstract_type == 'sample':
                 indices = self.network.abs_encoder.get_indices(all_states, all_infos).detach().cpu().numpy()
