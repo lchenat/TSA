@@ -10,8 +10,10 @@ from collections import namedtuple
 from pathlib import Path
 if __package__ == '':
     from utils import Render, GridDrawer
+    from base_env import MDPEnv, SimulateEnv
 else:
     from .utils import Render, GridDrawer
+    from .base_env import MDPEnv, SimulateEnv
 
 DIR = os.path.dirname(__file__)
 
@@ -31,7 +33,7 @@ def read_map(filename):
     return m
 
 # discrete gridworld
-class DiscreteGridWorld(Env):
+class DiscreteGridWorld(Env, MDPEnv):
     color_list = [
         plt.cm.Blues(0.5), # agent
         plt.cm.Greens(0.5), # goal
@@ -55,16 +57,18 @@ class DiscreteGridWorld(Env):
             #wall=0.0,
             goal=1.0,
         ),
+        discount=0.99,
         seed=0, # does not use here
     ):
         self.map_name = map_name
         self.map = read_map(Path(DIR, 'maps', '{}.txt'.format(map_name)))
+        self.size = (len(self.map), len(self.map[0]))
         self.init_loc = init_loc
         self.goal = goal_loc
         self.reward_config = reward_config
+        self.discount = discount
         self.observation_space = spaces.Tuple((spaces.Discrete(len(self.map)), spaces.Discrete(len(self.map[0]))))
         self.action_space = spaces.Discrete(4)
-        self.size = (len(self.map), len(self.map[0]))
         self._render = None
 
     # this is used for multitask, so that you can change the parameters to get different environments
@@ -75,13 +79,19 @@ class DiscreteGridWorld(Env):
             init_loc=self.init_loc,
             goal=self.goal,
             reward_config=self.reward_config,
+            discount=discount,
         )
 
-    def set_parameters(self, params):
-        self.map_name = params['map_name']
+    def set_parameters(self, params): # not that easy!
+        if params['map_name'] != self.map_name:
+            self.map_name = params['map_name']
+            self.map = read_map(Path(DIR, 'maps', '{}.txt'.format(map_name)))
+            self.size = (len(self.map), len(self.map[0]))
+            self.observation_space = spaces.Tuple((spaces.Discrete(len(self.map)), spaces.Discrete(len(self.map[0]))))
         self.init_loc = params['init_loc']
         self.goal = params['goal']
         self.reward_config = params['reward_config']
+        self.discount = params['discount']
 
     def is_valid_loc(self, loc): # whether it is a nonterminal state in state space
         return self.map[loc[0]][loc[1]] != '#' and loc != self.goal
@@ -90,28 +100,21 @@ class DiscreteGridWorld(Env):
         self.state = self.init_loc
         return self.state
 
-    def _transition(self, action):
+    def _transition(self, state, action):
         ds = ds_dict[action]
-        next_state = (self.state[0] + ds[0], self.state[1] + ds[1])
+        next_state = (state[0] + ds[0], state[1] + ds[1])
         if not self.observation_space.contains(next_state) or self.map[next_state[0]][next_state[1]] == '#':
-            next_state = self.state
+            next_state = state
         done = next_state == self.goal
         return next_state, done
 
-    def _r(self, action, next_state):
+    def _r(self, state, action, next_state):
         if next_state == self.goal:
             return self.reward_config['goal'] + self.reward_config['step']
-        elif self.map[self.state[0]][self.state[1]] == '*':
+        elif self.map[state[0]][state[1]] == '*':
             return self.reward_config['lava']
         else:
             return self.reward_config['step']
-
-    def step(self, action):
-        assert self.state != self.goal, 'env already terminates'
-        next_state, done = self._transition(action)
-        r = self._r(action, next_state)
-        self.state = next_state
-        return self.state, r, done, self.get_info()
 
     def get_info(self):
         return self.get_parameters()
@@ -133,7 +136,7 @@ class DiscreteGridWorld(Env):
         self._render.render(self.drawer.draw(indices)[:,:,:3])
 
 # puddle
-class ContinuousGridWorld(Env):
+class ContinuousGridWorld(SimulateEnv):
     pass
 
 # every time you reset, you call a function to set the paraemters of your env
