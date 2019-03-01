@@ -388,7 +388,7 @@ def fc_discrete(args):
     env_config = dict(
         main=dict(
             map_name='fourroom',
-            init_loc=(1, 1),
+            #init_loc=(1, 1),
             goal_loc=(9, 9),
         ),
         T=100, # 250?
