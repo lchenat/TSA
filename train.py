@@ -427,7 +427,13 @@ def fc_discrete(args):
     config.max_steps = 1e4 if args.d else 180000
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = args.save_interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
+    log_tags = dict(
+        task='.'.join([args.env, env_config['main']['map_name']]),
+        algo=args.algo_name,
+        others=args.tag,
+        seed=args.seed,
+    )
+    config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
