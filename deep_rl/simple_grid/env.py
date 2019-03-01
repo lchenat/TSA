@@ -33,7 +33,7 @@ def read_map(filename):
     return m
 
 # discrete gridworld
-class DiscreteGridWorld(Env, MDPEnv):
+class DiscreteGridWorld(MDPEnv):
     color_list = [
         plt.cm.Blues(0.5), # agent
         plt.cm.Greens(0.5), # goal
@@ -79,7 +79,7 @@ class DiscreteGridWorld(Env, MDPEnv):
             init_loc=self.init_loc,
             goal=self.goal,
             reward_config=self.reward_config,
-            discount=discount,
+            discount=self.discount,
         )
 
     def set_parameters(self, params): # not that easy!
@@ -116,7 +116,7 @@ class DiscreteGridWorld(Env, MDPEnv):
         else:
             return self.reward_config['step']
 
-    def get_info(self):
+    def get_info(self, state=None, action=None, next_state=None):
         return self.get_parameters()
 
     def render(self, mode='human'):

@@ -20,6 +20,7 @@ class MDPEnv(ParameterizedEnv):
 
     def step(self, action):
         next_state, done = self._transition(self.state, action)
+        self.state = next_state
         return next_state, self._r(self.state, action, next_state), done, self.get_info(self.state, action, next_state)
 
 class SimulateEnv(ParameterizedEnv):
@@ -34,5 +35,6 @@ class SimulateEnv(ParameterizedEnv):
 
     def step(self, action):
         next_state, done = self._transition(action)
+        self.state = next_state
         return next_state, self._r(action, next_state), done, self.get_info(action, next_state)
 
