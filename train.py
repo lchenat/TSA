@@ -424,7 +424,7 @@ def fc_discrete(args):
     config.log_interval = 128 * 5 * 10
     args.algo_name = 'fc_discrete'
 
-    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.max_steps = 1e4 if args.d else 180000
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = args.save_interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
