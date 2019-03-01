@@ -426,6 +426,7 @@ def fc_discrete(args):
 
     config.max_steps = 1e4 if args.d else 180000
     if args.steps is not None: config.max_steps = args.steps
+    config.eval_interval = 5
     config.save_interval = args.save_interval
     log_tags = dict(
         task='.'.join([args.env, env_config['main']['map_name']]),
