@@ -210,6 +210,7 @@ class Task:
 ### tsa ###
 from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld
 from ..simple_grid.env import DiscreteGridWorld, SampleParameterEnv
+from ..simple_grid.exemplar_env import RandomInitDiscreteGridWorld
 
 class LastWrapper(gym.Wrapper):
     def __init__(self, env):
@@ -341,10 +342,7 @@ class PickGridWorldTask:
 def make_discrete_grid_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
-        def sample_param_f(params):
-            pass
-        env = DiscreteGridWorld(**env_config['main'], seed=seed+rank)
-        env = 
+        env = RandomInitDiscreteGridWorld(**env_config['main'], seed=seed+rank)
         env = FiniteHorizonEnv(env, T=env_config['T'])
 
         return env
