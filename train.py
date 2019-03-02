@@ -58,7 +58,7 @@ def _exp_parser():
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
-    task.add_argument('--n_hidden', type=int, default=16)
+    task.add_argument('--hidden', type=int, nargs='+', default=(16,))
     ##
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=10)
@@ -354,7 +354,7 @@ def get_grid_network(args, config):
             config.action_dim,
             FCBody(
                 config.state_dim, 
-                hidden_units=(args.n_hidden,)
+                hidden_units=tuple(args.hidden)
             ),
         )
     elif args.net == 'map':
