@@ -96,6 +96,9 @@ class DiscreteGridWorld(MDPEnv):
     def is_valid_loc(self, loc): # whether it is a nonterminal state in state space
         return self.map[loc[0]][loc[1]] != '#' and loc != self.goal
 
+    def dist2goal(self, loc):
+        return abs(loc[0] - self.goal[0]) + abs(loc[1] - self.goal[1])
+
     def reset(self):
         self.state = self.init_loc
         return self.state

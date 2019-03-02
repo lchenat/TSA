@@ -26,6 +26,31 @@ class PPOAgent(BaseAgent):
         self.infos = self.task.get_info() # store task_ids
         #check_network_output(self) # debug
 
+    def eval_step(self, state, info):
+        return self.network(state, info)['a'][0].cpu().detach().numpy().item()
+
+    def eval_episode(self):
+        env = self.config.eval_env
+        state = env.reset()
+        info = env.get_info()
+        total_rewards = 0
+        while True:
+            action = self.eval_step(state, info)
+            state, reward, done, _ = env.step([action])
+            total_rewards += reward[0]
+            if done[0]:
+                break
+        return total_rewards
+
+    def eval_episodes(self):
+        rewards = []
+        for ep in range(self.config.eval_episodes):
+            rewards.append(self.eval_episode())
+        self.config.logger.info('evaluation episode return: %f(%f)' % (
+            np.mean(rewards), np.std(rewards) / np.sqrt(len(rewards))))
+        self.config.logger.add_scalar(tag='eval_return', value=np.mean(rewards), step=self.total_steps)
+        return np.mean(rewards)
+
     def step(self):
         config = self.config
         storage = Storage(config.rollout_length)
@@ -135,9 +160,10 @@ class PPOAgent(BaseAgent):
                 indices = [e2i[index] for index in indices]
             else:
                 indices = self.network.abs_encoder.get_indices(all_states, all_infos).detach().cpu().numpy()
-            abs_map = {pos: i for pos, i in zip(all_infos['pos'], indices)}
-            config.logger.add_scalar(tag='n_abs', value=len(set(abs_map.values())), step=self.total_steps)
-            config.logger.add_file('abs_map', abs_map, step=self.total_steps)
+            if 'pos' in all_infos:
+                abs_map = {pos: i for pos, i in zip(all_infos['pos'], indices)}
+                config.logger.add_scalar(tag='n_abs', value=len(set(abs_map.values())), step=self.total_steps)
+                config.logger.add_file('abs_map', abs_map, step=self.total_steps)
             # log the visualization of the abs
             if hasattr(self.network.abs_encoder, 'abstract_type'):
                 if self.network.abs_encoder.abstract_type == 'max':

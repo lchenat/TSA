@@ -365,6 +365,7 @@ class DiscreteGridTask:
         self.action_space = self.env.action_space
         self.action_dim = self.action_space.n
         self.env_type = 'simulation'
+        self.n_tasks = 1 # placeholder
 
     def reset(self):
         return self.env.reset()

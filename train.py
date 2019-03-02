@@ -56,12 +56,13 @@ def _exp_parser():
     task.add_argument('-T', type=int, default=100)
     task.add_argument('--window', type=int, default=1)
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
+    task.add_argument('--map_name', type=str, default='fouroom') # used for simple_grid only now
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=10)
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
     algo.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
-    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
+    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli', 'map'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
@@ -254,6 +255,7 @@ def process_weight(network, args, config):
             for p in network.network.phi_body.parameters():
                 p.requires_grad = False
 
+# for normal tsa
 def get_network(visual_body, args, config):
     if args.net == 'baseline':
         #log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
@@ -329,6 +331,8 @@ def get_network(visual_body, args, config):
                 actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
             else:
                 actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+        else:
+            raise Exception('unsupported network type')
         if args.critic == 'visual':
             critic_body = visual_body
         elif args.critic == 'abs':
@@ -336,6 +340,42 @@ def get_network(visual_body, args, config):
         critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
         network = TSANet(config.action_dim, abs_encoder, actor, critic)
     return network, algo_name
+
+def get_grid_network(args, config):
+    n_tasks = 1
+    algo_name = ['fc_discrete', args.net]
+    if args.net == 'baseline':
+        network = CategoricalActorCriticNet(
+            n_tasks,
+            config.state_dim,
+            config.action_dim,
+            FCBody(
+                config.state_dim, 
+                hidden_units=(16,)
+            ),
+        )
+    elif args.net == 'map':
+        assert args.abs_fn is not None, 'need args.abs_fn'
+        with open(args.abs_fn, 'rb') as f:
+            abs_dict = dill.load(f)
+            n_abs = max(set(abs_dict.values())) + 1 # only have 1 map!, don't want to map it back again
+        print(abs_dict)
+        def abs_f(states):
+            np_states = to_np(states)
+            abs_s = np.array([abs_dict[tuple(s)] for s in np_states])
+            return tensor(abs_s, dtype=torch.long)
+        abs_encoder = MapAbstractEncoder(n_abs, abs_f)
+        if args.actor == 'linear':
+            actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+        elif args.actor == 'nonlinear':
+            actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+        critic_body = abs_encoder
+        critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
+        network = TSANet(config.action_dim, abs_encoder, actor, critic)
+        algo_name.append(Path(args.abs_fn).name)
+    else:
+        raise Exception('unsupport data type')
+    return network, '.'.join(algo_name)
 
 def ppo_pixel_tsa(args):
     config = Config()
@@ -387,11 +427,12 @@ def ppo_pixel_tsa(args):
 def fc_discrete(args):
     env_config = dict(
         main=dict(
-            map_name='fourroom',
+            map_name=args.map_name,
             #init_loc=(1, 1),
             goal_loc=(9, 9),
+            min_dis=args.min_dis,
         ),
-        T=100, # 250?
+        T=args.T, # 250?
     )
     config = Config()
     config.num_workers = 5
@@ -402,16 +443,8 @@ def fc_discrete(args):
         return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
     config.optimizer_fn = optimizer_fn
     #config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
-    n_tasks = 1
-    config.network_fn = lambda: CategoricalActorCriticNet(
-        n_tasks,
-        config.state_dim,
-        config.action_dim,
-        FCBody(
-            config.state_dim, 
-            hidden_units=(16,)
-        ),
-    )
+    network, args.algo_name = get_grid_network(args, config)
+    config.network_fn = lambda: network
     config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 0.95
@@ -421,15 +454,19 @@ def fc_discrete(args):
     config.optimization_epochs = 10
     config.mini_batch_size = 32 * 5
     config.ppo_ratio_clip = 0.2
-    config.log_interval = 128 * 5 * 10
-    args.algo_name = 'fc_discrete'
+    config.log_interval = args.rollout_length * config.num_workers * 10
 
-    config.max_steps = 1e4 if args.d else 180000
+    config.max_steps = 180000
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = 5
     config.save_interval = args.save_interval
     log_tags = dict(
-        task='.'.join([args.env, env_config['main']['map_name']]),
+        task='.'.join([
+            args.env,
+            env_config['main']['map_name'],
+            'md-{}'.format(env_config['main']['min_dis']),
+            'T-{}'.format(env_config['T']),
+        ]),
         algo=args.algo_name,
         others=args.tag,
         seed=args.seed,
