@@ -232,6 +232,25 @@ class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=logprobs).mean()
         return torch.matmul(self.get_probs(inputs, info), self.value)
 
+# map state input to abstract state by a function
+class MapAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
+    def __init__(self, n_abs, abs_f): # input, output of abs_f is tensor
+        super().__init__()
+        self.n_abs = n_abs
+        self.abs_f = abs_f
+        self.feature_dim = self.n_abs
+        self.abstract_type = 'pos'
+
+    def get_indices(self, inputs, info):
+        indices = self.abs_f(inputs)
+        #indices = tensor([self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])], dtype=torch.long)
+        return indices
+
+    def forward(self, inputs, info):
+        #c_indices = [self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])]
+        cs = one_hot.encode(self.get_indices(inputs, info), dim=self.n_abs)
+        return cs
+
 # input: abstract dictionary
 class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_abs, abs_dict):

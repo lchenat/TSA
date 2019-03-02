@@ -16,3 +16,4 @@ pygame==1.9.4
 imageio==2.4.1
 ipdb
 gitpython
+sklearn

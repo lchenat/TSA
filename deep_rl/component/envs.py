@@ -209,6 +209,8 @@ class Task:
 
 ### tsa ###
 from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld
+from ..simple_grid.env import DiscreteGridWorld, SampleParameterEnv
+from ..simple_grid.exemplar_env import RandomInitDiscreteGridWorld
 
 class LastWrapper(gym.Wrapper):
     def __init__(self, env):
@@ -277,6 +279,7 @@ class ReachGridWorldTask:
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
         self.n_maps = len(env_config['main']['map_names'])
         self.n_tasks = len(self.env.envs[0].unwrapped.g2i)
+        self.env_type = 'full'
 
         self.action_space = self.env.action_space
         if isinstance(self.action_space, Discrete):
@@ -312,6 +315,7 @@ class PickGridWorldTask:
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
         self.n_maps = len(env_config['main']['map_names'])
         self.n_tasks = self.env.envs[0].unwrapped.num_obj_types
+        self.env_type = 'full'
 
         self.action_space = self.env.action_space
         if isinstance(self.action_space, Discrete):
@@ -334,6 +338,49 @@ class PickGridWorldTask:
 
     def get_opt_action(self):
         return [env.last.get_random_opt_action(0.99) for env in self.env.envs]
+
+def make_discrete_grid_env(env_config, seed, rank):
+    def _thunk():
+        random_seed(seed)
+        env = RandomInitDiscreteGridWorld(**env_config['main'], seed=seed+rank)
+        env = FiniteHorizonEnv(env, T=env_config['T'])
+
+        return env
+
+    return _thunk
+
+class DiscreteGridTask:
+    def __init__(
+        self,
+        env_config,
+        num_envs=1,
+        seed=np.random.randint(int(1e5))):
+
+        self.num_envs = num_envs
+        envs = [make_discrete_grid_env(env_config, seed, i) for i in range(num_envs)]
+        self.env = DummyVecEnv(envs)
+        self.name = 'DiscreteGridWorld'
+        self.observation_space = self.env.observation_space
+        self.state_dim = len(self.env.observation_space.spaces)
+        self.action_space = self.env.action_space
+        self.action_dim = self.action_space.n
+        self.env_type = 'simulation'
+        self.n_tasks = 1 # placeholder
+
+    def reset(self):
+        return self.env.reset()
+
+    def step(self, actions):
+        next_o, r, done, info = self.env.step(actions)
+        info['task_id'] = [0 for _ in range(self.num_envs)]
+        info.pop('reward_config', None)
+        return next_o, r, done, info
+
+    def get_info(self): # retrieve map_id and goal position
+        info = self.env.get_info()
+        info.pop('reward_config', None)
+        info['task_id'] = [0 for _ in range(self.num_envs)]
+        return info
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)
