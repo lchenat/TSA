@@ -56,7 +56,7 @@ def _exp_parser():
     task.add_argument('-T', type=int, default=100)
     task.add_argument('--window', type=int, default=1)
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
-    task.add_argument('--map_name', type=str, default='fouroom') # used for simple_grid only now
+    task.add_argument('--map_name', type=str, default='fourroom') # used for simple_grid only now
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=10)
     task.add_argument('--task_config', type=str, default=None) # read from file
