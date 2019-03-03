@@ -58,6 +58,7 @@ def _exp_parser():
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
+    task.add_argument('--goal_loc', type=int, nargs=2, default=(9, 9))
     task.add_argument('--hidden', type=int, nargs='+', default=(16,))
     ##
     task.add_argument('--discount', type=float, default=0.99)
@@ -432,7 +433,7 @@ def fc_discrete(args):
         main=dict(
             map_name=args.map_name,
             #init_loc=(1, 1),
-            goal_loc=(9, 9),
+            goal_loc=args.goal_loc,
             min_dis=args.min_dis,
         ),
         T=args.T, # 250?
@@ -467,6 +468,7 @@ def fc_discrete(args):
         task='.'.join([
             args.env,
             env_config['main']['map_name'],
+            '{}_{}'.format(*env_config['main']['goal_loc']),
             'md-{}'.format(env_config['main']['min_dis']),
             'T-{}'.format(env_config['T']),
         ]),
