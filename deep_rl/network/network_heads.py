@@ -248,8 +248,8 @@ class MapAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
 
     def forward(self, inputs, info):
         #c_indices = [self.abs_dict[map_id][pos] for map_id, pos in zip(info['map_id'], info['pos'])]
-        cs = one_hot.encode(self.get_indices(inputs, info), dim=self.n_abs)
-        return cs
+        #cs = one_hot.encode(self.get_indices(inputs, info), dim=self.n_abs)
+        return self.get_indices(inputs, info)
 
 # input: abstract dictionary
 class PosAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):

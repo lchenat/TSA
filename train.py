@@ -66,7 +66,7 @@ def _exp_parser():
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
     algo.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
-    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli', 'map'])
+    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
@@ -362,12 +362,12 @@ def get_grid_network(args, config):
         assert args.abs_fn is not None, 'need args.abs_fn'
         with open(args.abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
-            n_abs = max(set(abs_dict.values())) + 1 # only have 1 map!, don't want to map it back again
+            n_abs = len(list(abs_dict.values())[0]) # this is the length of feature vector
         print(abs_dict)
         def abs_f(states):
             np_states = to_np(states)
             abs_s = np.array([abs_dict[tuple(s)] for s in np_states])
-            return tensor(abs_s, dtype=torch.long)
+            return tensor(abs_s)
         abs_encoder = MapAbstractEncoder(n_abs, abs_f)
         if args.actor == 'linear':
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
@@ -377,6 +377,27 @@ def get_grid_network(args, config):
         critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
         network = TSANet(config.action_dim, abs_encoder, actor, critic)
         algo_name.append(Path(args.abs_fn).name)
+    elif args.net == 'imap': # take argmax
+        assert args.abs_fn is not None, 'need args.abs_fn'
+        with open(args.abs_fn, 'rb') as f:
+            abs_dict = dill.load(f)
+            abs_dict = {k: v.argmax() for k, v in abs_dict.items()}
+            n_abs = max(set(abs_dict.values())) + 1 # only have 1 map!, don't want to map it back again
+        print(abs_dict)
+        def abs_f(states):
+            np_states = to_np(states)
+            abs_s = np.array([abs_dict[tuple(s)] for s in np_states])
+            return one_hot.encode(tensor(abs_s, dtype=torch.long), n_abs)
+        abs_encoder = MapAbstractEncoder(n_abs, abs_f)
+        if args.actor == 'linear':
+            actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+        elif args.actor == 'nonlinear':
+            actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
+        critic_body = abs_encoder
+        critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
+        network = TSANet(config.action_dim, abs_encoder, actor, critic)
+        algo_name.append(Path(args.abs_fn).name)
+
     else:
         raise Exception('unsupport data type')
     return network, '.'.join(algo_name)
@@ -433,7 +454,7 @@ def fc_discrete(args):
         main=dict(
             map_name=args.map_name,
             #init_loc=(1, 1),
-            goal_loc=args.goal_loc,
+            goal_loc=tuple(args.goal_loc),
             min_dis=args.min_dis,
         ),
         T=args.T, # 250?
