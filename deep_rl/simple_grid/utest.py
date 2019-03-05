@@ -2,7 +2,7 @@ import random
 import unittest
 import readchar
 from env import DiscreteGridWorld, SampleParameterEnv
-from exemplar_env import RandomInitDiscreteGridWorld
+from exemplar_env import RandomInitEnv, RandomGoalEnv
 from utils import Render, GridDrawer
 
 from py_tools.common import set_seed
@@ -14,14 +14,13 @@ class TestDiscrete(unittest.TestCase):
     @ipdb_on_exception
     def control(self):
         #env = DiscreteGridWorld('fourroom', (1, 1), (9, 9))
-        #def sample_param_f(param):
-            #while True:
-                #loc = (random.randint(1, env.env.size[0]-2), random.randint(0, env.env.size[1]-2))
-                #if env.env.is_valid_loc(loc): break
-            #param['init_loc'] = loc
-            #return param
-        #env = SampleParameterEnv(env, sample_param_f)
-        env = RandomInitDiscreteGridWorld('fourroom', (9, 9))
+        env = RandomGoalEnv(
+            RandomInitEnv(
+                DiscreteGridWorld('fourroom', (1, 1), (9, 9)),
+                min_dis=7,
+            ),
+            goal_locs=[(1, 1), (1, 9), (9, 1), (9, 9)],
+        )
         o = env.reset()
         env.render()
         done = False

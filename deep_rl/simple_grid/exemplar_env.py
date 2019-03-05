@@ -17,9 +17,9 @@ class RandomInitEnv(SampleParameterEnv):
         super().__init__(env, sample_param_f)
 
 class RandomGoalEnv(SampleParameterEnv):
-    def __init__(self, goal_locs):
+    def __init__(self, env, goal_locs):
         self.goals = goal_locs
         def sample_param_f(param):
-            param['goal'] = random.sample(self.goals, 1)
+            param['goal'] = random.sample(self.goals, 1)[0]
             return param
         super().__init__(env, sample_param_f)

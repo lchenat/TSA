@@ -151,3 +151,9 @@ class SampleParameterEnv(Wrapper):
     def reset(self):
         self.env.set_parameters(self.sample_param_f(self.env.get_parameters()))
         return self.env.reset()
+
+    def get_parameters(self):
+        return self.env.get_parameters()
+
+    def set_parameters(self, params):
+        return self.env.set_parameters(params)
