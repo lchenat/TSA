@@ -45,8 +45,9 @@ def _exp_parser():
             'transfer_ppo',
             'transfer_distral',
             'PI',
-            'fc_discrete', # use fc body
+            'fc_discrete', # use fc body, tabular cases
             'fc_continuous', # use fc body
+            'nmf_sample', # non-tabular cases
         ],
     )
     # environment (the task setting, first level directory)
@@ -59,22 +60,25 @@ def _exp_parser():
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
     task.add_argument('--goal_loc', type=int, nargs=2, default=(9, 9))
-    task.add_argument('--hidden', type=int, nargs='+', default=(16,))
     ##
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=10)
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
     algo.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
-    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
+    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
     algo.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     algo.add_argument('--rate', type=float, default=1)
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
+    ## simple grid only
+    task.add_argument('--hidden', type=int, nargs='+', default=(16,))
+    task.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
+    ##
     # transfer network
-    algo.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'kv', 'id', 'sample', 'baseline', 'i2a', 'bernoulli'])
+    algo.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli'])
     algo.add_argument('--t_n_abs', type=int, default=512)
     algo.add_argument('--t_abs_fn', type=str, default=None)
     algo.add_argument('--t_actor', choices=['linear', 'nonlinear'], default='nonlinear')
@@ -129,33 +133,18 @@ def parse(parser, *args, **kwargs):
 # return task name, algo name and the rest
 def get_log_tags(args):
     tags = dict()
-    #attr_dict = OrderDict()
     if args.task_config:
         tags['task'] = Path(args.task_config).stem
-        #attr_dict['task_config'] = args.task_config
     else:
         tags['task'] = '.'.join([
             args.env,
             Path(args.env_config).name,
             'min_dis-{}'.format(args.min_dis),
         ])
-        #task_name = '.'.join(['{}-{}'.format(k, v) for k, v in group_args['task'].items()])
-        #attr_dict['env'] = args.env
-        #attr_dict['env_config'] = Path(args.env_config).name
-        #attr_dict['min_dis'] = args.min_dis
     if args.algo_config:
         tags['algo'] = Path(args.algo_config).stem
-        #arrt_dict['algo_config'] = args.algo_config
     else:
         tags['algo'] = args.algo_name
-        #algo_attrs =  args.algo_attrs # passed in from algorithm
-        #algo_name = '.'.join(['{}-{}'.format(k, v) for k, v in algo_attrs])
-        #algo_name = args.algo_name # since this is too flexible, better to passed in
-        #attr_dict['algo_name'] = args.algo_name
-    #attr_dict['seed'] = args.seed
-    #attr_dict['tag'] = args.tag
-    #return task_name, algo_name, other_name
-    #return synthesize_name(attr_dict)
     tags['others'] = args.tag
     tags['seed'] = args.seed
     return tags
@@ -262,7 +251,6 @@ def process_weight(network, args, config):
 # for normal tsa
 def get_network(visual_body, args, config):
     if args.net == 'baseline':
-        #log_name = '{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config))
         algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
         network = CategoricalActorCriticNet(
             config.eval_env.n_tasks,
@@ -273,7 +261,6 @@ def get_network(visual_body, args, config):
         )
     else:
         if args.net == 'vq':
-            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = VQAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
             if args.actor == 'nonlinear':
@@ -281,7 +268,6 @@ def get_network(visual_body, args, config):
             else:
                 actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'prob':
-            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             temperature = process_temperature(args.temperature)
             abs_encoder = ProbAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
@@ -291,7 +277,6 @@ def get_network(visual_body, args, config):
             with open(args.abs_fn, 'rb') as f:
                 abs_dict = dill.load(f)
                 n_abs = len(set(abs_dict[0].values())) # only have 1 map!
-            #log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
             algo_name = '.'.join([args.agent, args.net, Path(args.abs_fn).stem])
             print(abs_dict)
             abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
@@ -299,36 +284,18 @@ def get_network(visual_body, args, config):
                 actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
             elif args.actor == 'nonlinear':
                 actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-        elif args.net == 'kv': # key-value
-            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
-            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
-            abs_encoder = KVAbstractEncoder(args.n_abs, config.abs_dim, visual_body)
-            if args.actor == 'nonlinear':
-                actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-            else:
-                actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
-        elif args.net == 'id':
-            temperature = process_temperature(args.temperature)
-            n_abs = config.action_dim
-            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), n_abs)
-            algo_name = '.'.join([args.agent, args.net])
-            abs_encoder = ProbAbstractEncoder(n_abs, visual_body, temperature=temperature)
-            actor = IdentityActor()
         elif args.net == 'sample':
             temperature = process_temperature(args.temperature)
-            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = SampleAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'i2a':
             temperature = process_temperature(args.temperature)
-            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = I2AAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'bernoulli':
             temperature = process_temperature(args.temperature)
-            #log_name = '{}-{}-{}-n_abs-{}'.format(args.agent, args.net, lastname(args.env_config), args.n_abs)
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = BernoulliAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             if args.actor == 'linear':
@@ -346,8 +313,8 @@ def get_network(visual_body, args, config):
     return network, algo_name
 
 def get_grid_network(args, config):
-    n_tasks = 1
-    algo_name = ['fc_discrete', args.net]
+    n_tasks = config.eval_env.n_tasks
+    algo_name = [args.agent, args.net]
     if args.net == 'baseline':
         network = CategoricalActorCriticNet(
             n_tasks,
@@ -358,12 +325,13 @@ def get_grid_network(args, config):
                 hidden_units=tuple(args.hidden)
             ),
         )
+        return network, '.'.join(algo_name)
     elif args.net == 'map':
         assert args.abs_fn is not None, 'need args.abs_fn'
         with open(args.abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
             n_abs = len(list(abs_dict.values())[0]) # this is the length of feature vector
-        print(abs_dict)
+        #print(abs_dict)
         def abs_f(states):
             np_states = to_np(states)
             abs_s = np.array([abs_dict[tuple(s)] for s in np_states])
@@ -373,9 +341,6 @@ def get_grid_network(args, config):
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.actor == 'nonlinear':
             actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-        critic_body = abs_encoder
-        critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
-        network = TSANet(config.action_dim, abs_encoder, actor, critic)
         algo_name.append(Path(args.abs_fn).name)
     elif args.net == 'imap': # take argmax
         assert args.abs_fn is not None, 'need args.abs_fn'
@@ -393,13 +358,21 @@ def get_grid_network(args, config):
             actor = LinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.actor == 'nonlinear':
             actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
-        critic_body = abs_encoder
-        critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
-        network = TSANet(config.action_dim, abs_encoder, actor, critic)
         algo_name.append(Path(args.abs_fn).name)
-
+    elif args.net == 'prob': # used to approximate NMF, we also need non-negative net
+        assert args.sample_fn is not None, 'need args.sample_fn'
+        fc_body = FCBody(config.state_dim, hidden_units=tuple(args.hidden))
+        temperature = process_temperature(args.temperature)
+        abs_encoder = ProbAbstractEncoder(args.n_abs, fc_body, temperature=temperature)
+        if args.actor == 'linear':
+            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+        elif args.actor == 'nonlinear':
+            actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
     else:
         raise Exception('unsupport data type')
+    critic_body = abs_encoder
+    critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
+    network = TSANet(config.action_dim, abs_encoder, actor, critic)
     return network, '.'.join(algo_name)
 
 def ppo_pixel_tsa(args):
@@ -503,6 +476,43 @@ def fc_discrete(args):
         **vars(args),
         }])
     run_steps(PPOAgent(config))
+
+def nmf_sample(args):
+    config = Config()
+    config.eval_env = 
+    def optimizer_fn(model):
+        params = filter(lambda p: p.requires_grad, model.parameters())
+        return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
+    config.optimizer_fn = optimizer_fn
+    assert args.sample_fn is not None, 'need args.sample_fn'
+    with open(args.sample_fn, 'rb') as f:
+        sample_dict = dill.load(f) # abs, policy
+        args.n_abs = sample_dict['abs'].shape[1]
+        n_tasks = len(sample_dict['policies'])
+    network, _ = get_grid_network(args, config)
+    args.algo_name = '.'.join(['nmf_sample'])
+    config.sample_dict = sample_dict
+    config.network_fn = lambda: network
+    config.gradient_clip = 5
+    config.batch_size = 32 * n_tasks
+    config.log_interval = config.batch_size * 10
+
+    config.max_steps = 180000
+    if args.steps is not None: config.max_steps = args.steps
+    config.eval_interval = 5
+    config.save_interval = args.save_interval
+    log_tags = dict(
+        task=Path(args.sample_fn).name,
+        algo=args.algo_name,
+        others=args.tag,
+        seed=args.seed,
+    )
+    config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip)
+    config.logger.add_text('Configs', [{
+        'git sha': get_git_sha(),
+        **vars(args),
+        }])
+    run_steps(NMFAgent(config))
 
 def ppo_pixel_baseline(args):
     config = Config()
@@ -916,6 +926,8 @@ if __name__ == '__main__':
                     ppo_pixel_PI(args)
                 elif args.agent == 'fc_discrete':
                     fc_discrete(args)
+                elif args.agent == 'nmf_sample':
+                    nmf_sample(args)
                 exp_finished = True
         except Exception as e:
             traceback.print_exc()

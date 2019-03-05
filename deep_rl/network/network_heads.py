@@ -69,8 +69,8 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
     def forward(self, inputs, info):
         y = super().forward(inputs) / self.temperature.cur
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean() if self.loss_weight else 0.0
-        return F.log_softmax(y, dim=1)
-        #return F.softmax(y, dim=1) # debug
+        #return F.log_softmax(y, dim=1)
+        return F.softmax(y, dim=1)
 
     def entropy(self, inputs, info, logits=None):
         if logits is None:
@@ -195,43 +195,6 @@ class VQAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
 
         return output_x # output the one that can pass gradient to xs
 
-class KVAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
-    def __init__(self, n_embed, embed_dim, body, abstract_type='prob'):
-        super().__init__()
-        self.body = body
-        #self.key = nn.Linear(body.feature_dim, n_embed, bias=False),
-        self.key = nn.Linear(body.feature_dim, embed_dim)
-        #self.value = nn.Linear(n_embed, embed_dim, bias=False)
-        self.value = nn.Parameter(weight_init(torch.randn(n_embed, embed_dim)))
-        self.abstract_type = abstract_type
-        self.loss_weight = 0.0
-        self.feature_dim = embed_dim
-        self.denominator = np.sqrt(body.feature_dim)
-    
-    def entropy(self, inputs, info, logits=None):
-        if logits is None:
-            logits = self.get_logprobs(inputs, info)
-        dist = torch.distributions.Categorical(logits=logits)
-        return dist.entropy()
-
-    def get_logprobs(self, inputs, info):
-        key = self.key(self.body(inputs))
-        return F.log_softmax(torch.matmul(F.normalize(key, dim=1), F.normalize(self.value, dim=1).t()), dim=1) 
-        #return F.log_softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
-
-    def get_probs(self, inputs, info):
-        key = self.key(self.body(inputs))
-        return F.softmax(torch.matmul(F.normalize(key, dim=1), F.normalize(self.value, dim=1).t()), dim=1) 
-        #return F.softmax(self.key(self.body(inputs)) / self.denominator, dim=1)
-
-    def get_indices(self, inputs, info):
-        return self.get_logprobs(inputs, info).argmax(dim=1)
-
-    def forward(self, inputs, info):
-        logprobs = self.get_logprobs(inputs, info)
-        self._loss = self.loss_weight * self.entropy(inputs, info, logits=logprobs).mean()
-        return torch.matmul(self.get_probs(inputs, info), self.value)
-
 # map state input to abstract state by a function
 class MapAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_abs, abs_f): # input, output of abs_f is tensor
@@ -299,20 +262,6 @@ class TabularActor(nn.Module):
         policy = self.policy[tensor(info['task_id'], torch.int64),:,:]
         policy = torch.bmm(x.unsqueeze(1), policy).squeeze(1)
         return {'a': self.eps_greedy_sample(policy)}
-
-class IdentityActor(nn.Module, BaseNet): # only works for single environment!
-    def get_logits(self, x, info):
-        return x
-
-    def forward(self, x, info, action=None):
-        dist = torch.distributions.Categorical(logits=x)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1) # unsqueeze!
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy}
 
 # each task maintains a linear layer
 # input: abstract feature

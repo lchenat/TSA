@@ -5,26 +5,21 @@ else:
     from .env import DiscreteGridWorld, SampleParameterEnv
 
 
-class RandomInitDiscreteGridWorld(SampleParameterEnv):
-    def __init__(
-        self,
-        map_name,
-        goal_loc,
-        min_dis=1,
-        reward_config=dict(
-            step=0.0,
-            lava=-1.0,
-            #wall=0.0,
-            goal=1.0,
-        ),
-        discount=0.99,
-        seed=0, # does not use here
-    ):
-        env = DiscreteGridWorld(map_name, init_loc=(0, 0), goal_loc=goal_loc, reward_config=reward_config, discount=discount, seed=seed)
+class RandomInitEnv(SampleParameterEnv):
+    def __init__(self, env, min_dis=1):
+        self.min_dis = min_dis
         def sample_param_f(param):
             while True:
                 loc = (random.randint(1, self.env.size[0]-2), random.randint(0, self.env.size[1]-2))
-                if self.env.is_valid_loc(loc) and self.env.dist2goal(loc) >= min_dis: break
+                if self.env.is_valid_loc(loc) and self.env.dist2goal(loc) >= self.min_dis: break
             param['init_loc'] = loc
+            return param
+        super().__init__(env, sample_param_f)
+
+class RandomGoalEnv(SampleParameterEnv):
+    def __init__(self, goal_locs):
+        self.goals = goal_locs
+        def sample_param_f(param):
+            param['goal'] = random.sample(self.goals, 1)
             return param
         super().__init__(env, sample_param_f)
