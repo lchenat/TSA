@@ -366,7 +366,6 @@ def get_grid_network(args, config):
             actor = NonLinearActorNet(n_abs, config.action_dim, config.eval_env.n_tasks)
         algo_name.append(Path(args.abs_fn).name)
     elif args.net == 'prob': # used to approximate NMF, we also need non-negative net
-        assert args.sample_fn is not None, 'need args.sample_fn'
         fc_body = FCBody(config.state_dim, hidden_units=tuple(args.hidden))
         temperature = process_temperature(args.temperature)
         abs_encoder = ProbAbstractEncoder(args.n_abs, fc_body, temperature=temperature)
@@ -449,6 +448,7 @@ def fc_discrete(args):
     #config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
     network, args.algo_name = get_grid_network(args, config)
     config.network_fn = lambda: network
+    process_weight(network, args, config) # interesting
     config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 0.95
@@ -458,11 +458,11 @@ def fc_discrete(args):
     config.optimization_epochs = 10
     config.mini_batch_size = 32 * 5
     config.ppo_ratio_clip = 0.2
-    config.log_interval = args.rollout_length * config.num_workers * 10
+    config.log_interval = args.rollout_length * config.num_workers * 10 # may skip 10
 
     config.max_steps = 180000
     if args.steps is not None: config.max_steps = args.steps
-    config.eval_interval = 5
+    config.eval_interval = 5 # 50
     config.save_interval = args.save_interval
     log_tags = dict(
         task='.'.join([
@@ -513,7 +513,7 @@ def nmf_sample(args):
     config.batch_size = 32 * n_tasks
     config.log_interval = config.batch_size * 10
 
-    config.max_steps = 180000
+    config.max_steps = 1800000
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = 5
     config.save_interval = args.save_interval
