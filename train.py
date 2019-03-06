@@ -485,8 +485,17 @@ def fc_discrete(args):
     run_steps(PPOAgent(config))
 
 def nmf_sample(args):
+    goal_locs = process_goals(args.goal_fn)
+    env_config = dict(
+        main=dict(
+            map_name=args.map_name,
+            goal_locs=goal_locs,
+            min_dis=args.min_dis,
+        ),
+        T=args.T, # 250?
+    )
     config = Config()
-    #config.eval_env = 
+    config.eval_env = DiscreteGridTask(env_config)
     def optimizer_fn(model):
         params = filter(lambda p: p.requires_grad, model.parameters())
         return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
@@ -519,7 +528,7 @@ def nmf_sample(args):
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    run_steps(NMFAgent(config))
+    run_supervised_steps(NMFAgent(config))
 
 def ppo_pixel_baseline(args):
     config = Config()
