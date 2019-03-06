@@ -15,6 +15,7 @@ from termcolor import colored
 from pathlib import Path
 import argparse
 import dill
+import json
 import copy
 import socket
 import traceback
@@ -59,7 +60,7 @@ def _exp_parser():
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
-    task.add_argument('--goal_loc', type=int, nargs=2, default=(9, 9))
+    task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
     ##
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=10)
@@ -248,6 +249,11 @@ def process_weight(network, args, config):
             for p in network.network.phi_body.parameters():
                 p.requires_grad = False
 
+def process_goals(goal_fn): # should be read json what are you doing?
+    with open(goal_fn) as f:
+        goals = json.load(f)
+    return [tuple(goal) for goal in goals]
+
 # for normal tsa
 def get_network(visual_body, args, config):
     if args.net == 'baseline':
@@ -423,11 +429,11 @@ def ppo_pixel_tsa(args):
         save_abs(PPOAgent(config))
 
 def fc_discrete(args):
+    goal_locs = process_goals(args.goal_fn)
     env_config = dict(
         main=dict(
             map_name=args.map_name,
-            #init_loc=(1, 1),
-            goal_loc=tuple(args.goal_loc),
+            goal_locs=goal_locs,
             min_dis=args.min_dis,
         ),
         T=args.T, # 250?
@@ -462,7 +468,8 @@ def fc_discrete(args):
         task='.'.join([
             args.env,
             env_config['main']['map_name'],
-            '{}_{}'.format(*env_config['main']['goal_loc']),
+            #'{}_{}'.format(*env_config['main']['goal_locs']),
+            Path(args.goal_fn).name,
             'md-{}'.format(env_config['main']['min_dis']),
             'T-{}'.format(env_config['T']),
         ]),
@@ -479,7 +486,7 @@ def fc_discrete(args):
 
 def nmf_sample(args):
     config = Config()
-    config.eval_env = 
+    #config.eval_env = 
     def optimizer_fn(model):
         params = filter(lambda p: p.requires_grad, model.parameters())
         return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)

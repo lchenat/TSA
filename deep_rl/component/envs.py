@@ -210,7 +210,7 @@ class Task:
 ### tsa ###
 from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld
 from ..simple_grid.env import DiscreteGridWorld, SampleParameterEnv
-from ..simple_grid.exemplar_env import RandomInitDiscreteGridWorld
+from ..simple_grid.exemplar_env import DiscreteGridWorld, RandomInitEnv, RandomGoalEnv
 
 class LastWrapper(gym.Wrapper):
     def __init__(self, env):
@@ -342,7 +342,13 @@ class PickGridWorldTask:
 def make_discrete_grid_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
-        env = RandomInitDiscreteGridWorld(**env_config['main'], seed=seed+rank)
+        env = RandomGoalEnv(
+            RandomInitEnv(
+                DiscreteGridWorld(env_config['main']['map_name'], (1, 1), (9, 9), seed=seed+rank),
+                min_dis=env_config['main']['min_dis'],
+            ),
+            goal_locs=env_config['main']['goal_locs'],
+        )
         env = FiniteHorizonEnv(env, T=env_config['T'])
 
         return env
