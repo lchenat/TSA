@@ -378,14 +378,14 @@ class DiscreteGridTask:
 
     def step(self, actions):
         next_o, r, done, info = self.env.step(actions)
-        info['task_id'] = [0 for _ in range(self.num_envs)]
         info.pop('reward_config', None)
+        info['task_id'] = [env.last.goal_idx for env in self.env.envs]
         return next_o, r, done, info
 
     def get_info(self): # retrieve map_id and goal position
         info = self.env.get_info()
         info.pop('reward_config', None)
-        info['task_id'] = [0 for _ in range(self.num_envs)]
+        info['task_id'] = [env.last.goal_idx for env in self.env.envs]
         return info
 
 if __name__ == '__main__':

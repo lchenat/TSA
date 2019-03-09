@@ -505,8 +505,7 @@ def nmf_sample(args):
         sample_dict = dill.load(f) # abs, policy
         args.n_abs = sample_dict['abs'].shape[1]
         n_tasks = len(sample_dict['policies'])
-    network, _ = get_grid_network(args, config)
-    args.algo_name = '.'.join(['nmf_sample'])
+    network, args.algo_name = get_grid_network(args, config)
     config.sample_dict = sample_dict
     config.network_fn = lambda: network
     config.gradient_clip = 5
