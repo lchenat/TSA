@@ -35,7 +35,9 @@ class NMFAgent(NMFBaseAgent):
         self.policies = np.concatenate(config.sample_dict['policies'])
  
     def eval_step(self, state, info):
-        return self.network(state, info)['a'][0].cpu().detach().numpy().item()
+        action = self.network(state, info)['a'][0].cpu().detach().numpy()
+        if not action.shape: action = action.item()
+        return action
 
     def eval_episode(self):
         env = self.config.eval_env
@@ -70,10 +72,11 @@ class NMFAgent(NMFBaseAgent):
             actual_abs = self.network.abs_encoder(states, infos)
         else:
             actual_abs = self.network.network.phi_body(states)
-        actual_policies = F.log_softmax(self.network.get_logits(states, infos))
+        actual_policies = F.log_softmax(self.network.get_logits(states, infos), dim=-1)
         loss_dict = dict()
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
-        loss_dict['KL'] = self.policy_loss(actual_policies, expected_policies)
+        # this is backward compatible
+        loss_dict['KL'] = self.policy_loss(actual_policies.view(-1, actual_policies.shape[-1]), expected_policies.view(-1, expected_policies.shape[-1]))
         loss_dict['MSE'] = self.abs_loss(actual_abs, expected_abs)
         loss_dict['network'] = self.network.loss()
         for loss in loss_dict.values(): assert loss == loss, 'NaN detected'

@@ -436,12 +436,3 @@ class ReacherTask:
         info = self.env.get_info()
         info['task_id'] = [env.last.goal_idx for env in self.env.envs]
         return info
-
-
-if __name__ == '__main__':
-    task = Task('Hopper-v2', 5, single_process=False)
-    state = task.reset()
-    while True:
-        action = np.random.rand(task.observation_space.shape[0])
-        next_state, reward, done, _ = task.step(action)
-        print(done)
