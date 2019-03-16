@@ -25,21 +25,32 @@ class VanillaNet(nn.Module, BaseNet):
         y = self.fc_head(phi)
         return y
 
+# change from body to directly actor critic!
 class ActorCriticNet(nn.Module, BaseNet):
-    def __init__(self, n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body):
+    def __init__(self, n_tasks, state_dim, action_dim, phi_body, actor, critic):
         super(ActorCriticNet, self).__init__()
         if phi_body is None: phi_body = DummyBody(state_dim)
-        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
-        if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
+        #if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
+        #if critic_body is None: critic_body = DummyBody(phi_body.feature_dim)
         self.phi_body = phi_body
-        self.actor_body = actor_body
-        self.critic_body = critic_body
-        self.fc_action = MultiLinear(actor_body.feature_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
-        self.fc_critic = MultiLinear(critic_body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
+        if actor is None: actor = MultiLinear(phi_body.feature_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
+        if critic is None: critic = MultiLinear(phi_body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
 
-        self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
-        self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
+        self.actor = actor
+        self.critic = critic
+        
+        self.actor_params = list(self.actor.parameters())
+        self.critic_params = list(self.critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
+        
+        #self.actor_body = actor_body
+        #self.critic_body = critic_body
+        #self.fc_action = MultiLinear(actor_body.feature_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
+        #self.fc_critic = MultiLinear(critic_body.feature_dim, 1, n_tasks, key='task_id', w_scale=1e-3)
+
+        #self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
+        #self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
+        #self.phi_params = list(self.phi_body.parameters())
 
 ### tsa ###
 
@@ -320,36 +331,44 @@ class TSACriticNet(nn.Module, BaseNet):
             return self.fc(self.body(inputs, info), info)
         return self.fc(self.body(inputs), info)
 
+# change from body to directly specify the whole thing!
 class CategoricalActorCriticNet(nn.Module, Actor):
     def __init__(self,
                  n_tasks,
                  state_dim,
                  action_dim,
                  phi_body=None,
-                 actor_body=None,
-                 critic_body=None):
+                 actor=None,
+                 critic=None):
         super(CategoricalActorCriticNet, self).__init__()
-        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body)
+        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor, critic)
         self.to(Config.DEVICE)
 
     def get_logits(self, obs, info):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
-        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
-        logits = self.network.fc_action(phi_a, info)
+        #phi_a = self.network.actor_body(phi)
+        #logits = self.network.fc_action(phi_a, info)
+        logits = self.network.actor(phi, info)
         return logits
 
     def forward(self, obs, info, action=None):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
-        phi_a = self.network.actor_body(phi) # maybe need info here, but not now
-        phi_v = self.network.critic_body(phi)
-        logits = self.network.fc_action(phi_a, info)
-        v = self.network.fc_critic(phi_v, info)
+        #phi_a = self.network.actor_body(phi)
+        #phi_v = self.network.critic_body(phi)
+        #logits = self.network.fc_action(phi_a, info)
+        #v = self.network.fc_critic(phi_v, info)
+        logits = self.network.actor(phi, info)
+        v = self.network.critic(phi, info)
         dist = torch.distributions.Categorical(logits=logits)
         if action is None:
             action = dist.sample()
-        log_prob = dist.log_prob(action).unsqueeze(-1)
+        log_prob = dist.log_prob(action)
+        if log_prob.dim() == 1:
+            log_prob = log_prob.unsqueeze(-1)
+        else: # >= 2
+            log_prob = log_prob.reshape((log_prob.shape[0], -1)).sum(dim=1, keepdim=True)
         entropy = dist.entropy().unsqueeze(-1)
         return {'a': action,
                 'log_pi_a': log_prob,
@@ -359,8 +378,9 @@ class CategoricalActorCriticNet(nn.Module, Actor):
     def value(self, obs, info):
         obs = tensor(obs)
         phi = self.network.phi_body(obs)
-        phi_v = self.network.critic_body(phi)
-        v = self.network.fc_critic(phi_v, info)
+        #phi_v = self.network.critic_body(phi)
+        #v = self.network.fc_critic(phi_v, info)
+        v = self.network.critic(phi, info)
         return v
 
 class TSANet(nn.Module, Actor):

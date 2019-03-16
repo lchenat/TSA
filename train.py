@@ -53,14 +53,17 @@ def _exp_parser():
     )
     # environment (the task setting, first level directory)
     task = parser.add_argument_group('task')
-    task.add_argument('--env', default='pick', choices=['pick', 'reach', 'grid'])
+    task.add_argument('--env', default='pick', choices=['pick', 'reach', 'grid', 'reacher'])
     task.add_argument('-l', type=int, default=16)
     task.add_argument('-T', type=int, default=100)
     task.add_argument('--window', type=int, default=1)
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
+    task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
-    task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
+    ##
+    ## reacher only
+    task.add_argument('--n_bins', type=int, nargs=2, default=[5, 5])
     ##
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=10)
@@ -70,7 +73,7 @@ def _exp_parser():
     algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
-    algo.add_argument('--actor', choices=['linear', 'nonlinear'], default='nonlinear')
+    algo.add_argument('--actor', choices=['linear', 'nonlinear', 'split'], default='nonlinear')
     algo.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     algo.add_argument('--rate', type=float, default=1)
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
@@ -137,11 +140,26 @@ def get_log_tags(args):
     if args.task_config:
         tags['task'] = Path(args.task_config).stem
     else:
-        tags['task'] = '.'.join([
-            args.env,
-            Path(args.env_config).name,
-            'min_dis-{}'.format(args.min_dis),
-        ])
+        if args.env in ['pick', 'reach']:
+            tags['task'] = '.'.join([
+                args.env,
+                Path(args.env_config).name,
+                'min_dis-{}'.format(args.min_dis),
+            ])
+        elif args.env == 'grid':
+            tags['task']='.'.join([
+                args.env,
+                env_config['main']['map_name'],
+                #'{}_{}'.format(*env_config['main']['goal_locs']),
+                Path(args.goal_fn).name,
+                'md-{}'.format(args.min_dis),
+                'T-{}'.format(args.T),
+            ]),
+        elif args.env == 'reacher':
+            tags['task'] = '.'.join([
+                args.env,
+                Path(args.goal_fn).name,
+            ])
     if args.algo_config:
         tags['algo'] = Path(args.algo_config).stem
     else:
@@ -374,10 +392,37 @@ def get_grid_network(args, config):
         elif args.actor == 'nonlinear':
             actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
     else:
-        raise Exception('unsupport data type')
+        raise Exception('unsupported network')
     critic_body = abs_encoder
     critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
+    return network, '.'.join(algo_name)
+
+def get_reacher_network(args, config):
+    n_tasks = config.eval_env.n_tasks
+    algo_name = [args.agent, args.net]
+    if args.net == 'baseline':
+        phi_body = FCBody(
+            config.state_dim, 
+            hidden_units=tuple(args.hidden)
+        )
+        if args.actor == 'split':
+            actor = SplitBody(
+                MultiLinear(phi_body.feature_dim, config.action_dim.sum(), n_tasks, key='task_id', w_scale=1e-3),
+                2, # here assume half split
+            )
+        else:
+            actor = None
+        network = CategoricalActorCriticNet(
+            n_tasks,
+            config.state_dim,
+            config.action_dim.prod(),
+            phi_body,
+            actor=actor,
+        )
+        return network, '.'.join(algo_name)
+    else:
+        raise Exception('unsupported network')
     return network, '.'.join(algo_name)
 
 def ppo_pixel_tsa(args):
@@ -428,26 +473,44 @@ def ppo_pixel_tsa(args):
         save_abs(PPOAgent(config))
 
 def fc_discrete(args):
-    goal_locs = process_goals(args.goal_fn)
-    env_config = dict(
-        main=dict(
-            map_name=args.map_name,
-            goal_locs=goal_locs,
-            min_dis=args.min_dis,
-        ),
-        T=args.T, # 250?
-    )
     config = Config()
     config.num_workers = 5
-    config.task_fn = lambda: DiscreteGridTask(env_config, num_envs=config.num_workers)
-    config.eval_env = DiscreteGridTask(env_config)
+    if args.env == 'grid':
+        goal_locs = process_goals(args.goal_fn)
+        env_config = dict(
+            main=dict(
+                map_name=args.map_name,
+                goal_locs=goal_locs,
+                min_dis=args.min_dis,
+            ),
+            T=args.T, # 250?
+        )
+        config.task_fn = lambda: DiscreteGridTask(env_config, num_envs=config.num_workers)
+        config.eval_env = DiscreteGridTask(env_config)
+        network, args.algo_name = get_grid_network(args, config)
+    elif args.env == 'reacher':
+        with open(args.goal_fn) as f:
+            goal_dict = json.load(f)
+        env_config = dict(
+            main=dict(
+                goals=goal_dict['goals'],
+                sample_indices=goal_dict['sample_indices'],
+                n_bins=args.n_bins,
+            ),
+            T=args.T,
+        )
+        config.task_fn = lambda: ReacherTask(env_config, num_envs=config.num_workers)
+        config.eval_env = ReacherTask(env_config)
+        network, args.algo_name = get_reacher_network(args, config)
+    else:
+        raise Exception('unsupported environment')
+
+    config.network_fn = lambda: network
     def optimizer_fn(model):
         params = filter(lambda p: p.requires_grad, model.parameters())
         return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
     config.optimizer_fn = optimizer_fn
     #config.optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
-    network, args.algo_name = get_grid_network(args, config)
-    config.network_fn = lambda: network
     process_weight(network, args, config) # interesting
     config.discount = args.discount
     config.use_gae = True
@@ -464,20 +527,7 @@ def fc_discrete(args):
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = 5 # 50
     config.save_interval = args.save_interval
-    log_tags = dict(
-        task='.'.join([
-            args.env,
-            env_config['main']['map_name'],
-            #'{}_{}'.format(*env_config['main']['goal_locs']),
-            Path(args.goal_fn).name,
-            'md-{}'.format(env_config['main']['min_dis']),
-            'T-{}'.format(env_config['T']),
-        ]),
-        algo=args.algo_name,
-        others=args.tag,
-        seed=args.seed,
-    )
-    config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -485,29 +535,45 @@ def fc_discrete(args):
     run_steps(PPOAgent(config))
 
 def nmf_sample(args):
-    goal_locs = process_goals(args.goal_fn)
-    env_config = dict(
-        main=dict(
-            map_name=args.map_name,
-            goal_locs=goal_locs,
-            min_dis=args.min_dis,
-        ),
-        T=args.T, # 250?
-    )
     config = Config()
-    config.eval_env = DiscreteGridTask(env_config)
-    def optimizer_fn(model):
-        params = filter(lambda p: p.requires_grad, model.parameters())
-        return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
-    config.optimizer_fn = optimizer_fn
     assert args.sample_fn is not None, 'need args.sample_fn'
     with open(args.sample_fn, 'rb') as f:
         sample_dict = dill.load(f) # abs, policy
         args.n_abs = sample_dict['abs'].shape[1]
         n_tasks = len(sample_dict['policies'])
-    network, args.algo_name = get_grid_network(args, config)
     config.sample_dict = sample_dict
+    if args.env == 'grid':
+        goal_locs = process_goals(args.goal_fn)
+        env_config = dict(
+            main=dict(
+                map_name=args.map_name,
+                goal_locs=goal_locs,
+                min_dis=args.min_dis,
+            ),
+            T=args.T, # 250?
+        )
+        config.eval_env = DiscreteGridTask(env_config)
+        network, args.algo_name = get_grid_network(args, config)
+    elif args.env == 'reacher':
+        with open(args.goal_fn) as f:
+            goal_dict = json.load(f)
+        env_config = dict(
+            main=dict(
+                goals=goal_dict['goals'],
+                sample_indices=goal_dict['sample_indices'],
+                n_bins=args.n_bins,
+            ),
+            T=args.T,
+        )
+        config.eval_env = ReacherTask(env_config)
+        network, args.algo_name = get_reacher_network(args, config)
+    else:
+        raise Exception('unsupported env')
     config.network_fn = lambda: network
+    def optimizer_fn(model):
+        params = filter(lambda p: p.requires_grad, model.parameters())
+        return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
+    config.optimizer_fn = optimizer_fn
     config.gradient_clip = 5
     config.batch_size = 32 * n_tasks
     config.log_interval = config.batch_size * 10
@@ -517,7 +583,7 @@ def nmf_sample(args):
     config.eval_interval = 5
     config.save_interval = args.save_interval
     log_tags = dict(
-        task=Path(args.sample_fn).name,
+        task='.'.join([args.env, Path(args.sample_fn).name]),
         algo=args.algo_name,
         others=args.tag,
         seed=args.seed,
@@ -911,6 +977,8 @@ if __name__ == '__main__':
                 Task = ReachGridWorldTask
             elif args.env == 'grid':
                 Task = DiscreteGridTask
+            elif args.env == 'reacher':
+                Task = ReacherTask
 
             mkdir('log')
             set_one_thread()

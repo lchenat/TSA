@@ -211,6 +211,7 @@ class Task:
 from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld
 from ..simple_grid.env import DiscreteGridWorld, SampleParameterEnv
 from ..simple_grid.exemplar_env import DiscreteGridWorld, RandomInitEnv, RandomGoalEnv
+from ..reacher.env import MultiGoalReacherEnv, DiscretizeActionEnv
 
 class LastWrapper(gym.Wrapper):
     def __init__(self, env):
@@ -220,9 +221,10 @@ class LastWrapper(gym.Wrapper):
         if attr == 'env':
             return object.__getattribute__(self, attr)
         env = self.env
-        while env.unwrapped != env:
+        while True:
             if hasattr(env, attr):
                 return getattr(env, attr)
+            if env.unwrapped == env: break
             env = env.env 
 
 class FiniteHorizonEnv(gym.Wrapper):
@@ -387,6 +389,54 @@ class DiscreteGridTask:
         info.pop('reward_config', None)
         info['task_id'] = [env.last.goal_idx for env in self.env.envs]
         return info
+
+def make_reacher_env(env_config, seed, rank):
+    def _thunk():
+        random_seed(seed)
+        env = DiscretizeActionEnv(
+            MultiGoalReacherEnv(
+                goals=env_config['main']['goals'],
+                sample_indices=env_config['main']['sample_indices'],
+            ),
+            n_bins=env_config['main']['n_bins'],
+        )
+        env = FiniteHorizonEnv(env, T=env_config['T'])
+
+        return env
+
+    return _thunk
+
+class ReacherTask:
+    def __init__(
+        self,
+        env_config,
+        num_envs=1,
+        seed=np.random.randint(int(1e5))):
+
+        self.num_envs = num_envs
+        envs = [make_reacher_env(env_config, seed, i) for i in range(num_envs)]
+        self.env = DummyVecEnv(envs)
+        self.name = 'Reacher'
+        self.observation_space = self.env.observation_space
+        self.state_dim = self.env.observation_space.shape[0]
+        self.action_space = self.env.action_space
+        self.action_dim = self.env.action_space.nvec
+        self.env_type = 'simulation'
+        self.n_tasks = len(self.env.envs[0].last.goals)
+
+    def reset(self):
+        return self.env.reset()
+
+    def step(self, actions):
+        next_o, r, done, info = self.env.step(actions)
+        info['task_id'] = [env.last.goal_idx for env in self.env.envs]
+        return next_o, r, done, info
+
+    def get_info(self): # retrieve map_id and goal position
+        info = self.env.get_info()
+        info['task_id'] = [env.last.goal_idx for env in self.env.envs]
+        return info
+
 
 if __name__ == '__main__':
     task = Task('Hopper-v2', 5, single_process=False)

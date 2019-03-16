@@ -27,7 +27,9 @@ class PPOAgent(BaseAgent):
         #check_network_output(self) # debug
 
     def eval_step(self, state, info):
-        return self.network(state, info)['a'][0].cpu().detach().numpy().item()
+        action = self.network(state, info)['a'][0].cpu().detach().numpy()
+        if not action.shape: action = action.item()
+        return action
 
     def eval_episode(self):
         env = self.config.eval_env

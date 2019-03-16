@@ -25,6 +25,16 @@ class BaseNet:
         for child in self.children():
             if hasattr(child, 'step'):
                 child.step()
+        
+class SplitBody(nn.Module):
+    def __init__(self, in_net, n_splits):
+        super().__init__()
+        self.in_net = in_net
+        self.n_splits = n_splits
+
+    def forward(self, *args, **kwargs):
+        output = self.in_net(*args, **kwargs)
+        return output.reshape(output.shape[0], self.n_splits, -1)
 
 class MultiLinear(nn.Module):
     def __init__(self, input_dim, output_dim, n_heads, key, w_scale=1.0):
