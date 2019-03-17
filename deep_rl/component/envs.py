@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from gym.spaces.box import Box
 from gym.spaces.discrete import Discrete
+from gym.spaces import MultiDiscrete
 from collections import deque
 
 from baselines import bench
@@ -424,7 +425,7 @@ class ReacherTask:
         self.observation_space = self.env.observation_space
         self.state_dim = self.env.observation_space.shape[0]
         self.action_space = self.env.action_space
-        if isinstance(self.env, DiscretizeActionEnv):
+        if isinstance(self.action_space, MultiDiscrete):
             self.action_dim = self.env.action_space.nvec
         else:
             self.action_dim = self.env.action_space.shape[0]
