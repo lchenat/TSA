@@ -6,17 +6,32 @@ from gym import Wrapper, spaces
 
 # Multigoal, discretize actions (what is the action range?)
 class MultiGoalReacherEnv(ReacherEnv):
-    def __init__(self, goals, sample_indices=None, with_goal_pos=True):
+    def __init__(self, goals, sample_indices=None, with_goal_pos=True, sparse=False):
         self.goals = goals
         if sample_indices is None:
             sample_indices = list(range(len(goals)))
         self.sample_indices = sample_indices
         self.with_goal_pos = with_goal_pos
+        self.sparse = sparse
         super().__init__()
         if with_goal_pos:
             self.observation_space = spaces.Box(low=-1.0, high=1.0, shape=(8+2*len(self.goals),))
         else:
             self.observation_space = spaces.Box(low=-1.0, high=1.0, shape=(8,))
+
+    def step(self, a):
+        vec = self.get_body_com("fingertip")-self.get_body_com("target")
+        if self.sparse:
+            norm = np.linalg.norm(vec)
+            reward_dist = 0.05 - norm if norm < 0.05 else 0.0
+        else:
+            reward_dist = - np.linalg.norm(vec)
+        reward_ctrl = - np.square(a).sum()
+        reward = reward_dist + reward_ctrl
+        self.do_simulation(a, self.frame_skip)
+        ob = self._get_obs()
+        done = False
+        return ob, reward, done, dict()
 
     def reset_model(self):
         qpos = self.np_random.uniform(low=-0.1, high=0.1, size=self.model.nq) + self.init_qpos
@@ -53,7 +68,8 @@ class MultiGoalReacherEnv(ReacherEnv):
         return obs
 
     def get_info(self):
-        return dict(reward_dist=0.0, reward_ctrl=0.0)
+        return dict()
+        #return dict(reward_dist=0.0, reward_ctrl=0.0)
 
 class DiscretizeActionEnv(Wrapper):
     def __init__(self, env, n_bins):

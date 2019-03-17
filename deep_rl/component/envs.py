@@ -393,13 +393,17 @@ class DiscreteGridTask:
 def make_reacher_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
-        env = DiscretizeActionEnv(
-            MultiGoalReacherEnv(
+        env = MultiGoalReacherEnv(
                 goals=env_config['main']['goals'],
                 sample_indices=env_config['main']['sample_indices'],
-            ),
-            n_bins=env_config['main']['n_bins'],
+                with_goal_pos=env_config['main']['with_goal_pos'],
+                sparse=env_config['main']['sparse'],
         )
+        if env_config['main']['n_bins'][0] != 0:
+            env = DiscretizeActionEnv(
+                env,
+                n_bins=env_config['main']['n_bins'],
+            )
         env = FiniteHorizonEnv(env, T=env_config['T'])
 
         return env
@@ -420,7 +424,10 @@ class ReacherTask:
         self.observation_space = self.env.observation_space
         self.state_dim = self.env.observation_space.shape[0]
         self.action_space = self.env.action_space
-        self.action_dim = self.env.action_space.nvec
+        if isinstance(self.env, DiscretizeActionEnv):
+            self.action_dim = self.env.action_space.nvec
+        else:
+            self.action_dim = self.env.action_space.shape[0]
         self.env_type = 'simulation'
         self.n_tasks = len(self.env.envs[0].last.goals)
 

@@ -331,6 +331,44 @@ class TSACriticNet(nn.Module, BaseNet):
             return self.fc(self.body(inputs, info), info)
         return self.fc(self.body(inputs), info)
 
+class GaussianActorCriticNet(nn.Module, Actor):
+    def __init__(self,
+                 n_tasks,
+                 state_dim,
+                 action_dim,
+                 phi_body=None,
+                 actor=None,
+                 critic=None):
+        super(GaussianActorCriticNet, self).__init__()
+        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor, critic)
+        self.std = nn.Parameter(torch.zeros(action_dim)) # sure?
+        self.to(Config.DEVICE)
+
+    def forward(self, obs, info, action=None):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        #phi_a = self.network.actor_body(phi)
+        #phi_v = self.network.critic_body(phi)
+        #mean = F.tanh(self.network.fc_action(phi_a))
+        mean = F.tanh(self.network.actor(phi, info))
+        v = self.network.critic(phi, info)
+        dist = torch.distributions.Normal(mean, F.softplus(self.std))
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action).sum(-1).unsqueeze(-1)
+        entropy = dist.entropy().sum(-1).unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy,
+                'mean': mean,
+                'v': v}
+
+    def value(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs)
+        v = self.network.critic(phi, info)
+        return v
+
 # change from body to directly specify the whole thing!
 class CategoricalActorCriticNet(nn.Module, Actor):
     def __init__(self,

@@ -63,14 +63,16 @@ def _exp_parser():
     task.add_argument('--map_name', type=str, default='fourroom')
     ##
     ## reacher only
-    task.add_argument('--n_bins', type=int, nargs=2, default=[5, 5])
+    task.add_argument('--n_bins', type=int, nargs=2, default=[0, 0])
+    task.add_argument('--no_goal', action='store_true')
+    task.add_argument('--sparse', action='store_true')
     ##
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=10)
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
     algo.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
-    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
+    algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--actor', choices=['linear', 'nonlinear', 'split'], default='nonlinear')
@@ -156,8 +158,11 @@ def get_log_tags(args):
                 'T-{}'.format(args.T),
             ]),
         elif args.env == 'reacher':
+            env_name = args.env
+            if args.no_goal: env_name += '.ng'
+            if args.sparse: env_name += '.sp'
             tags['task'] = '.'.join([
-                args.env,
+                env_name,
                 Path(args.goal_fn).name,
             ])
     if args.algo_config:
@@ -401,6 +406,10 @@ def get_grid_network(args, config):
 def get_reacher_network(args, config):
     n_tasks = config.eval_env.n_tasks
     algo_name = [args.agent, args.net]
+    phi_body = FCBody(
+        config.state_dim, 
+        hidden_units=tuple(args.hidden)
+    )
     if args.net == 'baseline':
         phi_body = FCBody(
             config.state_dim, 
@@ -421,6 +430,13 @@ def get_reacher_network(args, config):
             actor=actor,
         )
         return network, '.'.join(algo_name)
+    elif args.net == 'gaussian':
+        network = GaussianActorCriticNet(
+            n_tasks,
+            config.state_dim,
+            config.action_dim,
+            phi_body=phi_body,
+        )
     else:
         raise Exception('unsupported network')
     return network, '.'.join(algo_name)
@@ -496,6 +512,8 @@ def fc_discrete(args):
                 goals=goal_dict['goals'],
                 sample_indices=goal_dict['sample_indices'],
                 n_bins=args.n_bins,
+                with_goal_pos=not args.no_goal,
+                sparse=args.sparse,
             ),
             T=args.T,
         )
@@ -562,6 +580,8 @@ def nmf_sample(args):
                 goals=goal_dict['goals'],
                 sample_indices=goal_dict['sample_indices'],
                 n_bins=args.n_bins,
+                with_goal_pos=not args.no_goal,
+                sparse=args.sparse,
             ),
             T=args.T,
         )
