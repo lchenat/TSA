@@ -411,10 +411,6 @@ def get_reacher_network(args, config):
         hidden_units=tuple(args.hidden)
     )
     if args.net == 'baseline':
-        phi_body = FCBody(
-            config.state_dim, 
-            hidden_units=tuple(args.hidden)
-        )
         if args.actor == 'split':
             actor = SplitBody(
                 MultiLinear(phi_body.feature_dim, config.action_dim.sum(), n_tasks, key='task_id', w_scale=1e-3),
