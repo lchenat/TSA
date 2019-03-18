@@ -286,7 +286,7 @@ def get_network(visual_body, args, config):
             config.state_dim,
             config.action_dim, 
             visual_body,
-            actor_body=FCBody(visual_body.feature_dim, (args.n_abs,)),
+            #actor_body=FCBody(visual_body.feature_dim, (args.n_abs,)), # out dated
         )
     else:
         if args.net == 'vq':
