@@ -72,6 +72,7 @@ def _exp_parser():
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
     algo.add_argument('--visual', choices=['mini', 'normal', 'large', 'mini_fc'], default='mini')
+    algo.add_argument('--feat_dim', type=int, default=512)
     algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
@@ -225,13 +226,13 @@ def process_temperature(temperature):
 
 def get_visual_body(args, config):
     if args.visual == 'mini':
-        visual_body = TSAMiniConvBody(3*config.env_config['main']['window'])
+        visual_body = TSAMiniConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim)
     elif args.visual == 'normal':
-        visual_body = TSAConvBody(3*config.env_config['main']['window']) 
+        visual_body = TSAConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim) 
     elif args.visual == 'large':
-        visual_body = LargeTSAMiniConvBody(3*config.env_config['main']['window'])
+        visual_body = LargeTSAMiniConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim)
     elif args.visual == 'mini_fc':
-        visual_body = TSAMiniConvFCBody(3*config.env_config['main']['window'], args.n_abs)
+        visual_body = TSAMiniConvFCBody(3*config.env_config['main']['window'], feature_dim=args.n_abs) # special!
     if args.reg_abs_fn is not None:
         with open(args.reg_abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
