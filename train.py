@@ -71,7 +71,7 @@ def _exp_parser():
     task.add_argument('--min_dis', type=int, default=10)
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
-    algo.add_argument('--visual', choices=['mini', 'normal', 'large'], default='mini')
+    algo.add_argument('--visual', choices=['mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
@@ -230,6 +230,8 @@ def get_visual_body(args, config):
         visual_body = TSAConvBody(3*config.env_config['main']['window']) 
     elif args.visual == 'large':
         visual_body = LargeTSAMiniConvBody(3*config.env_config['main']['window'])
+    elif args.visual == 'mini_fc':
+        visual_body = TSAMiniConvFCBody(3*config.env_config['main']['window'], args.n_abs)
     if args.reg_abs_fn is not None:
         with open(args.reg_abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
