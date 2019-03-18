@@ -594,7 +594,7 @@ def nmf_sample(args):
     config.batch_size = 32 * n_tasks
     config.log_interval = config.batch_size * 10
 
-    config.max_steps = 10000 if args.d else 1800000
+    config.max_steps = 10000 if args.d else 1200000
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = 5
     config.save_interval = args.save_interval
