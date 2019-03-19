@@ -54,9 +54,12 @@ def _exp_parser():
     # environment (the task setting, first level directory)
     task = parser.add_argument_group('task')
     task.add_argument('--env', default='pick', choices=['pick', 'reach', 'grid', 'reacher'])
+    ## gridworld only
     task.add_argument('-l', type=int, default=16)
     task.add_argument('-T', type=int, default=100)
     task.add_argument('--window', type=int, default=1)
+    task.add_argument('--obs_type', default='rgb', choices=['rgb', 'mask'])
+    ##
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
     task.add_argument('--scale', type=int, default=1)
@@ -147,6 +150,7 @@ def get_env_config(args):
             l=args.l,
             T=args.T,
             scale=args.scale,
+            obs_type=args.obs_type,
         )
     return env_config
 
@@ -239,14 +243,18 @@ def process_temperature(temperature):
     return temperature
 
 def get_visual_body(args, config):
+    if args.obs_type == 'rgb':
+        n_channels = 3
+    else:
+        n_channels = config.eval_env.observation_space.shape[0]
     if args.visual == 'mini':
-        visual_body = TSAMiniConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
+        visual_body = TSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
     elif args.visual == 'normal':
-        visual_body = TSAConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim) 
+        visual_body = TSAConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim) 
     elif args.visual == 'large':
-        visual_body = LargeTSAMiniConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim)
+        visual_body = LargeTSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim)
     elif args.visual == 'mini_fc':
-        visual_body = TSAMiniConvFCBody(3*config.env_config['main']['window'], feature_dim=args.n_abs) # special!
+        visual_body = TSAMiniConvFCBody(n_channels*config.env_config['main']['window'], feature_dim=args.n_abs) # special!
     if args.reg_abs_fn is not None:
         with open(args.reg_abs_fn, 'rb') as f:
             abs_dict = dill.load(f)

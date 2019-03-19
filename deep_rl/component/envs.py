@@ -264,7 +264,8 @@ def make_pick_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
         env = PickGridWorld(**env_config['main'], task_length=1, seed=seed+rank)
-        env = PORGBEnv(env, l=env_config['l'])
+        if env_config['obs_type'] == 'rgb':
+            env = PORGBEnv(env, l=env_config['l'])
         if env_config['scale'] > 1:
             env = ScaleObsEnv(env, scale=env_config['scale'])
         env = FiniteHorizonEnv(env, T=env_config['T'])
