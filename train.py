@@ -59,6 +59,7 @@ def _exp_parser():
     task.add_argument('--window', type=int, default=1)
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
+    task.add_argument('--scale', type=int, default=1)
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
     ##
@@ -135,6 +136,18 @@ def parse(parser, *args, **kwargs):
             with open(config) as f:
                 parser.parse_known_args(f.read().split(), args)            
     return args, group_args(parser, args)
+
+def get_env_config(args):
+    with open(args.env_config, 'rb') as f:
+        env_config = dill.load(f)
+        env_config['window'] = args.window
+        env_config['min_dis'] = args.min_dis
+        env_config = dict(
+            main=env_config,
+            l=args.l,
+            T=args.T,
+        )
+    return env_config
 
 # self-defined logname function
 # return task name, algo name and the rest
@@ -226,7 +239,7 @@ def process_temperature(temperature):
 
 def get_visual_body(args, config):
     if args.visual == 'mini':
-        visual_body = TSAMiniConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim)
+        visual_body = TSAMiniConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
     elif args.visual == 'normal':
         visual_body = TSAConvBody(3*config.env_config['main']['window'], feature_dim=args.feat_dim) 
     elif args.visual == 'large':
@@ -442,16 +455,8 @@ def get_reacher_network(args, config):
 
 def ppo_pixel_tsa(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
@@ -616,17 +621,9 @@ def nmf_sample(args):
 
 def ppo_pixel_baseline(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
+    config.env_config = env_config
     args.algo_name = args.agent
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
@@ -664,17 +661,9 @@ def ppo_pixel_baseline(args):
 
 def supervised_tsa(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
+    config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     if args.opt == 'vanilla':
@@ -718,16 +707,8 @@ def supervised_tsa(args):
 
 def imitation_tsa(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
@@ -758,16 +739,8 @@ def imitation_tsa(args):
 # you need to set log_name
 def transfer_ppo_tsa(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
@@ -817,16 +790,8 @@ def transfer_ppo_tsa(args):
 
 def transfer_a2c_tsa(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
@@ -870,16 +835,8 @@ def transfer_a2c_tsa(args):
 
 def transfer_distral_tsa(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
@@ -925,17 +882,9 @@ def transfer_distral_tsa(args):
 
 def ppo_pixel_PI(args):
     config = Config()
-    with open(args.env_config, 'rb') as f:
-        env_config = dill.load(f)
-        env_config['window'] = args.window
-        env_config['min_dis'] = args.min_dis
-        n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
-        env_config = dict(
-            main=env_config,
-            l=args.l,
-            T=args.T,
-        )
-        config.env_config = env_config
+    env_config = get_env_config(args)
+    n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
+    config.env_config = env_config
     args.algo_name = '.'.join([args.agent, args.net])
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
