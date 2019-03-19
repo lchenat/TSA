@@ -146,6 +146,7 @@ def get_env_config(args):
             main=env_config,
             l=args.l,
             T=args.T,
+            scale=args.scale,
         )
     return env_config
 

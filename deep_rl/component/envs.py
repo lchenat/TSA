@@ -209,7 +209,7 @@ class Task:
         return self.env.step(actions)
 
 ### tsa ###
-from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld
+from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld, ScaleObsEnv
 from ..simple_grid.env import DiscreteGridWorld, SampleParameterEnv
 from ..simple_grid.exemplar_env import DiscreteGridWorld, RandomInitEnv, RandomGoalEnv
 from ..reacher.env import MultiGoalReacherEnv, DiscretizeActionEnv
@@ -251,6 +251,7 @@ class FiniteHorizonEnv(gym.Wrapper):
 def make_reach_gridworld_env(env_config, seed, rank):
     def _thunk():
         random_seed(seed)
+        assert env_config['scale'] == 1, 'does not support other scale yet'
         env = ReachGridWorld(**env_config['main'], seed=seed+rank)
         env = PORGBEnv(env, l=env_config['l'])
         env = FiniteHorizonEnv(env, T=env_config['T'])
@@ -264,6 +265,8 @@ def make_pick_gridworld_env(env_config, seed, rank):
         random_seed(seed)
         env = PickGridWorld(**env_config['main'], task_length=1, seed=seed+rank)
         env = PORGBEnv(env, l=env_config['l'])
+        if env_config['scale'] > 1:
+            env = ScaleObsEnv(env, scale=env_config['scale'])
         env = FiniteHorizonEnv(env, T=env_config['T'])
 
         return env
