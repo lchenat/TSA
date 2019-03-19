@@ -227,6 +227,7 @@ class LastWrapper(gym.Wrapper):
                 return getattr(env, attr)
             if env.unwrapped == env: break
             env = env.env 
+        raise Exception('attribute error: {}'.format(attr))
 
 class FiniteHorizonEnv(gym.Wrapper):
     def __init__(self, env, T=100000000):

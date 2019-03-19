@@ -72,7 +72,7 @@ def _exp_parser():
     task.add_argument('--sparse', action='store_true')
     ##
     task.add_argument('--discount', type=float, default=0.99)
-    task.add_argument('--min_dis', type=int, default=10)
+    task.add_argument('--min_dis', type=int, default=1)
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
     algo.add_argument('--visual', choices=['mini', 'normal', 'large', 'mini_fc'], default='mini')
