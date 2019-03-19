@@ -487,7 +487,7 @@ def ppo_pixel_tsa(args):
     config.mini_batch_size = 32 * 8
     config.ppo_ratio_clip = 0.1
     config.log_interval = 128 * 8
-    config.max_steps = 1e4 if args.d else int(1.5e7)
+    config.max_steps = 1e4 if args.d else int(2e6)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = args.save_interval
     if args.mode == 'train':
@@ -648,7 +648,7 @@ def imitation_tsa(args):
     config.rollout_length = args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
     config.eval_interval = 100 # in terms of log interval
-    config.max_steps = 3e7 if args.d else int(3e7)
+    config.max_steps = 3e7 if args.d else int(3e6)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
@@ -741,16 +741,8 @@ if __name__ == '__main__':
                     ppo_pixel_tsa(args)
                 elif args.agent == 'baseline':
                     ppo_pixel_baseline(args)
-                elif args.agent == 'supervised':
-                    supervised_tsa(args)
                 elif args.agent == 'imitation':
                     imitation_tsa(args)
-                elif args.agent == 'transfer_ppo':
-                    transfer_ppo_tsa(args)
-                elif args.agent == 'transfer_a2c':
-                    transfer_a2c_tsa(args)
-                elif args.agent == 'transfer_distral':
-                    transfer_distral_tsa(args)
                 elif args.agent == 'PI':
                     ppo_pixel_PI(args)
                 elif args.agent == 'fc_discrete':
