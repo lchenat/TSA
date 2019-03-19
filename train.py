@@ -115,6 +115,7 @@ def _exp_parser():
     algo.add_argument('--algo_config', type=str, default=None) # read from file
     # others, should not affect performance (except seed)
     parser.add_argument('--mode', default='train', choices=['train', 'save_abs'])
+    parser.add_argument('--eval_interval', type=int, default=0)
     parser.add_argument('--save_interval', type=int, default=0)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--steps', type=int, default=None)
@@ -489,6 +490,7 @@ def ppo_pixel_tsa(args):
     config.log_interval = 128 * 8
     config.max_steps = 1e4 if args.d else int(2e6)
     if args.steps is not None: config.max_steps = args.steps
+    config.eval_interval = args.eval_interval
     config.save_interval = args.save_interval
     if args.mode == 'train':
         config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
