@@ -40,13 +40,15 @@ class NMFAgent(NMFBaseAgent):
         return action
 
     def eval_episode(self):
+        config = self.config
         env = self.config.eval_env
-        state = env.reset()
+        state = config.state_normalizer(env.reset())
         info = env.get_info()
         total_rewards = 0
         while True:
             action = self.eval_step(state, info)
             state, reward, done, _ = env.step([action])
+            state = config.state_normalizer(state)
             total_rewards += reward[0]
             if done[0]:
                 break
@@ -87,4 +89,3 @@ class NMFAgent(NMFBaseAgent):
         self.opt.step(sum(loss_dict.values(), 0.0))
         self.total_steps += config.batch_size
         self.network.step() # do all adaptive update
-

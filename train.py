@@ -605,6 +605,14 @@ def nmf_sample(args):
         )
         config.eval_env = ReacherTask(env_config)
         network, args.algo_name = get_reacher_network(args, config)
+    elif args.env == 'pick':
+        env_config = get_env_config(args)
+        config.env_config = env_config
+        config.eval_env = Task(env_config)
+        visual_body = get_visual_body(args, config)
+        network, args.algo_name = get_network(visual_body, args, config)
+        if args.obs_type == 'rgb':
+            config.state_normalizer = ImageNormalizer() # tricky
     else:
         raise Exception('unsupported env')
     config.network_fn = lambda: network
