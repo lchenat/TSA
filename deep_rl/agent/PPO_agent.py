@@ -27,18 +27,19 @@ class PPOAgent(BaseAgent):
         #check_network_output(self) # debug
 
     def eval_step(self, state, info):
-        action = self.network(state, info)['a'][0].cpu().detach().numpy()
-        if not action.shape: action = action.item()
+        action = self.network(state, info)['a'].cpu().detach().numpy()
         return action
 
     def eval_episode(self):
+        config = self.config
         env = self.config.eval_env
-        state = env.reset()
+        state = config.state_normalizer(env.reset())
         info = env.get_info()
         total_rewards = 0
         while True:
             action = self.eval_step(state, info)
-            state, reward, done, _ = env.step([action])
+            state, reward, done, info = env.step(action)
+            state = config.state_normalizer(state)
             total_rewards += reward[0]
             if done[0]:
                 break

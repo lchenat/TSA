@@ -165,6 +165,7 @@ def get_log_tags(args):
         if args.env in ['pick', 'reach']:
             tags['task'] = '.'.join([
                 args.env,
+                args.obs_type,
                 Path(args.env_config).name,
                 'min_dis-{}'.format(args.min_dis),
             ])
@@ -477,7 +478,9 @@ def ppo_pixel_tsa(args):
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
     set_optimizer_fn(args, config)
-    config.state_normalizer = ImageNormalizer()
+    if args.obs_type == 'rgb':
+        assert args.env in ['pick', 'reach']
+        config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
     config.use_gae = True
     config.gae_tau = 0.95
