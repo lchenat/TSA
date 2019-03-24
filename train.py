@@ -75,7 +75,7 @@ def _exp_parser():
     task.add_argument('--min_dis', type=int, default=1)
     task.add_argument('--task_config', type=str, default=None) # read from file
     # network
-    algo.add_argument('--visual', choices=['mini', 'normal', 'large', 'mini_fc'], default='mini')
+    algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
     algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
@@ -251,6 +251,8 @@ def get_visual_body(args, config):
         n_channels = config.eval_env.observation_space.shape[0]
     if args.visual == 'mini':
         visual_body = TSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
+    elif args.visual == 'minimini':
+        visual_body = TSAMiniMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
     elif args.visual == 'normal':
         visual_body = TSAConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim) 
     elif args.visual == 'large':
