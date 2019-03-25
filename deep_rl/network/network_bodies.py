@@ -78,7 +78,7 @@ class TSAMiniConvBody(nn.Module):
         return y
 
 class TSAMiniMiniConvBody(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512, scale=1): # scale only works for 2^n
+    def __init__(self, in_channels=12, feature_dim=512, scale=1, gate=F.relu): # scale only works for 2^n
         super().__init__()
         self.feature_dim = feature_dim
         self.scale = scale
@@ -93,14 +93,15 @@ class TSAMiniMiniConvBody(nn.Module):
             self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
         else:
             raise Exception('unsupported scale')
+        self.gate = gate
 
     def forward(self, x):
-        y = F.relu(self.conv1(x))
-        y = F.relu(self.conv2(y))
+        y = self.gate(self.conv1(x))
+        y = self.gate(self.conv2(y))
         if self.scale == 2:
-            y = F.relu(self.conv3(y))
+            y = self.gate(self.conv3(y))
         y = y.view(y.size(0), -1)
-        y = F.relu(self.fc(y))
+        y = self.gate(self.fc(y))
         return y
 
 class TSAMiniConvFCBody(nn.Module):

@@ -77,6 +77,7 @@ def _exp_parser():
     # network
     algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
+    algo.add_argument('--gate', default='relu', choices=['relu', 'softplus', 'prelu'])
     algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
@@ -244,6 +245,14 @@ def process_temperature(temperature):
         raise Exception('this length is not gonna work')
     return temperature
 
+def get_gate(gate):
+    if gate == 'relu':
+        return F.relu
+    elif gate == 'softplus':
+        return F.softplus
+    elif gate == 'prelu':
+        return F.prelu
+
 def get_visual_body(args, config):
     if args.obs_type == 'rgb':
         n_channels = 3
@@ -252,7 +261,7 @@ def get_visual_body(args, config):
     if args.visual == 'mini':
         visual_body = TSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
     elif args.visual == 'minimini':
-        visual_body = TSAMiniMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
+        visual_body = TSAMiniMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
     elif args.visual == 'normal':
         visual_body = TSAConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim) 
     elif args.visual == 'large':
