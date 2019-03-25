@@ -77,7 +77,7 @@ def _exp_parser():
     # network
     algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
-    algo.add_argument('--gate', default='relu', choices=['relu', 'softplus', 'prelu'])
+    algo.add_argument('--gate', default='relu', choices=['relu', 'softplus', 'lrelu'])
     algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
@@ -250,8 +250,8 @@ def get_gate(gate):
         return F.relu
     elif gate == 'softplus':
         return F.softplus
-    elif gate == 'prelu':
-        return F.prelu
+    elif gate == 'lrelu':
+        return F.leaky_relu
 
 def get_visual_body(args, config):
     if args.obs_type == 'rgb':
