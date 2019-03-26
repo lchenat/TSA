@@ -212,7 +212,7 @@ class Task:
 from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld, ScaleObsEnv
 from ..simple_grid.env import DiscreteGridWorld, SampleParameterEnv
 from ..simple_grid.exemplar_env import DiscreteGridWorld, RandomInitEnv, RandomGoalEnv
-from ..reacher.env import MultiGoalReacherEnv, DiscretizeActionEnv
+#from ..reacher.env import MultiGoalReacherEnv, DiscretizeActionEnv
 
 class LastWrapper(gym.Wrapper):
     def __init__(self, env):
