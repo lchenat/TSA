@@ -29,7 +29,7 @@ def train_nineroom(tag=None):
     open(exp_path, 'w').close()
     with open(exp_path, 'a+') as f:
         # 512, 20, 50 ,5
-        for feat_dim in [512, 20]:
+        for feat_dim in [50, 5]:
             if feat_dim != 512:
                 kwargs['--feat_dim'] = feat_dim
                 kwargs['--tag'] = feat_dim
