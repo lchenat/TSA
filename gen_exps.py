@@ -11,7 +11,7 @@ def dump_args(f, args=None, kwargs=None):
     f.write(cmds + '\n')
 
 @cmd()
-def train_nineroom(tag=None):
+def train_nineroom():
     # variable: env_config, seed, (feat_dim, tag)
     exp_path = Path('exps/pick/nineroom/train')
     kwargs = {
@@ -40,6 +40,20 @@ def train_nineroom(tag=None):
                     dump_args(f, kwargs=kwargs)
 
 
+@cmd()
+def train_reacher_cont():
+    exp_path = Path('exps/reacher/train_cont')
+    kwargs = {
+        '--env': 'reacher',
+        '--agent': 'fc_discrete',
+        '--net': 'gaussian',
+        '--hidden': 32,
+        '--save_interval': 1,
+        '--steps': 720000,
+    }
+    for feat_dim in [4, 8, 16, 32]:
+        kwargs['--feat_dim'] = feat_dim
+        kwargs['--tag'] = 
 
 if __name__ == "__main__":
     cmd_run()
