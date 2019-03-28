@@ -259,7 +259,7 @@ def get_visual_body(args, config):
     else:
         n_channels = config.eval_env.observation_space.shape[0]
     if args.visual == 'mini':
-        visual_body = TSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale)
+        visual_body = TSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
     elif args.visual == 'minimini':
         visual_body = TSAMiniMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
     elif args.visual == 'normal':
