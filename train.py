@@ -267,7 +267,7 @@ def get_visual_body(args, config):
     elif args.visual == 'large':
         visual_body = LargeTSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim)
     elif args.visual == 'mini_fc':
-        visual_body = TSAMiniConvFCBody(n_channels*config.env_config['main']['window'], feature_dim=args.n_abs) # special!
+        visual_body = TSAMiniConvFCBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
     if args.reg_abs_fn is not None:
         with open(args.reg_abs_fn, 'rb') as f:
             abs_dict = dill.load(f)

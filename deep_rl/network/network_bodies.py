@@ -78,6 +78,26 @@ class TSAMiniConvBody(nn.Module):
         y = self.gate(self.fc(y))
         return y
 
+class TSAMiniConvFCBody(nn.Module):
+    def __init__(self, in_channels=12, feature_dim=512, scale=1, gate=F.relu):
+        super().__init__()
+        self.feature_dim = feature_dim
+        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 16->8
+        self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
+        self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
+        self.fc = layer_init(nn.Linear(2 * scale * 2 * scale * 128, 512))
+        self.fc2 = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
+        self.gate = gate
+
+    def forward(self, x):
+        y = self.gate(self.conv1(x))
+        y = self.gate(self.conv2(y))
+        y = self.gate(self.conv3(y))
+        y = y.view(y.size(0), -1)
+        y = self.gate(self.fc(y))
+        y = self.gate(self.fc2(y))
+        return y
+
 class TSAMiniMiniConvBody(nn.Module):
     def __init__(self, in_channels=12, feature_dim=512, scale=1, gate=F.relu): # scale only works for 2^n
         super().__init__()
@@ -103,25 +123,6 @@ class TSAMiniMiniConvBody(nn.Module):
             y = self.gate(self.conv3(y))
         y = y.view(y.size(0), -1)
         y = self.gate(self.fc(y))
-        return y
-
-class TSAMiniConvFCBody(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512):
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 16->8
-        self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
-        self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
-        self.fc = layer_init(nn.Linear(2 * 2 * 128, 512))
-        self.fc2 = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
-
-    def forward(self, x):
-        y = F.relu(self.conv1(x))
-        y = F.relu(self.conv2(y))
-        y = F.relu(self.conv3(y))
-        y = y.view(y.size(0), -1)
-        y = F.relu(self.fc(y))
-        y = F.relu(self.fc2(y))
         return y
 
 class TSAOneConvBody(nn.Module):
