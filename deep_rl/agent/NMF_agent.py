@@ -79,12 +79,13 @@ class NMFAgent(NMFBaseAgent):
         loss_dict = dict()
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
         # this is backward compatible
+        import ipdb; ipdb.set_trace()
         loss_dict['KL'] = self.policy_loss(actual_policies.view(-1, actual_policies.shape[-1]), expected_policies.view(-1, expected_policies.shape[-1]))
         loss_dict['MSE'] = self.abs_loss(actual_abs, expected_abs)
         loss_dict['network'] = self.network.loss()
         for loss in loss_dict.values(): assert loss == loss, 'NaN detected'
         # log before update
-        self.loss = (loss_dict['KL'] + loss_dict['MSE']).detach().cpu().numpy()
+        self.loss = (config.kl_coeff * loss_dict['KL'] + loss_dict['MSE']).detach().cpu().numpy()
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=v, step=self.total_steps)
         self.opt.step(sum(loss_dict.values(), 0.0))
