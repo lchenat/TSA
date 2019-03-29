@@ -19,7 +19,7 @@ class MLPBody(nn.Module):
         return self.fc2(F.relu(self.fc1(x.view(x.size(0), -1))))
 
 class TSAConvBody(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512):
+    def __init__(self, in_channels=12, feature_dim=512, scale=1, gate=F.relu):
         super().__init__()
         self.feature_dim = feature_dim
         self.conv1_1 = layer_init(nn.Conv2d(in_channels, 32,  kernel_size=3, padding=1)) # 16->16
@@ -30,15 +30,16 @@ class TSAConvBody(nn.Module):
         self.conv3_2 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
         self.conv4_1 = layer_init(nn.Conv2d(128, 128,         kernel_size=3, padding=1)) # 2->2
         self.conv4_2 = layer_init(nn.Conv2d(128, 128,         kernel_size=3, padding=1)) # 2->2
-        self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
+        self.fc = layer_init(nn.Linear(2 * scale * 2 * scale * 128, self.feature_dim))
+        self.gate = gate
 
     def forward(self, x): # you must add relu between every ConvNet!
-        y = F.relu(self.conv1_2(F.relu(self.conv1_1(x))))
-        y = F.relu(self.conv2_2(F.relu(self.conv2_1(y))))
-        y = F.relu(self.conv3_2(F.relu(self.conv3_1(y))))
-        y = F.relu(self.conv4_2(F.relu(self.conv4_1(y))))
+        y = self.gate(self.conv1_2(self.gate(self.conv1_1(x))))
+        y = self.gate(self.conv2_2(self.gate(self.conv2_1(y))))
+        y = self.gate(self.conv3_2(self.gate(self.conv3_1(y))))
+        y = self.gate(self.conv4_2(self.gate(self.conv4_1(y))))
         y = y.view(y.size(0), -1)
-        y = F.relu(self.fc(y))
+        y = self.gate(self.fc(y))
         return y
 
 class LargeTSAMiniConvBody(nn.Module):

@@ -263,7 +263,7 @@ def get_visual_body(args, config):
     elif args.visual == 'minimini':
         visual_body = TSAMiniMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
     elif args.visual == 'normal':
-        visual_body = TSAConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim) 
+        visual_body = TSAConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate)) 
     elif args.visual == 'large':
         visual_body = LargeTSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim)
     elif args.visual == 'mini_fc':
