@@ -29,6 +29,7 @@ def _command_parser():
         help='path of the experiment file')
     parser.add_argument('--tag', type=str, default='0',
         help='suffix tag creating a new experiment')
+    parser.add_argument('-d', action='store_true')
     return parser
 
 def _exp_parser():
@@ -123,7 +124,6 @@ def _exp_parser():
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--tag', type=str, default=None)
     parser.add_argument('--skip', action='store_true') # skip logging
-    parser.add_argument('-d', action='store_true')
     return parser
 
 def record_run(args_str):
@@ -728,6 +728,9 @@ if __name__ == '__main__':
     else: # join
         exp_path = Path(command_args.exp)
         assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
+    if not command_args.d and is_git_diff():
+        print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
+        exit() # end the program
     while True:
         args = read_args(exp_path)
         if args is None: break
@@ -738,9 +741,7 @@ if __name__ == '__main__':
             print(args)
             args, arg_groups = parse(parser, args)
             args.hash_code = record_run(args_str)
-            if not args.d and is_git_diff():
-                print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
-                break
+            args.d = command_args.d # pass debug flag
             if args.env == 'pick':
                 Task = PickGridWorldTask
             elif args.env == 'reach':
