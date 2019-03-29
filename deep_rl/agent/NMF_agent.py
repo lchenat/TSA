@@ -79,7 +79,6 @@ class NMFAgent(NMFBaseAgent):
         loss_dict = dict()
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
         # this is backward compatible
-        import ipdb; ipdb.set_trace()
         loss_dict['KL'] = self.policy_loss(actual_policies.view(-1, actual_policies.shape[-1]), expected_policies.view(-1, expected_policies.shape[-1]))
         loss_dict['MSE'] = self.abs_loss(actual_abs, expected_abs)
         loss_dict['network'] = self.network.loss()
