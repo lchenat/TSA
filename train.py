@@ -105,6 +105,7 @@ def _exp_parser():
     algo.add_argument('--fix_abs', action='store_true')
     algo.add_argument('--temperature', type=float, nargs='+', default=[1.0])
     algo.add_argument('--kl_coeff', type=float, default=1.0) # for nmf_sample
+    algo.add_argument('--scale_abs', type=float, default=1.0)
     # aux loss
     algo.add_argument('--pred_action', action='store_true')
     algo.add_argument('--recon', action='store_true')
@@ -638,6 +639,7 @@ def nmf_sample(args):
         params = filter(lambda p: p.requires_grad, model.parameters())
         return VanillaOptimizer(params, torch.optim.RMSprop(params, 0.001), config.gradient_clip)
     config.kl_coeff = args.kl_coeff
+    config.scale_abs = args.scale_abs
     config.optimizer_fn = optimizer_fn
     config.gradient_clip = 5
     config.batch_size = 32 * n_tasks

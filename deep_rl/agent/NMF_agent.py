@@ -29,7 +29,7 @@ class NMFAgent(NMFBaseAgent):
         self.policy_loss = torch.nn.KLDivLoss()
         self.abs_loss = torch.nn.MSELoss()
 
-        self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(config.sample_dict['states']))])
+        self.abs = config.scale_abs * np.concatenate([config.sample_dict['abs'] for _ in range(len(config.sample_dict['states']))])
         self.states = np.concatenate(config.sample_dict['states'])
         self.infos = np.concatenate(config.sample_dict['infos'])
         #self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(self.states) // len(config.sample_dict['abs']))])
