@@ -50,6 +50,22 @@ class MultiLinear(nn.Module):
         #output = torch.bmm(inputs.unsqueeze(1), weights).squeeze(1) + biases
         #return output
 
+class MultiMLP(nn.Module):
+    def __init__(self, input_dim, hidden_dims, n_heads, key, w_scale=1.0, gate=F.relu):
+        super().__init__()
+        dims = (input_dim,) + tuple(hidden_dims)
+        self.layers = []
+        for i in range(len(dims)-1):
+            self.layers.append(MultiLinear(dims[i], dims[i+1], n_heads, key, w_scale))
+
+    def forward(self, inputs, info):
+        y = inputs
+        for i in range(len(self.layers)):
+            y = self.layers[i](y, info)
+            if i < len(self.layers) - 1:
+                y = F.relu(y)
+        return y
+
 def layer_init(layer, w_scale=1.0):
     nn.init.orthogonal_(layer.weight.data)
     layer.weight.data.mul_(w_scale)

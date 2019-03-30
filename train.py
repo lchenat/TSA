@@ -82,7 +82,7 @@ def _exp_parser():
     algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
-    algo.add_argument('--actor', choices=['linear', 'nonlinear', 'split'], default='nonlinear')
+    algo.add_argument('--actor', choices=['linear', 'nonlinear', 'split'], default='linear')
     algo.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     algo.add_argument('--rate', type=float, default=1)
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
@@ -319,6 +319,12 @@ def process_goals(goal_fn): # should be read json what are you doing?
 # for normal tsa
 def get_network(visual_body, args, config):
     if args.net == 'baseline':
+        if args.actor == 'linear':
+            actor = MultiLinear(visual_body.feature_dim, config.action_dim, config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
+        elif args.actor == 'nonlinear': # gate
+            actor = MultiMLP(visual_body.feature_dim, args.hidden + (config.action_dim,), config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
+        else:
+            raise Exception('unsupported actor')
         algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
         network = CategoricalActorCriticNet(
             config.eval_env.n_tasks,
