@@ -30,6 +30,7 @@ class NMFAgent(NMFBaseAgent):
         self.abs_loss = torch.nn.MSELoss()
 
         self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(config.sample_dict['states']))])
+        print('multiplied by: {}'.format(config.abs_mean / self.abs.mean()))
         self.abs *= config.abs_mean / self.abs.mean()
         self.states = np.concatenate(config.sample_dict['states'])
         self.infos = np.concatenate(config.sample_dict['infos'])
