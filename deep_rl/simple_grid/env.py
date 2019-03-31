@@ -4,16 +4,16 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from gym import Env, Wrapper, spaces
+from gym import Env, spaces
 from gym.utils import seeding
 from collections import namedtuple
 from pathlib import Path
 if __package__ == '':
     from utils import Render, GridDrawer
-    from base_env import MDPEnv, SimulateEnv
+    from base_env import MDPEnv, SimulateEnv, LastWrapper
 else:
     from .utils import Render, GridDrawer
-    from .base_env import MDPEnv, SimulateEnv
+    from .base_env import MDPEnv, SimulateEnv, LastWrapper
 
 DIR = os.path.dirname(__file__)
 
@@ -34,18 +34,6 @@ def read_map(filename):
 
 # discrete gridworld
 class DiscreteGridWorld(MDPEnv):
-    color_list = [
-        plt.cm.Blues(0.5), # agent
-        plt.cm.Greens(0.5), # goal
-        plt.cm.Greys(0.0), # empty
-        plt.cm.Oranges(0.95), # wall
-        plt.cm.Reds(0.7), # lava
-    ]
-    color_map = {
-        ' ': 2,
-        '#': 3,
-        '*': 4,
-    }
     def __init__(
         self,
         map_name, # define height, width, wall, lava
@@ -69,7 +57,6 @@ class DiscreteGridWorld(MDPEnv):
         self.discount = discount
         self.observation_space = spaces.Tuple((spaces.Discrete(len(self.map)), spaces.Discrete(len(self.map[0]))))
         self.action_space = spaces.Discrete(4)
-        self._render = None
 
     # this is used for multitask, so that you can change the parameters to get different environments
     # or inverse engineering data
@@ -122,11 +109,28 @@ class DiscreteGridWorld(MDPEnv):
     def get_info(self, state=None, action=None, next_state=None):
         return self.get_parameters()
 
-    def render(self, mode='human'):
-        if self._render is None:
-            self._render = Render()
-            self.drawer = GridDrawer(self.__class__.color_list)
-        color_map = self.__class__.color_map
+# apply to gridworld only
+class RenderEnv(LastWrapper):
+    color_list = [
+        plt.cm.Blues(0.5), # agent
+        plt.cm.Greens(0.5), # goal
+        plt.cm.Greys(0.0), # empty
+        plt.cm.Oranges(0.95), # wall
+        plt.cm.Reds(0.7), # lava
+    ]
+    color_map = {
+        ' ': 2,
+        '#': 3,
+        '*': 4,
+    }
+    def __init__(self, env, color_list=None, color_map=None):
+        super().__init__(env)
+        self._render = None
+        self.color_list = self.__class__.color_list if color_list is None else color_list
+        self.color_map = self.__class__.color_map if color_map is None else color_map
+        self.drawer = GridDrawer(self.color_list)
+
+    def get_img(self):
         indices = np.zeros(self.size, dtype=int)
         for i in range(self.size[0]):
             for j in range(self.size[1]):
@@ -135,25 +139,16 @@ class DiscreteGridWorld(MDPEnv):
                 elif (i, j) == self.goal:
                     indices[i, j] = 1
                 else:
-                    indices[i, j] = color_map[self.map[i][j]]
-        self._render.render(self.drawer.draw(indices)[:,:,:3])
+                    indices[i, j] = self.color_map[self.map[i][j]]
+        return self.drawer.draw(indices)[:,:,:3]
+
+    def render(self, mode='human'):
+        if self._render is None:
+            self._render = Render()
+        self._render.render(self.get_img())
 
 # puddle
 class ContinuousGridWorld(SimulateEnv):
     pass
 
-# every time you reset, you call a function to set the paraemters of your env
-class SampleParameterEnv(Wrapper):
-    def __init__(self, env, sample_param_f):
-        super().__init__(env)
-        self.sample_param_f = sample_param_f # do sampling
 
-    def reset(self):
-        self.env.set_parameters(self.sample_param_f(self.env.get_parameters()))
-        return self.env.reset()
-
-    def get_parameters(self):
-        return self.env.get_parameters()
-
-    def set_parameters(self, params):
-        return self.env.set_parameters(params)
