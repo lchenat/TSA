@@ -1,7 +1,9 @@
 import random
 if __package__ == '':
-    from env import DiscreteGridWorld, SampleParameterEnv
+    from base_env import SampleParameterEnv
+    from env import DiscreteGridWorld
 else:
+    from .base_env import SampleParameterEnv
     from .env import DiscreteGridWorld, SampleParameterEnv
 
 

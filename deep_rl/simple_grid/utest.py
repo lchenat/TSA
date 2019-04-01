@@ -1,9 +1,9 @@
 import random
 import unittest
 import readchar
-from env import DiscreteGridWorld, SampleParameterEnv
+from PIL import Image
+from env import DiscreteGridWorld, RenderEnv
 from exemplar_env import RandomInitEnv, RandomGoalEnv
-from utils import Render, GridDrawer
 
 from py_tools.common import set_seed
 from py_tools.common.test import ipdb_on_exception
@@ -21,6 +21,7 @@ class TestDiscrete(unittest.TestCase):
             ),
             goal_locs=[(1, 1), (1, 9), (9, 1), (9, 9)],
         )
+        env = RenderEnv(env)
         o = env.reset()
         env.render()
         done = False
@@ -31,11 +32,14 @@ class TestDiscrete(unittest.TestCase):
             elif c == 'r':
                 o = env.reset()
                 env.render()
+            elif c == 'p': # save the observation
+                Image.fromarray(env.get_img()).save('observation.jpg')
             elif c in control_dict:
                 a = control_dict[c]
                 o, r, done, _ = env.step(a)
                 env.render()
                 print('s={}, r={}'.format(o, r))
+
 
 if __name__ == "__main__":
     set_seed(1)
