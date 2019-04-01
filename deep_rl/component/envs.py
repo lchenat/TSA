@@ -210,7 +210,7 @@ class Task:
 
 ### tsa ###
 from ..gridworld import ReachGridWorld, PORGBEnv, PickGridWorld, ScaleObsEnv
-from ..simple_grid.env import DiscreteGridWorld, SampleParameterEnv
+from ..simple_grid.env import DiscreteGridWorld
 from ..simple_grid.exemplar_env import DiscreteGridWorld, RandomInitEnv, RandomGoalEnv
 try:
     from ..reacher.env import MultiGoalReacherEnv, DiscretizeActionEnv
