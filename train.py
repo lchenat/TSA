@@ -86,6 +86,7 @@ def _exp_parser():
     algo.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     algo.add_argument('--rate', type=float, default=1)
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
+    algo.add_argument('--batch_size', type=int, default=32)
     ## simple grid only
     task.add_argument('--hidden', type=int, nargs='+', default=(16,))
     task.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
@@ -116,6 +117,7 @@ def _exp_parser():
     algo.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
     algo.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
     algo.add_argument('-lr', nargs='+', type=float, default=[0.00025])
+    algo.add_argument('--momentum', type=float, default=0.0)
     algo.add_argument('--algo_config', type=str, default=None) # read from file
     # others, should not affect performance (except seed)
     parser.add_argument('--mode', default='train', choices=['train', 'save_abs'])
@@ -202,7 +204,16 @@ def set_optimizer_fn(args, config):
     if args.opt == 'vanilla':
         def optimizer_fn(model):
             params = filter(lambda p: p.requires_grad, model.parameters())
-            return VanillaOptimizer(params, torch.optim.RMSprop(params, lr=args.lr[0], alpha=0.99, eps=1e-5), config.gradient_clip)
+            return VanillaOptimizer(
+                params, 
+                torch.optim.RMSprop(
+                    params,
+                    lr=args.lr[0], 
+                    momentum=args.momentum,
+                    alpha=0.99,
+                    eps=1e-5), 
+                config.gradient_clip
+            )
         config.optimizer_fn = optimizer_fn
     elif args.opt == 'alt':
         def optimizer_fn(model):
@@ -508,9 +519,9 @@ def ppo_pixel_tsa(args):
     config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
     config.optimization_epochs = 3
-    config.mini_batch_size = 32 * 8
+    config.mini_batch_size = args.batch_size * config.num_workers
     config.ppo_ratio_clip = 0.1
-    config.log_interval = 128 * 8
+    config.log_interval = args.rollout_length * config.num_workers
     config.max_steps = 1e4 if args.d else int(2e6)
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = args.eval_interval
