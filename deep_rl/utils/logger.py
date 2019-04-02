@@ -18,14 +18,14 @@ from pathlib import Path
 
 base_log_dir = './log'
 
-def get_logger(name, tags=None, skip=False, level=logging.INFO):
+def get_logger(name, tags=None, skip=False, replace=False, level=logging.INFO):
     if tags['others'] is not None:
         log_format = Path(base_log_dir, tags['task'], tags['algo'], tags['others'], str(tags['seed']))
     else:
         log_format = Path(base_log_dir, tags['task'], tags['algo'], '_', str(tags['seed']))
     log_dir = Path('{}.{}'.format(log_format, get_time_str()))
     if not skip and log_exist(log_format):
-        if stdin_choices('log exists, want to replace?', ['y', 'n']) == 'n':
+        if not replace and stdin_choices('log exists, want to replace?', ['y', 'n']) == 'n':
             raise Exception('Error: log directory exists')
         remove_log(log_format)
     logger = logging.getLogger(name)
