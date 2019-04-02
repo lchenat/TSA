@@ -4,7 +4,7 @@ import random
 from pathlib import Path
 from deep_rl.utils.misc import cmd, cmd_run
 
-random.seed(0)
+random.seed(1)
 
 def generate_cmd(args=None, kwargs=None):
     cmds = ''
@@ -155,7 +155,7 @@ def nineroom_finetune_search(feat_dim):
             for momentum in [0.1, 0.3, 0.5, 0.7, 0.9]: 
                 for batch_size in [32, 64, 128]:
                     for rollout_length in [128, 256, 512]:
-                        for num_workers in [16, 32, 64]:
+                        for num_workers in [16, 32]:
                             for seed in range(2):
                                 kwargs['-lr'] = lr
                                 kwargs['--momentum'] = momentum
