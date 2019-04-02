@@ -87,6 +87,7 @@ def _exp_parser():
     algo.add_argument('--rate', type=float, default=1)
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
     algo.add_argument('--batch_size', type=int, default=32)
+    algo.add_arguemnt('--num_workers', type=int, default=8)
     ## simple grid only
     task.add_argument('--hidden', type=int, nargs='+', default=(16,))
     task.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
@@ -502,7 +503,7 @@ def ppo_pixel_tsa(args):
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
-    config.num_workers = 8
+    config.num_workers = args.num_workers
     visual_body = get_visual_body(args, config)
     network, args.algo_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
