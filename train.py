@@ -87,7 +87,7 @@ def _exp_parser():
     algo.add_argument('--rate', type=float, default=1)
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
     algo.add_argument('--batch_size', type=int, default=32)
-    algo.add_arguemnt('--num_workers', type=int, default=8)
+    algo.add_argument('--num_workers', type=int, default=8)
     ## simple grid only
     task.add_argument('--hidden', type=int, nargs='+', default=(16,))
     task.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
