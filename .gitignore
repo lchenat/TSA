@@ -106,4 +106,3 @@ exps
 *.lock
 *.cur
 old_log
-gen_exps.py
