@@ -690,7 +690,9 @@ def imitation_tsa(args):
     set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
     set_optimizer_fn(args, config)
-    config.state_normalizer = ImageNormalizer()
+    if args.obs_type == 'rgb':
+        assert args.env in ['pick', 'reach']
+        config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
     config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
