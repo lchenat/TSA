@@ -405,7 +405,7 @@ def get_grid_network(args, config):
     n_tasks = config.eval_env.n_tasks
     algo_name = [args.agent, args.net]
     if args.net == 'baseline':
-        network = CategoricalActorCriticNet(
+        network = OldCategoricalActorCriticNet(
             n_tasks,
             config.state_dim,
             config.action_dim,
