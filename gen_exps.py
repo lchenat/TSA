@@ -189,7 +189,7 @@ def nineroom_nmf_finetune_search(base_dir, feat_dim, touch=True):
     if touch: open(exp_path, 'w').close()
     with open(exp_path, 'a+') as f:
         for name in os.listdir(base_dir):
-            for seed in range(3):
+            for seed in range(5):
                 kwargs['--weight'] = Path(base_dir, name)
                 kwargs['--tag'] = 'nmf_finetune_{}-{}'.format(feat_dim, name.split('-')[1])
                 kwargs['--seed'] = seed
