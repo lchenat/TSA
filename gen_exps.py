@@ -202,6 +202,7 @@ def nineroom_finetune_search(feat_dim):
 
 @cmd()
 def nineroom_actor_mimic_search(base_dir, feat_dim, touch=True):
+    feat_dim = int(feat_dim)
     exp_path = Path('exps/pick/nineroom/actor_mimic_search_{}'.format(feat_dim))
     kwargs = { 
         '--agent': 'tsa',
@@ -209,7 +210,7 @@ def nineroom_actor_mimic_search(base_dir, feat_dim, touch=True):
         '--net': 'baseline',
         '--visual': 'mini',
         '--gate': 'softplus',
-        '--feat_dim': int(feat_dim),
+        '--feat_dim': feat_dim,
         '--load_part': 'abs',
         '--obs_type': 'mask',
         '--scale': 2,
@@ -221,7 +222,8 @@ def nineroom_actor_mimic_search(base_dir, feat_dim, touch=True):
     with open(exp_path, 'a+') as f:
         for name in os.listdir(base_dir):
             step = int(name.split('-')[1])
-            if step <= 800000: continue
+            if feat_dim == 50 and step <= 800000: continue
+            if feat_dim == 5 and step <= 1500000: continue
             for seed in range(3):
                 kwargs['--weight'] = Path(base_dir, name)
                 kwargs['--tag'] = 'actor_mimic_{}-{}'.format(feat_dim, step)
