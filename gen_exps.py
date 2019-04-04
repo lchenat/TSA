@@ -1,10 +1,41 @@
 # used to generate experiments
 import os
 import random
+import filelock
 from pathlib import Path
 from deep_rl.utils.misc import cmd, cmd_run
 
 random.seed(1)
+
+@cmd('resume')
+def resume_exp(exp_fn):
+    exp_fn = Path(exp_fn)
+    assert exp_fn.suffix == '.run', 'can only stop exp.run'
+    lock_dir = Path(exp_fn.parent, '.lock')
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_fn = Path(lock_dir, exp_fn.stem)
+    lock_fn.touch(exist_ok=True)
+    with filelock.FileLock(lock_fn).acquire(timeout=30):
+        with open(exp_fn) as f:
+            lines = f.readlines()
+            lines = [line[1:] for line in lines] # comment
+        with open(exp_fn, 'w') as f:
+            f.writelines(lines)
+
+@cmd('stop')
+def stop_exp(exp_fn):
+    exp_fn = Path(exp_fn)
+    assert exp_fn.suffix == '.run', 'can only stop exp.run'
+    lock_dir = Path(exp_fn.parent, '.lock')
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_fn = Path(lock_dir, exp_fn.stem)
+    lock_fn.touch(exist_ok=True)
+    with filelock.FileLock(lock_fn).acquire(timeout=30):
+        with open(exp_fn) as f:
+            lines = f.readlines()
+            lines = ['#' + line for line in lines] # comment
+        with open(exp_fn, 'w') as f:
+            f.writelines(lines)
 
 def generate_cmd(args=None, kwargs=None):
     cmds = ''
