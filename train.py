@@ -697,9 +697,9 @@ def imitation_tsa(args):
     config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
-    config.eval_interval = 100 # in terms of log interval
     config.max_steps = 3e7 if args.d else int(3e6)
     if args.steps is not None: config.max_steps = args.steps
+    config.eval_interval = args.eval_interval
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip, replace=args.r)
     config.logger.add_text('Configs', [{
