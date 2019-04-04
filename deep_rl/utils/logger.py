@@ -18,16 +18,12 @@ from pathlib import Path
 
 base_log_dir = './log'
 
-def get_logger(name, tags=None, skip=False, replace=False, level=logging.INFO):
+def get_logger(name, tags=None, skip=False, level=logging.INFO):
     if tags['others'] is not None:
         log_format = Path(base_log_dir, tags['task'], tags['algo'], tags['others'], str(tags['seed']))
     else:
         log_format = Path(base_log_dir, tags['task'], tags['algo'], '_', str(tags['seed']))
     log_dir = Path('{}.{}'.format(log_format, get_time_str()))
-    if not skip and log_exist(log_format):
-        if not replace and stdin_choices('log exists, want to replace?', ['y', 'n']) == 'n':
-            raise Exception('Error: log directory exists')
-        remove_log(log_format)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     if not skip:
@@ -39,16 +35,6 @@ def get_logger(name, tags=None, skip=False, replace=False, level=logging.INFO):
         fh.setLevel(level)
         logger.addHandler(fh)
     return Logger(logger, log_dir, skip)
-
-def log_exist(log_format):
-    files = glob.glob('{}.*-*'.format(log_format))
-    files = [f for f in files if os.path.isdir(f)]
-    return len(files)
-
-def remove_log(log_format):
-    for filename in glob.glob('{}.*-*'.format(log_format)):
-        if os.path.isdir(filename):
-            shutil.rmtree(filename)
 
 def convert2str(*args):
     res = ''

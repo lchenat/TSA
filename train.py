@@ -30,7 +30,6 @@ def _command_parser():
     parser.add_argument('--tag', type=str, default='0',
         help='suffix tag creating a new experiment')
     parser.add_argument('-d', action='store_true') # debug mode
-    parser.add_argument('-r', action='store_true') # replace existing log directly
     return parser
 
 def _exp_parser():
@@ -529,7 +528,7 @@ def ppo_pixel_tsa(args):
     config.eval_interval = args.eval_interval
     config.save_interval = args.save_interval
     if args.mode == 'train':
-        config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip, replace=args.r)
+        config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
         config.logger.add_text('Configs', [{
             'git sha': get_git_sha(),
             **vars(args),
@@ -596,7 +595,7 @@ def fc_discrete(args):
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = 5 # 50
     config.save_interval = args.save_interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip, replace=args.r)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -669,7 +668,7 @@ def nmf_sample(args):
         others=args.tag,
         seed=args.seed,
     )
-    config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip, replace=args.r)
+    config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -701,7 +700,7 @@ def imitation_tsa(args):
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = args.eval_interval
     config.save_interval = 1 # in terms of eval interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip, replace=args.r)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -736,7 +735,7 @@ def ppo_pixel_PI(args):
     config.max_steps = int(5e5) if args.d else int(5e5)
     if args.steps is not None: config.max_steps = args.steps
     config.save_interval = args.save_interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip, replace=args.r)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
@@ -768,7 +767,6 @@ if __name__ == '__main__':
             args, arg_groups = parse(parser, args)
             args.hash_code = record_run(args_str)
             args.d = command_args.d # pass debug flag
-            args.r = command_args.r # pass logger flag
             if args.env == 'pick':
                 Task = PickGridWorldTask
             elif args.env == 'reach':
