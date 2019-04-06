@@ -222,6 +222,7 @@ def nineroom_actor_mimic_search(base_dir, feat_dim, touch=True):
     with open(exp_path, 'a+') as f:
         for name in os.listdir(base_dir):
             step = int(name.split('-')[1])
+            if '--' in name: continue
             if feat_dim == 50 and step <= 800000: continue
             if feat_dim == 5 and step <= 1500000: continue
             for seed in range(3):

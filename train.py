@@ -46,10 +46,10 @@ def _exp_parser():
             'transfer_a2c',
             'transfer_ppo',
             'transfer_distral',
-            'PI',
             'fc_discrete', # use fc body, tabular cases
             'fc_continuous', # use fc body
             'nmf_sample', # non-tabular cases
+            'nmf_direct',
         ],
     )
     # environment (the task setting, first level directory)
@@ -732,7 +732,7 @@ def imitation_tsa(args):
     config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 3e7 if args.d else int(3e6)
+    config.max_steps = 2e7 if args.d else int(3e6)
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = args.eval_interval
     config.save_interval = 1 # in terms of eval interval
@@ -743,40 +743,39 @@ def imitation_tsa(args):
         }])
     run_steps(ImitationAgent(config))
 
-def ppo_pixel_PI(args):
+def NMF_direct(args): 
     config = Config()
     env_config = get_env_config(args)
-    n_tasks = len(env_config['train_combos'] + env_config['test_combos'])
     config.env_config = env_config
-    args.algo_name = '.'.join([args.agent, args.net])
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
+    config.expert = get_expert(args, config)
     config.num_workers = 8
-    config.rollout_length = args.rollout_length
-    #config.state_dim = 512
-    with open(args.abs_fn, 'rb') as f:
-        abs_dict = dill.load(f)
-        n_abs = len(set(abs_dict[0].values())) # only have 1 map!
-        config.n_abs = n_abs
-    log_name = '{}-{}-{}-{}'.format(args.agent, args.net, lastname(args.env_config), lastname(args.abs_fn)[:-4])
-    print(abs_dict)
-    abs_encoder = PosAbstractEncoder(n_abs, abs_dict)
-    actor = TabularActor(n_abs, config.action_dim, config.eval_env.n_tasks)
-    network = TSANet(config.action_dim, abs_encoder, actor, critic=None)
+    visual_body = get_visual_body(args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
-    #config.state_normalizer = ImageNormalizer()
-    config.rate = args.rate
+    set_aux_network(visual_body, args, config)
+    process_weight(network, args, config)
+    set_optimizer_fn(args, config)
+    if args.obs_type == 'rgb':
+        assert args.env in ['pick', 'reach']
+        config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
-    config.log_interval = config.rollout_length * config.num_workers
-    config.max_steps = int(5e5) if args.d else int(5e5)
+    config.gradient_clip = 0.5
+    config.rollout_length = args.rollout_length
+    config.log_interval = config.num_workers * config.rollout_length
+    config.max_steps = 2e7 if args.d else int(3e6)
     if args.steps is not None: config.max_steps = args.steps
-    config.save_interval = args.save_interval
+    config.eval_interval = args.eval_interval
+    config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    run_steps(PIAgent(config))
+    run_steps(ImitationAgent(config))
+
 
 if __name__ == '__main__':
     command_args = _command_parser().parse_args()
