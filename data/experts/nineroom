@@ -1,0 +1,10 @@
+{
+    "0": "log/pick.mask.nineroom.0.min_dis-1/tsa.baseline.n_abs-512/relu/0.190327-232308/models/step-491520-mean-10.70",
+    "1": "log/pick.mask.nineroom.1.min_dis-1/tsa.baseline.n_abs-512/relu/1.190327-235057/models/step-491520-mean-10.84",
+    "2": "log/pick.mask.nineroom.2.min_dis-1/tsa.baseline.n_abs-512/relu/1.190328-000958/models/step-491520-mean-10.86",
+    "3": "log/pick.mask.nineroom.3.min_dis-1/tsa.baseline.n_abs-512/relu/2.190328-003751/models/step-491520-mean-10.71",
+    "4": "log/pick.mask.nineroom.4.min_dis-1/tsa.baseline.n_abs-512/relu/0.190328-005600/models/step-491520-mean-10.81",
+    "5": "log/pick.mask.nineroom.5.min_dis-1/tsa.baseline.n_abs-512/relu/0.190328-011456/models/step-491520-mean-10.78",
+    "6": "log/pick.mask.nineroom.6.min_dis-1/tsa.baseline.n_abs-512/relu/0.190328-014223/models/step-491520-mean-10.82",
+    "7": "log/pick.mask.nineroom.7.min_dis-1/tsa.baseline.n_abs-512/relu/0.190328-020127/models/step-491520-mean-10.84"
+}

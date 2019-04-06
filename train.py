@@ -75,6 +75,8 @@ def _exp_parser():
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=1)
     task.add_argument('--task_config', type=str, default=None) # read from file
+    task.add_argument('--expert', choices=['hand_coded', 'nineroom'], default='hand_coded')
+    task.add_argument('--expert_fn', type=str, default=None)
     # network
     algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
@@ -496,6 +498,39 @@ def get_reacher_network(args, config):
         raise Exception('unsupported network')
     return network, '.'.join(algo_name)
 
+def get_expert(args, config):
+    if args.expert == 'hand_coded':
+        return None
+    elif args.expert == 'nineroom':
+        with open(args.expert_fn) as f:
+            expert_fns = json.load(f)
+        experts = dict()
+        for index, weight_path in expert_fns.items():
+            visual_body = TSAMiniConvBody(
+                config.eval_env.observation_space.shape[0], 
+                512,
+                scale=2,
+                #gate=F.softplus,
+            )
+            expert = CategoricalActorCriticNet(
+                config.eval_env.n_tasks,
+                config.state_dim,
+                config.action_dim,
+                visual_body,
+            )
+            # load weight
+            weight_dict = expert.state_dict()
+            loaded_weight_dict = {k: v for k, v in torch.load(
+                weight_path,
+                map_location=lambda storage, loc: storage)['network'].items()
+                if k in weight_dict}
+            weight_dict.update(loaded_weight_dict)
+            expert.load_state_dict(weight_dict)
+            experts[int(index)] = expert
+        return experts
+    else:
+        raise Exception('unsupported expert type')
+
 def ppo_pixel_tsa(args):
     config = Config()
     env_config = get_env_config(args)
@@ -682,6 +717,7 @@ def imitation_tsa(args):
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
     config.eval_env = Task(env_config)
     print('n_tasks:', config.eval_env.n_tasks)
+    config.expert = get_expert(args, config)
     config.num_workers = 8
     visual_body = get_visual_body(args, config)
     network, args.algo_name = get_network(visual_body, args, config)
