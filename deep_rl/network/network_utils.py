@@ -50,6 +50,11 @@ class MultiLinear(nn.Module):
         #output = torch.bmm(inputs.unsqueeze(1), weights).squeeze(1) + biases
         #return output
 
+    # take out the weight by info
+    # no bias!!!
+    def get_weight(self, info):
+        return self.weights[tensor(info[self.key], torch.int64),:,:]
+
 class MultiMLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, n_heads, key, w_scale=1.0, gate=F.relu):
         super().__init__()
