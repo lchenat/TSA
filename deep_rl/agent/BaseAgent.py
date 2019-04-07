@@ -22,6 +22,22 @@ def check_network_output(agent):
     output_dict = {pos: prob for pos, prob in zip(all_infos['pos'], output)}
     import ipdb; ipdb.set_trace()
 
+
+class NMFBaseAgent:
+    def __init__(self, config):
+        self.config = config
+
+    def close(self):
+        pass
+        #close_obj(self.task)
+
+    def save(self, filename):
+        torch.save(self.network.state_dict(), filename)
+
+    def load(self, filename):
+        state_dict = torch.load(filename, map_location=lambda storage, loc: storage)
+        self.network.load_state_dict(state_dict)
+
 class BaseAgent:
     def __init__(self, config):
         self.config = config

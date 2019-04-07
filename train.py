@@ -774,7 +774,7 @@ def NMF_direct(args):
         'git sha': get_git_sha(),
         **vars(args),
         }])
-    run_steps(ImitationAgent(config))
+    run_steps(NMFDirectAgent(config))
 
 
 if __name__ == '__main__':

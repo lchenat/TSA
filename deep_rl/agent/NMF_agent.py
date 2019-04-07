@@ -1,23 +1,10 @@
 from ..network import *
 from ..component import *
 from collections import defaultdict
+from .BaseAgent import NMFBaseAgent
 
 import numpy as np
 
-class NMFBaseAgent:
-    def __init__(self, config):
-        self.config = config
-
-    def close(self):
-        pass
-        #close_obj(self.task)
-
-    def save(self, filename):
-        torch.save(self.network.state_dict(), filename)
-
-    def load(self, filename):
-        state_dict = torch.load(filename, map_location=lambda storage, loc: storage)
-        self.network.load_state_dict(state_dict)
 
 class NMFAgent(NMFBaseAgent):
     def __init__(self, config):
