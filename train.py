@@ -109,7 +109,7 @@ def _exp_parser():
     algo.add_argument('--fix_abs', action='store_true')
     algo.add_argument('--temperature', type=float, nargs='+', default=[1.0])
     algo.add_argument('--kl_coeff', type=float, default=1.0) # for nmf_sample
-    algo.add_argument('--abs_mean', type=float, default=1.0)
+    algo.add_argument('--abs_mean', type=float, default=None)
     # aux loss
     algo.add_argument('--pred_action', action='store_true')
     algo.add_argument('--recon', action='store_true')
