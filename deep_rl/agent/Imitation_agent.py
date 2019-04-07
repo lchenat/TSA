@@ -48,13 +48,13 @@ class ImitationAgent(BaseAgent):
         infos = self.infos
         for _ in range(config.rollout_length):
             prediction = self.network(states, infos)
-            #next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a'])) # follow current policy instead of optimal
+            next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a'])) # follow current policy instead of optimal
             if config.expert is None:
                 opt_a = self.task.get_opt_action()
             else:
                 opt_a = [to_np(config.expert[j](states[i:i+1], {'task_id': [j]})['a']) for i, j in enumerate(infos['task_id'])] 
                 opt_a = np.concatenate(opt_a)
-            next_states, rewards, terminals, next_infos = self.task.step(opt_a)
+            #next_states, rewards, terminals, next_infos = self.task.step(opt_a)
             self.online_rewards += rewards
             rewards = config.reward_normalizer(rewards)
             for i, terminal in enumerate(terminals):
