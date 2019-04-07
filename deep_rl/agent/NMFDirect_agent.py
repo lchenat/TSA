@@ -82,7 +82,9 @@ class NMFDirectAgent(BaseAgent):
         loss_dict = dict()
         states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
         # loss
-        
+        Xs = dict()
+        for i, expert in config.expert.items():
+            Xs[i]
 
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=v, step=self.total_steps)
