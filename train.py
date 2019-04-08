@@ -91,9 +91,11 @@ def _exp_parser():
     algo.add_argument('--batch_size', type=int, default=32)
     algo.add_argument('--num_workers', type=int, default=8)
     ## simple grid only
-    task.add_argument('--hidden', type=int, nargs='+', default=(16,))
-    task.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
-    ##
+    algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
+    algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
+    ## for NMFDirect
+    algo.add_argument('--x_iter', type=int, default=2)
+    algo.add_argument('--u_iter', type=int, default=3)
     # transfer network
     algo.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli'])
     algo.add_argument('--t_n_abs', type=int, default=512)
@@ -743,7 +745,7 @@ def imitation_tsa(args):
         }])
     run_steps(ImitationAgent(config))
 
-def NMF_direct(args): 
+def nmf_direct(args): 
     config = Config()
     env_config = get_env_config(args)
     config.env_config = env_config
@@ -764,6 +766,8 @@ def NMF_direct(args):
     config.discount = args.discount
     config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
+    config.x_iter = args.x_iter
+    config.u_iter = args.u_iter
     config.log_interval = config.num_workers * config.rollout_length
     config.max_steps = 2e7 if args.d else int(3e6)
     if args.steps is not None: config.max_steps = args.steps
@@ -834,6 +838,8 @@ if __name__ == '__main__':
                     fc_discrete(args)
                 elif args.agent == 'nmf_sample':
                     nmf_sample(args)
+                elif args.agent == 'nmf_direct':
+                    nmf_direct(args)
                 exp_finished = True
         except Exception as e:
             traceback.print_exc()

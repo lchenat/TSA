@@ -2,6 +2,29 @@ from ..network import *
 from ..component import *
 from .BaseAgent import *
 
+from collections import defaultdict
+
+def projection_simplex_sort(v, z=1):
+    n_features = v.shape[0]
+    u = torch.sort(v, descending=True)[0]
+    cssv = torch.cumsum(u, 0) - z
+    ind = tensor(np.arange(n_features) + 1)
+    cond = u - cssv / ind > 0
+    rho = ind[cond][-1]
+    theta = cssv[cond][-1] / rho.float()
+    #w = np.maximum(v - theta, 0)
+    w = F.relu(v - theta)
+    return w
+
+def update_v(X, U, V):
+    K = U.shape[1]
+    Y = X - torch.matmul(U, V) + torch.ger(U[:, 0], V[0, :]) # Y_1
+    for k in range(K):
+        #Y = X - torch.matmul(U, V) + torch.ger(U[:, k], V[k, :])
+        V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
+        if k < K-1:
+            Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])
+
 class NMFDirectAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)
@@ -41,6 +64,13 @@ class NMFDirectAgent(BaseAgent):
         self.config.logger.add_scalar(tag='eval_return', value=np.mean(rewards), step=self.total_steps)
         return np.mean(rewards)
 
+    def get_u(self, states):
+        if hasattr(self.network, 'abs_encoder'):
+            U = self.network.abs_encoder(states, None)
+        else:
+            U = self.network.network.phi_body(states)
+        return U
+
     def step(self):
         config = self.config
         storage = Storage(config.rollout_length)
@@ -48,13 +78,13 @@ class NMFDirectAgent(BaseAgent):
         infos = self.infos
         for _ in range(config.rollout_length):
             prediction = self.network(states, infos)
-            next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a'])) # follow current policy instead of optimal
+            #next_states, rewards, terminals, next_infos = self.task.step(to_np(prediction['a'])) # follow current policy instead of optimal
             if config.expert is None:
                 opt_a = self.task.get_opt_action()
             else:
                 opt_a = [to_np(config.expert[j](states[i:i+1], {'task_id': [j]})['a']) for i, j in enumerate(infos['task_id'])] 
                 opt_a = np.concatenate(opt_a)
-            #next_states, rewards, terminals, next_infos = self.task.step(opt_a)
+            next_states, rewards, terminals, next_infos = self.task.step(opt_a)
             self.online_rewards += rewards
             rewards = config.reward_normalizer(rewards)
             for i, terminal in enumerate(terminals):
@@ -79,15 +109,42 @@ class NMFDirectAgent(BaseAgent):
         storage.add(prediction)
         storage.placeholder()
 
-        loss_dict = dict()
+        loss_dict = defaultdict(list)
         states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
         # loss
-        
+        # define loss function
+        def get_loss(Xs, U, Vs):
+            X = torch.stack([Xs[i] for i in config.expert]).detach()
+            V = torch.stack([Vs[i] for i in config.expert]).detach() # detach is important
+            return F.mse_loss(torch.bmm(U.unsqueeze(0).expand(V.shape[0], *U.shape), V), X)
+        ###
+        for i in range(config.x_iter):
+            Xs = dict()
+            Vs = dict()
+            for i, expert in config.expert.items():
+                Xs[i] = F.softmax(expert.get_logits(states, {'task_id': [i] * len(states)}), dim=-1)
+                if hasattr(self.network, 'abs_encoder'):
+                    Vs[i] = self.network.actor.get_weight({'task_id': [i]}).squeeze(0)
+                else:
+                    Vs[i] = self.network.network.actor.get_weight({'task_id': [i]}).squeeze(0)
+            # update u
+            for j in range(config.u_iter):
+                U = self.get_u(states)
+                loss = get_loss(Xs, U, Vs) 
+                #print('u_loss:', loss)
+                loss_dict['u_loss'].append(loss)
+                self.opt.step(loss_dict['u_loss'][-1]) # not sure whether this work, since V has no gradient
+            # update v
+            U = self.get_u(states)
+            for i in config.expert:
+                update_v(Xs[i], U, Vs[i])
+                self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
+            loss = get_loss(Xs, U, Vs)
+            #print('v_loss:', loss)
+            loss_dict['v_loss'].append(loss)
 
         for k, v in loss_dict.items():
-            config.logger.add_scalar(tag=k, value=v, step=self.total_steps)
-
-        self.opt.step(sum(loss_dict.values(), 0.0))
+            config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps
