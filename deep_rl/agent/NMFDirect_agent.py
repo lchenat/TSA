@@ -25,9 +25,13 @@ def update_v(X, U, V):
         if k < K-1:
             Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])
 
+# X: (N, S, A)
+# U: (S, K)
+# V: (N, K, A)
 def batch_update_v(X, U, V):
     K = U.shape[1]
-    Y = X - torch.matmul(U, V) + torch.ger(U[:, 0], V[0, :]) # Y_1
+    Us = U.unsqueeze(0).expand(V.shape[0], -1, -1)
+    Y = X - torch.bmm(Us, V) + torch.bmm(Us, V)
     for k in range(K):
         #Y = X - torch.matmul(U, V) + torch.ger(U[:, k], V[k, :])
         V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
@@ -49,7 +53,8 @@ class NMFDirectAgent(BaseAgent):
         self.online_rewards = np.zeros(config.num_workers)
 
     def eval_step(self, state, info):
-        return self.network(state, info)['a'][0]
+        #return self.network(state, info)['a'][0]
+        return self.network.get_logits(state, info).max(dim=1)[1]
 
     def eval_episode(self):
         env = self.config.eval_env
@@ -147,7 +152,10 @@ class NMFDirectAgent(BaseAgent):
                 for i in config.expert:
                     update_v(Xs[i], U, Vs[i])
             loss_dict['v_loss'].append(get_loss(Xs, U, Vs))
-        self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
+        if hasattr(self.network, 'abs_encoder'):
+            self.network.actor.load_weight(Vs)
+        else:
+            self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
 
         for k, v in loss_dict.items():
             val = torch.mean(tensor(v))
