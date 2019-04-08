@@ -118,31 +118,27 @@ class NMFDirectAgent(BaseAgent):
             V = torch.stack([Vs[i] for i in config.expert]).detach() # detach is important
             return F.mse_loss(torch.bmm(U.unsqueeze(0).expand(V.shape[0], *U.shape), V), X)
         ###
+        Xs = dict()
+        Vs = dict()
+        for i, expert in config.expert.items():
+            Xs[i] = F.softmax(expert.get_logits(states, {'task_id': [i] * len(states)}), dim=-1)
+            if hasattr(self.network, 'abs_encoder'):
+                Vs[i] = self.network.actor.get_weight({'task_id': [i]}).squeeze(0)
+            else:
+                Vs[i] = self.network.network.actor.get_weight({'task_id': [i]}).squeeze(0)
         for i in range(config.x_iter):
-            Xs = dict()
-            Vs = dict()
-            for i, expert in config.expert.items():
-                Xs[i] = F.softmax(expert.get_logits(states, {'task_id': [i] * len(states)}), dim=-1)
-                if hasattr(self.network, 'abs_encoder'):
-                    Vs[i] = self.network.actor.get_weight({'task_id': [i]}).squeeze(0)
-                else:
-                    Vs[i] = self.network.network.actor.get_weight({'task_id': [i]}).squeeze(0)
             # update u
-            for j in range(config.u_iter):
+            for _ in range(config.u_iter):
                 U = self.get_u(states)
-                loss = get_loss(Xs, U, Vs) 
-                #print('u_loss:', loss)
-                loss_dict['u_loss'].append(loss)
+                loss_dict['u_loss'].append(get_loss(Xs, U, Vs))
                 self.opt.step(loss_dict['u_loss'][-1]) # not sure whether this work, since V has no gradient
             # update v
             U = self.get_u(states)
             for _ in range(config.v_iter):
                 for i in config.expert:
                     update_v(Xs[i], U, Vs[i])
-            self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
-            loss = get_loss(Xs, U, Vs)
-            #print('v_loss:', loss)
-            loss_dict['v_loss'].append(loss)
+            loss_dict['v_loss'].append(get_loss(Xs, U, Vs))
+        self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
 
         for k, v in loss_dict.items():
             val = torch.mean(tensor(v))
