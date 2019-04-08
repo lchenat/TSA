@@ -248,8 +248,8 @@ def nineroom_nmf_direct_search(feat_dim):
         '--eval_interval': 15, 
         '--save_interval': 1,
         '--steps': 500000,
-        'expert': 'nineroom',
-        'expert_fn': 'data/experts/nineroom',
+        '--expert': 'nineroom',
+        '--expert_fn': 'data/experts/nineroom',
         '--seed': 0,
     }
     x_iters = [2, 4, 8, 16, 32]
