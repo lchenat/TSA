@@ -3,6 +3,7 @@ import os
 import random
 import filelock
 from pathlib import Path
+from itertools import product
 from deep_rl.utils.misc import cmd, cmd_run
 
 random.seed(1)
@@ -230,6 +231,38 @@ def nineroom_actor_mimic_search(base_dir, feat_dim, touch=True):
                 kwargs['--tag'] = 'actor_mimic_{}-{}'.format(feat_dim, step)
                 kwargs['--seed'] = seed
                 dump_args(f, kwargs=kwargs)
+
+@cmd()
+def nineroom_nmf_direct_search(feat_dim):
+    feat_dim = int(feat_dim)
+    exp_path = Path('exps/pick/nineroom/nmf_direct_search_{}'.format(feat_dim))
+    kwargs = { 
+        '--agent': 'nmf_direct',
+        '--env_config': 'data/env_configs/pick/nineroom/nineroom.e8',
+        '--net': 'baseline',
+        '--visual': 'mini',
+        '--gate': 'softplus',
+        '--feat_dim': feat_dim,
+        '--obs_type': 'mask',
+        '--scale': 2,
+        '--eval_interval': 15, 
+        '--save_interval': 1,
+        '--steps': 500000,
+        'expert': 'nineroom',
+        'expert_fn': 'data/experts/nineroom',
+        '--seed': 0,
+    }
+    x_iters = [2, 4, 8, 16, 32]
+    u_iters = [2, 4, 8, 16, 32]
+    v_iters = [2, 4, 8]
+    open(exp_path, 'w').close()
+    with open(exp_path, 'a+') as f:
+        for x_iter, u_iter, v_iter in product(x_iters, u_iters, v_iters):
+            kwargs['--x_iter'] = x_iter
+            kwargs['--u_iter'] = u_iter
+            kwargs['--v_iter'] = v_iter
+            kwargs['--tag'] = 'nmf_direct_{}-{}-{}-{}'.format(feat_dim, x_iter, u_iter, v_iter)
+            dump_args(f, kwargs=kwargs)
 
 
 if __name__ == "__main__":

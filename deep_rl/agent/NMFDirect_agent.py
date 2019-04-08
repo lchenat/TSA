@@ -136,15 +136,18 @@ class NMFDirectAgent(BaseAgent):
                 self.opt.step(loss_dict['u_loss'][-1]) # not sure whether this work, since V has no gradient
             # update v
             U = self.get_u(states)
-            for i in config.expert:
-                update_v(Xs[i], U, Vs[i])
-                self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
+            for _ in range(config.v_iter):
+                for i in config.expert:
+                    update_v(Xs[i], U, Vs[i])
+            self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
             loss = get_loss(Xs, U, Vs)
             #print('v_loss:', loss)
             loss_dict['v_loss'].append(loss)
 
         for k, v in loss_dict.items():
-            config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
+            val = torch.mean(tensor(v))
+            config.logger.add_scalar(tag=k, value=val, step=self.total_steps)
+            config.logger.info('{}: {}'.format(k, val))
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps

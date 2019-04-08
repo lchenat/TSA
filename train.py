@@ -96,6 +96,7 @@ def _exp_parser():
     ## for NMFDirect
     algo.add_argument('--x_iter', type=int, default=2)
     algo.add_argument('--u_iter', type=int, default=3)
+    algo.add_argument('--v_iter', type=int, default=1)
     # transfer network
     algo.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli'])
     algo.add_argument('--t_n_abs', type=int, default=512)
@@ -768,6 +769,7 @@ def nmf_direct(args):
     config.rollout_length = args.rollout_length
     config.x_iter = args.x_iter
     config.u_iter = args.u_iter
+    config.v_iter = args.v_iter
     config.log_interval = config.num_workers * config.rollout_length
     config.max_steps = 2e7 if args.d else int(3e6)
     if args.steps is not None: config.max_steps = args.steps
