@@ -25,6 +25,15 @@ def update_v(X, U, V):
         if k < K-1:
             Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])
 
+def batch_update_v(X, U, V):
+    K = U.shape[1]
+    Y = X - torch.matmul(U, V) + torch.ger(U[:, 0], V[0, :]) # Y_1
+    for k in range(K):
+        #Y = X - torch.matmul(U, V) + torch.ger(U[:, k], V[k, :])
+        V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
+        if k < K-1:
+            Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])   
+
 class NMFDirectAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)
