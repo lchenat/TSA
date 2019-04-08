@@ -25,20 +25,7 @@ def update_v(X, U, V):
         if k < K-1:
             Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])
 
-# X: (N, S, A)
-# U: (S, K)
-# V: (N, K, A)
-def batch_update_v(X, U, V):
-    K = U.shape[1]
-    Us = U.unsqueeze(0).expand(V.shape[0], -1, -1)
-    Y = X - torch.bmm(Us, V) + torch.bmm(Us, V)
-    for k in range(K):
-        #Y = X - torch.matmul(U, V) + torch.ger(U[:, k], V[k, :])
-        V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
-        if k < K-1:
-            Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])   
-
-class NMFDirectAgent(BaseAgent):
+class NMFRegAgent(BaseAgent):
     def __init__(self, config):
         BaseAgent.__init__(self, config)
         self.config = config
@@ -51,10 +38,15 @@ class NMFDirectAgent(BaseAgent):
 
         self.episode_rewards = []
         self.online_rewards = np.zeros(config.num_workers)
+        if hasattr(network, 'abs_encoder'):
+            size = self.network.actor.weights.shape[1:] # only works for linear actor
+        else:
+            size = self.network.network.actor.weights.shape[1:]
+        self.Vs = {k: tensor(np.random.rand(*size)) for k in config.expert}
 
     def eval_step(self, state, info):
-        #return self.network(state, info)['a'][0]
-        return self.network.get_logits(state, info).max(dim=1)[1]
+        return self.network(state, info)['a'][0]
+        #return self.network.get_logits(state, info).max(dim=1)[1]
 
     def eval_episode(self):
         env = self.config.eval_env
@@ -133,29 +125,25 @@ class NMFDirectAgent(BaseAgent):
             return F.mse_loss(torch.bmm(U.unsqueeze(0).expand(V.shape[0], *U.shape), V), X)
         ###
         Xs = dict()
-        Vs = dict()
         for i, expert in config.expert.items():
             Xs[i] = F.softmax(expert.get_logits(states, {'task_id': [i] * len(states)}), dim=-1)
-            if hasattr(self.network, 'abs_encoder'): # abs_encoder is not working very well now
-                Vs[i] = self.network.actor.get_weight({'task_id': [i]}).squeeze(0)
-            else:
-                Vs[i] = self.network.network.actor.get_weight({'task_id': [i]}).squeeze(0)
         for i in range(config.x_iter):
             # update u
             for _ in range(config.u_iter):
                 U = self.get_u(states)
-                loss_dict['u_loss'].append(get_loss(Xs, U, Vs))
+                loss_dict['u_loss'].append(get_loss(Xs, U, self.Vs))
                 self.opt.step(loss_dict['u_loss'][-1]) # not sure whether this work, since V has no gradient
             # update v
             U = self.get_u(states)
             for _ in range(config.v_iter):
                 for i in config.expert:
-                    update_v(Xs[i], U, Vs[i])
-            loss_dict['v_loss'].append(get_loss(Xs, U, Vs))
-        if hasattr(self.network, 'abs_encoder'):
-            self.network.actor.load_weight(Vs)
-        else:
-            self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
+                    update_v(Xs[i], U, self.Vs[i])
+            loss_dict['v_loss'].append(get_loss(Xs, U, self.Vs))
+
+        # imitation loss
+        log_prob = self.network.get_logprobs(states, infos)
+        loss_dict['NLL'].append(F.nll_loss(log_prob, opt_a))
+        self.opt.step(loss_dict['NLL'][0])
 
         for k, v in loss_dict.items():
             val = torch.mean(tensor(v))
