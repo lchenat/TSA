@@ -6,9 +6,9 @@ from collections import defaultdict
 
 def projection_simplex_sort(v, z=1):
     n_features = v.shape[0]
-    u = torch.sort(v, descending=True)
-    cssv = torch.cumsum(u) - z
-    ind = torch.arange(n_features) + 1
+    u = torch.sort(v, descending=True)[0]
+    cssv = torch.cumsum(u, 0) - z
+    ind = tensor(np.arange(n_features) + 1)
     cond = u - cssv / ind > 0
     rho = ind[cond][-1]
     theta = cssv[cond][-1] / rho.float()
@@ -20,9 +20,10 @@ def update_v(X, U, V):
     K = U.shape[1]
     Y = X - torch.matmul(U, V) + torch.ger(U[:, 0], V[0, :]) # Y_1
     for k in range(K):
-        V[k, :] = projection_simplex_sort(V[k, :] - torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
+        #Y = X - torch.matmul(U, V) + torch.ger(U[:, k], V[k, :])
+        V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
         if k < K-1:
-            Y = Y + torch.ger(U[:, k], V[k, :]) - torch.ger(U[:, k+1], V[k+1, :])
+            Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])
 
 class NMFDirectAgent(BaseAgent):
     def __init__(self, config):
@@ -65,9 +66,9 @@ class NMFDirectAgent(BaseAgent):
 
     def get_u(self, states):
         if hasattr(self.network, 'abs_encoder'):
-            U = self.network.abs_encoder(states)
+            U = self.network.abs_encoder(states, None)
         else:
-            U = self.network.network.phi_body(states, None)
+            U = self.network.network.phi_body(states)
         return U
 
     def step(self):
@@ -111,40 +112,39 @@ class NMFDirectAgent(BaseAgent):
         loss_dict = defaultdict(list)
         states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
         # loss
-        Xs = dict()
-        Vs = dict()
         # define loss function
-        def get_loss(U):
-            X = torch.stack([Xs[i] for i in config.expert])
-            V = torch.stack([Vs[i] for i in config.expert]).detach() # important!
-            F.mse_loss(X - torch.bmm(U.unsqueeze(0), V))
+        def get_loss(Xs, U, Vs):
+            X = torch.stack([Xs[i] for i in config.expert]).detach()
+            V = torch.stack([Vs[i] for i in config.expert]).detach() # detach is important
+            return F.mse_loss(torch.bmm(U.unsqueeze(0).expand(V.shape[0], *U.shape), V), X)
         ###
-        for i, expert in config.expert.items():
-            Xs[i] = expert(states, {'task_id': [i] * len(states)}['a'])
-            if hasattr(self.network, 'abs_encoder'):
-                Vs[i] = self.network.actor.get_weight({'task_id': [i]})
-            else:
-                Vs[i] = self.network.network.actor.get_weight({'task_id': [i]}).t()
         for i in range(config.x_iter):
+            Xs = dict()
+            Vs = dict()
+            for i, expert in config.expert.items():
+                Xs[i] = F.softmax(expert.get_logits(states, {'task_id': [i] * len(states)}), dim=-1)
+                if hasattr(self.network, 'abs_encoder'):
+                    Vs[i] = self.network.actor.get_weight({'task_id': [i]}).squeeze(0)
+                else:
+                    Vs[i] = self.network.network.actor.get_weight({'task_id': [i]}).squeeze(0)
             # update u
             for j in range(config.u_iter):
                 U = self.get_u(states)
-                loss = get_loss(U) 
-                print(loss)
+                loss = get_loss(Xs, U, Vs) 
+                #print('u_loss:', loss)
                 loss_dict['u_loss'].append(loss)
-                self.opt.step() # not sure whether this work, since V has no gradient
+                self.opt.step(loss_dict['u_loss'][-1]) # not sure whether this work, since V has no gradient
             # update v
             U = self.get_u(states)
             for i in config.expert:
                 update_v(Xs[i], U, Vs[i])
-            loss = get_loss(U)
-            print(loss)
+                self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
+            loss = get_loss(Xs, U, Vs)
+            #print('v_loss:', loss)
             loss_dict['v_loss'].append(loss)
 
         for k, v in loss_dict.items():
-            config.logger.add_scalar(tag=k, value=torch.mean(v), step=self.total_steps)
-
-        self.opt.step(sum(loss_dict.values(), 0.0))
+            config.logger.add_scalar(tag=k, value=torch.mean(tensor(v)), step=self.total_steps)
 
         steps = config.rollout_length * config.num_workers
         self.total_steps += steps

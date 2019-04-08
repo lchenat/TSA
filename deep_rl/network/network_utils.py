@@ -55,6 +55,10 @@ class MultiLinear(nn.Module):
     def get_weight(self, info):
         return self.weights[tensor(info[self.key], torch.int64),:,:]
 
+    def load_weight(self, weight_dict):
+        for i, weight in weight_dict.items():
+            self.weights.data[i] = weight
+
 class MultiMLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, n_heads, key, w_scale=1.0, gate=F.relu):
         super().__init__()
