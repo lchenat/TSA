@@ -74,9 +74,10 @@ class NMFAgent(NMFBaseAgent):
         loss_dict['network'] = self.network.loss()
         for loss in loss_dict.values(): assert loss == loss, 'NaN detected'
         # log before update
-        self.loss = (config.kl_coeff * loss_dict['KL'] + loss_dict['MSE']).detach().cpu().numpy()
+        loss = config.kl_coeff * loss_dict['KL'] + config.abs_coeff * loss_dict['MSE']
+        self.loss = loss.detach().cpu().numpy()
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=v, step=self.total_steps)
-        self.opt.step(sum(loss_dict.values(), 0.0))
+        self.opt.step(loss)
         self.total_steps += config.batch_size
         self.network.step() # do all adaptive update
