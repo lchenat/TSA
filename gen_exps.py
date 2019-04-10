@@ -290,6 +290,29 @@ def nineroom_nmf_direct_search(feat_dim):
             kwargs['--tag'] = 'nmf_direct_{}-{}-{}-{}'.format(feat_dim, x_iter, u_iter, v_iter)
             dump_args(f, kwargs=kwargs)
 
+@cmd()
+def nineroom_nmf_sample_abs():
+    exp_path = Path('exps/pick/nineroom/nmf_sample_abs')
+    kwargs = { 
+        '--env': 'pick',
+        '--env_config': 'data/env_configs/pick/nineroom/nineroom.e8',
+        '--agent': 'nmf_sample',
+        '--net': 'baseline',
+        '--visual': 'mini',
+        '--gate': 'softplus',
+        '--scale': 2,
+        '--obs_type': 'mask',
+        '--feat_dim': 20,
+        '--sample_fn': 'data/nmf_sample/pick/nineroom/split.10-20',
+        '--save_interval': 1,
+        '--abs_mean': 3,
+    }
+    open(exp_path, 'w').close()
+    with open(exp_path, 'a+') as f:
+        for abs_coeff in [0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0]:
+            kwargs['--abs_coeff'] = abs_coeff
+            kwargs['--tag'] = 'abs-{}'.format(abs_coeff)
+            dump_args(f, kwargs=kwargs) 
 
 if __name__ == "__main__":
     cmd_run()
