@@ -116,6 +116,7 @@ def _exp_parser():
     algo.add_argument('--kl_coeff', type=float, default=1.0) # for nmf_sample
     algo.add_argument('--abs_coeff', type=float, default=1.0)
     algo.add_argument('--abs_mean', type=float, default=None)
+    algo.add_argument('--abs_mode', choices=['mse', 'kl'], default='mse')
     # aux loss
     algo.add_argument('--pred_action', action='store_true')
     algo.add_argument('--recon', action='store_true')
@@ -695,6 +696,7 @@ def nmf_sample(args):
     config.kl_coeff = args.kl_coeff
     config.abs_coeff = args.abs_coeff
     config.abs_mean = args.abs_mean
+    config.abs_mode = args.abs_mode
     config.optimizer_fn = optimizer_fn
     config.gradient_clip = 5
     config.batch_size = 32 * n_tasks

@@ -14,7 +14,7 @@ class NMFAgent(NMFBaseAgent):
         self.opt = config.optimizer_fn(self.network)
         self.total_steps = 0
         self.policy_loss = torch.nn.KLDivLoss()
-        self.abs_loss = torch.nn.MSELoss()
+        self.abs_loss = torch.nn.MSELoss() if config.abs_mode == 'mse' else torch.nn.KLDivLoss()
 
         self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(config.sample_dict['states']))])
         if config.abs_mean is not None:
@@ -62,19 +62,23 @@ class NMFAgent(NMFBaseAgent):
         expected_abs = tensor(self.abs[indices])
         expected_policies = tensor(self.policies[indices])
         if hasattr(self.network, 'abs_encoder'):
-            actual_abs = self.network.abs_encoder(states, infos)
+            if config.abs_mode == 'mse':
+                actual_abs = self.network.abs_encoder(states, infos)
+            else: 
+                actual_abs = self.network.abs_encoder.get_logprob(states, infos)
         else:
+            assert config.abs_mode == 'mse'
             actual_abs = self.network.network.phi_body(states)
         actual_policies = F.log_softmax(self.network.get_logits(states, infos), dim=-1)
         loss_dict = dict()
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
         # this is backward compatible
         loss_dict['KL'] = self.policy_loss(actual_policies.view(-1, actual_policies.shape[-1]), expected_policies.view(-1, expected_policies.shape[-1]))
-        loss_dict['MSE'] = self.abs_loss(actual_abs, expected_abs)
+        loss_dict['abs_loss'] = self.abs_loss(actual_abs, expected_abs)
         loss_dict['network'] = self.network.loss()
         for loss in loss_dict.values(): assert loss == loss, 'NaN detected'
         # log before update
-        loss = config.kl_coeff * loss_dict['KL'] + config.abs_coeff * loss_dict['MSE']
+        loss = config.kl_coeff * loss_dict['KL'] + config.abs_coeff * loss_dict['abs_loss']
         self.loss = loss.detach().cpu().numpy()
         for k, v in loss_dict.items():
             config.logger.add_scalar(tag=k, value=v, step=self.total_steps)

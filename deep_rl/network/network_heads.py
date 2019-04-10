@@ -99,6 +99,10 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         #return F.log_softmax(y, dim=1)
         return F.softmax(y, dim=1)
 
+    def get_logprob(self, inputs, info):
+        y = super().forward(inputs) / self.temperature.cur
+        return F.log_softmax(y, dim=1)
+
     def entropy(self, inputs, info, logits=None):
         if logits is None:
             logits = self.forward(inputs, info)
