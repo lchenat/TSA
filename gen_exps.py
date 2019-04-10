@@ -159,6 +159,32 @@ def nineroom_nmf_search(base_dir, feat_dim, touch=True):
                 dump_args(f, kwargs=kwargs)
 
 @cmd()
+def nineroom_load_search(expname, base_dir, feat_dim):
+    exp_path = Path('exps/pick/nineroom/{}'.format(expname))
+    kwargs = { 
+        '--agent': 'tsa',
+        '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
+        '--net': 'baseline',
+        '--visual': 'mini',
+        '--gate': 'softplus',
+        '--feat_dim': int(feat_dim),
+        '--load_part': 'abs',
+        '--obs_type': 'mask',
+        '--scale': 2,
+        '--eval_interval': 15, 
+        '--save_interval': 1,
+        '--steps': 500000,
+    }   
+    open(exp_path, 'w').close()
+    with open(exp_path, 'a+') as f:
+        for name in os.listdir(base_dir):
+            for seed in range(3):
+                kwargs['--weight'] = Path(base_dir, name)
+                kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, name.split('-')[1])
+                kwargs['--seed'] = seed
+                dump_args(f, kwargs=kwargs)
+
+@cmd()
 def nineroom_kl_only_search(base_dir, feat_dim, touch=True):
     exp_path = Path('exps/pick/nineroom/kl_only_search_{}'.format(feat_dim))
     kwargs = { 
