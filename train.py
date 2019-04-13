@@ -65,6 +65,7 @@ def _exp_parser():
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
     task.add_argument('--scale', type=int, default=1)
+    task.add_argument('--task_length', type=int, default=1)
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
     ##
@@ -167,6 +168,7 @@ def get_env_config(args):
             T=args.T,
             scale=args.scale,
             obs_type=args.obs_type,
+            task_length=args.task_length, # for pick only
         )
     return env_config
 
