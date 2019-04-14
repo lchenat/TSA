@@ -29,6 +29,12 @@ except:
     from pathlib2 import Path
 
 
+def permutation_num(n, k):
+    res = 1
+    for i in range(k):
+        res *= n - i
+    return res
+
 # commandr
 _cmd_dict = {} 
 
