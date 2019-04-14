@@ -1,1 +1,1 @@
---visual mini --net baseline --obs_type mask --scale 2 --weight log/pick.split.10-20/nmf_sample.baseline.n_abs-20/kl_only/0.190408-233552/models/step-1088000-acc-9.53
+--visual mini --net baseline --obs_type mask --scale 2 --weight log/pick.split.10-20/nmf_sample.baseline.n_abs-20/kl_only/0.190408-233552/models/step-1088000-acc-9.53 --feat_dim 20 --gate softplus
