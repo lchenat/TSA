@@ -325,7 +325,7 @@ class PickGridWorldTask:
         self.observation_space = self.env.observation_space
         self.state_dim = int(np.prod(self.env.observation_space.shape)) # state_dim is useless, it is for DummyBody which is an identity map
         self.n_maps = len(env_config['main']['map_names'])
-        self.n_tasks = self.env.envs[0].unwrapped.num_obj_types
+        self.n_tasks = permutation_num(self.env.envs[0].unwrapped.num_obj_types, self.env.envs[0].unwrapped.task_length)
         self.env_type = 'full'
 
         self.action_space = self.env.action_space
