@@ -21,6 +21,8 @@ import socket
 import traceback
 import shutil
 
+git_sha = get_git_sha()
+
 def _command_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('op', type=str, choices=['new', 'join'], # no default!
@@ -65,6 +67,7 @@ def _exp_parser():
     task.add_argument('--env_config', type=str, default='data/env_configs/pick/map49-n_goal-2-min_dis-4')
     task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
     task.add_argument('--scale', type=int, default=1)
+    task.add_argument('--task_length', type=int, default=1)
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
     ##
@@ -167,6 +170,7 @@ def get_env_config(args):
             T=args.T,
             scale=args.scale,
             obs_type=args.obs_type,
+            task_length=args.task_length, # for pick only
         )
     return env_config
 
@@ -572,7 +576,7 @@ def ppo_pixel_tsa(args):
     if args.mode == 'train':
         config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
         config.logger.add_text('Configs', [{
-            'git sha': get_git_sha(),
+            'git sha': git_sha,
             **vars(args),
             }])
         run_steps(PPOAgent(config))
@@ -639,7 +643,7 @@ def fc_discrete(args):
     config.save_interval = args.save_interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(PPOAgent(config))
@@ -714,7 +718,7 @@ def nmf_sample(args):
     )
     config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_supervised_steps(NMFAgent(config))
@@ -747,7 +751,7 @@ def imitation_tsa(args):
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(ImitationAgent(config))
@@ -783,7 +787,7 @@ def nmf_direct(args):
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(NMFDirectAgent(config))
@@ -819,7 +823,7 @@ def nmf_reg(args):
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(NMFRegAgent(config))
@@ -829,7 +833,7 @@ if __name__ == '__main__':
     command_args = _command_parser().parse_args()
     parser = _exp_parser()
     if command_args.op == 'new':
-        assert Path(command_args.exp).suffix == '', 'can only create new experiment on file without suffix'
+        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
         exp_path = Path('{}-{}.run'.format(command_args.exp, command_args.tag))
         if not exp_path.exists() or stdin_choices('{} exists, want to replace?'.format(exp_path), ['y', 'n']):
             shutil.copy(command_args.exp, str(exp_path))

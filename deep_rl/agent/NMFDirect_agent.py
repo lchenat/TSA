@@ -124,7 +124,19 @@ class NMFDirectAgent(BaseAgent):
         storage.placeholder()
 
         loss_dict = defaultdict(list)
-        states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
+        if hasattr(self, 'replay'): # debug
+            states = self.replay['states']
+            next_states = self.replay['next_states']
+            infos = self.replay['infos']
+            opt_a = self.replay['opt_a']
+        else:
+            states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
+            self.replay = dict(
+                states=states,
+                next_states=next_states,
+                infos=infos,
+                opt_a=opt_a,
+            )
         # loss
         # define loss function
         def get_loss(Xs, U, Vs):
