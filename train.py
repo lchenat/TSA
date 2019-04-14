@@ -45,9 +45,6 @@ def _exp_parser():
             'baseline', 
             'supervised',
             'imitation',
-            'transfer_a2c',
-            'transfer_ppo',
-            'transfer_distral',
             'fc_discrete', # use fc body, tabular cases
             'fc_continuous', # use fc body
             'nmf_sample', # non-tabular cases
@@ -85,9 +82,10 @@ def _exp_parser():
     algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
     algo.add_argument('--gate', default='relu', choices=['relu', 'softplus', 'lrelu'])
-    algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap'])
+    algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap', 'res'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
+    algo.add_argument('--res_config', type=str, default=None) # load the network config
     algo.add_argument('--actor', choices=['linear', 'nonlinear', 'split'], default='linear')
     algo.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     algo.add_argument('--rate', type=float, default=1)
@@ -101,14 +99,6 @@ def _exp_parser():
     algo.add_argument('--x_iter', type=int, default=2)
     algo.add_argument('--u_iter', type=int, default=3)
     algo.add_argument('--v_iter', type=int, default=1)
-    # transfer network
-    algo.add_argument('--t_net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli'])
-    algo.add_argument('--t_n_abs', type=int, default=512)
-    algo.add_argument('--t_abs_fn', type=str, default=None)
-    algo.add_argument('--t_actor', choices=['linear', 'nonlinear'], default='nonlinear')
-    algo.add_argument('--distill_w', type=float, default=0.1)
-    algo.add_argument('--alpha', type=float, default=0.5)
-    algo.add_argument('--beta', type=float, default=1.0)
     # network setting
     algo.add_argument('--label', choices=['action', 'abs'], default='action')
     algo.add_argument('--weight', type=str, default=None)
@@ -403,6 +393,29 @@ def get_network(visual_body, args, config):
                 actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
             else:
                 actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+        elif args.net == 'res':
+            if args.actor == 'linear':
+                actor = MultiLinear(visual_body.feature_dim, config.action_dim, config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
+            elif args.actor == 'nonlinear': # gate
+                actor = MultiMLP(visual_body.feature_dim, args.hidden + (config.action_dim,), config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
+            else:
+                raise Exception('unsupported actor')
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
+            with open(args.res_config) as f:
+                parser = _exp_parser()
+                res_args = parser.parse_args(f.readline().strip().split(' '))
+                res_visual_body = get_visual_body(res_args, config)
+                res_network = get_network(res_visual_body, res_args, config)
+                for param in res_network.parameters(): # fix res_network
+                    param.requires_grad = False
+            network = ResidueCategoricalActorCriticNet(
+                config.eval_env.n_tasks,
+                config.state_dim,
+                config.action_dim, 
+                visual_body,
+                actor=actor,
+                res_phi_body=res_network.phi_body,
+            )
         else:
             raise Exception('unsupported network type')
         if args.critic == 'visual':

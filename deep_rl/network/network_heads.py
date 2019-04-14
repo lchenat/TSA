@@ -485,6 +485,52 @@ class CategoricalActorCriticNet(nn.Module, Actor):
         v = self.network.critic(phi, info)
         return v
 
+# residue network
+class ResidueCategoricalActorCriticNet(nn.Module, Actor):
+    def __init__(self,
+                 n_tasks,
+                 state_dim,
+                 action_dim,
+                 phi_body=None,
+                 res_phi_body=None,
+                 actor=None,
+                 critic=None):
+        super(ResidueCategoricalActorCriticNet, self).__init__()
+        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor, critic)
+        self.res_phi_body = res_phi_body
+        self.to(Config.DEVICE)
+
+    def get_logits(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs) + self.res_phi_body(obs)
+        logits = self.network.actor(phi, info)
+        return logits
+
+    def forward(self, obs, info, action=None):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs) + self.res_phi_body(obs)
+        logits = self.network.actor(phi, info)
+        v = self.network.critic(phi, info)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action)
+        if log_prob.dim() == 1:
+            log_prob = log_prob.unsqueeze(-1)
+        else: # >= 2
+            log_prob = log_prob.reshape((log_prob.shape[0], -1)).sum(dim=1, keepdim=True)
+        entropy = dist.entropy().unsqueeze(-1)
+        return {'a': action,
+                'log_pi_a': log_prob,
+                'ent': entropy,
+                'v': v}
+
+    def value(self, obs, info):
+        obs = tensor(obs)
+        phi = self.network.phi_body(obs) + self.res_phi_body(obs)
+        v = self.network.critic(phi, info)
+        return v
+
 class TSANet(nn.Module, Actor):
     def __init__(self,
                  action_dim,
