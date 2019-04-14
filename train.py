@@ -21,6 +21,8 @@ import socket
 import traceback
 import shutil
 
+git_sha = get_git_sha()
+
 def _command_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('op', type=str, choices=['new', 'join'], # no default!
@@ -574,7 +576,7 @@ def ppo_pixel_tsa(args):
     if args.mode == 'train':
         config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
         config.logger.add_text('Configs', [{
-            'git sha': get_git_sha(),
+            'git sha': git_sha,
             **vars(args),
             }])
         run_steps(PPOAgent(config))
@@ -641,7 +643,7 @@ def fc_discrete(args):
     config.save_interval = args.save_interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(PPOAgent(config))
@@ -716,7 +718,7 @@ def nmf_sample(args):
     )
     config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_supervised_steps(NMFAgent(config))
@@ -749,7 +751,7 @@ def imitation_tsa(args):
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(ImitationAgent(config))
@@ -785,7 +787,7 @@ def nmf_direct(args):
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(NMFDirectAgent(config))
@@ -821,7 +823,7 @@ def nmf_reg(args):
     config.save_interval = 1 # in terms of eval interval
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
-        'git sha': get_git_sha(),
+        'git sha': git_sha,
         **vars(args),
         }])
     run_steps(NMFRegAgent(config))
