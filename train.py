@@ -406,6 +406,7 @@ def get_network(visual_body, args, config):
                 res_args = parser.parse_args(f.readline().strip().split(' '))
                 res_visual_body = get_visual_body(res_args, config)
                 res_network = get_network(res_visual_body, res_args, config)
+                process_weight(res_network, res_args, config)
                 for param in res_network.parameters(): # fix res_network
                     param.requires_grad = False
             network = ResidueCategoricalActorCriticNet(
