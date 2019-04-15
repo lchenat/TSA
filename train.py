@@ -32,6 +32,7 @@ def _command_parser():
     parser.add_argument('--tag', type=str, default='0',
         help='suffix tag creating a new experiment')
     parser.add_argument('-d', action='store_true') # debug mode
+    parser.add_argument('--skip', action='store_true')
     return parser
 
 def _exp_parser():
@@ -131,7 +132,6 @@ def _exp_parser():
     parser.add_argument('--steps', type=int, default=None)
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--tag', type=str, default=None)
-    parser.add_argument('--skip', action='store_true') # skip logging
     return parser
 
 def record_run(args_str):
@@ -870,6 +870,7 @@ if __name__ == '__main__':
             args, arg_groups = parse(parser, args)
             args.hash_code = record_run(args_str)
             args.d = command_args.d # pass debug flag
+            args.skip = command_args.skip
             if args.env == 'pick':
                 Task = PickGridWorldTask
             elif args.env == 'reach':
