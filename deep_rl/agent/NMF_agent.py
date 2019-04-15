@@ -26,6 +26,8 @@ class NMFAgent(NMFBaseAgent):
         self.infos = np.concatenate(config.sample_dict['infos'])
         #self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(self.states) // len(config.sample_dict['abs']))])
         self.policies = np.concatenate(config.sample_dict['policies'])
+        if config.load_actor: # load actor sequentially
+            import ipdb; ipdb.set_trace()
  
     def eval_step(self, state, info):
         action = self.network(state, info)['a'][0].cpu().detach().numpy()

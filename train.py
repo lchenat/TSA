@@ -110,6 +110,7 @@ def _exp_parser():
     algo.add_argument('--abs_coeff', type=float, default=1.0)
     algo.add_argument('--abs_mean', type=float, default=None)
     algo.add_argument('--abs_mode', choices=['mse', 'kl'], default='mse')
+    algo.add_argument('--load_actor', action='store_true')
     # aux loss
     algo.add_argument('--pred_action', action='store_true')
     algo.add_argument('--recon', action='store_true')
@@ -670,6 +671,7 @@ def nmf_sample(args):
         args.n_abs = sample_dict['abs'].shape[1]
         n_tasks = len(sample_dict['policies'])
     config.sample_dict = sample_dict
+    config.load_actor = args.load_actor
     if args.env == 'grid':
         goal_locs = process_goals(args.goal_fn)
         env_config = dict(

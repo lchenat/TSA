@@ -1,1 +1,0 @@
---agent tsa --net bernoulli --n_abs 20 --actor nonlinear --weight data/models/imitation-bernoulli-map49-inv-1-2-min_dis-4-n_abs-20-0/step-14950400-mean-9.14 --fix_abs

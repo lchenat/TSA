@@ -1,1 +1,0 @@
---agent tsa --net bernoulli --n_abs 20 --actor nonlinear
