@@ -166,7 +166,7 @@ def nineroom_load_search(expname, base_dir, feat_dim):
         '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
         '--net': 'baseline',
         '--visual': 'mini',
-        '--gate': 'softplus',
+        #'--gate': 'softplus', # be careful about this!
         '--feat_dim': int(feat_dim),
         '--load_part': 'abs',
         '--obs_type': 'mask',
@@ -178,7 +178,7 @@ def nineroom_load_search(expname, base_dir, feat_dim):
     open(exp_path, 'w').close()
     with open(exp_path, 'a+') as f:
         for name in os.listdir(base_dir):
-            for seed in range(3):
+            for seed in range(5):
                 kwargs['--weight'] = Path(base_dir, name)
                 kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, name.split('-')[1])
                 kwargs['--seed'] = seed

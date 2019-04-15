@@ -17,6 +17,10 @@ class NMFAgent(NMFBaseAgent):
         self.abs_loss = torch.nn.MSELoss() if config.abs_mode == 'mse' else torch.nn.KLDivLoss()
 
         self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(config.sample_dict['states']))])
+        if np.allclose(self.abs.sum(1), 1.0):
+            print('normalized abs')
+        else:
+            print('unnormalized abs')
         if config.abs_mode == 'mse' and config.abs_mean is not None:
             print('multiplied by: {}'.format(config.abs_mean / self.abs.mean()))
             self.abs *= config.abs_mean / self.abs.mean()

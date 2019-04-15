@@ -32,6 +32,7 @@ def _command_parser():
     parser.add_argument('--tag', type=str, default='0',
         help='suffix tag creating a new experiment')
     parser.add_argument('-d', action='store_true') # debug mode
+    parser.add_argument('--skip', action='store_true')
     return parser
 
 def _exp_parser():
@@ -121,6 +122,7 @@ def _exp_parser():
     algo.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
     algo.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
     algo.add_argument('-lr', nargs='+', type=float, default=[0.00025])
+    algo.add_argument('--weight_decay', type=float, default=0.0)
     algo.add_argument('--momentum', type=float, default=0.0)
     algo.add_argument('--algo_config', type=str, default=None) # read from file
     # others, should not affect performance (except seed)
@@ -131,7 +133,6 @@ def _exp_parser():
     parser.add_argument('--steps', type=int, default=None)
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--tag', type=str, default=None)
-    parser.add_argument('--skip', action='store_true') # skip logging
     return parser
 
 def record_run(args_str):
@@ -216,7 +217,8 @@ def set_optimizer_fn(args, config):
                     lr=args.lr[0], 
                     momentum=args.momentum,
                     alpha=0.99,
-                    eps=1e-5), 
+                    eps=1e-5,
+                    weight_decay=args.weight_decay), 
                 config.gradient_clip
             )
         config.optimizer_fn = optimizer_fn
@@ -351,6 +353,30 @@ def get_network(visual_body, args, config):
             #actor_body=FCBody(visual_body.feature_dim, (args.n_abs,)), # out dated
             actor=actor,
         )
+    elif args.net == 'res':
+        if args.actor == 'linear':
+            actor = MultiLinear(visual_body.feature_dim, config.action_dim, config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
+        elif args.actor == 'nonlinear': # gate
+            actor = MultiMLP(visual_body.feature_dim, args.hidden + (config.action_dim,), config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
+        else:
+            raise Exception('unsupported actor')
+        algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
+        with open(args.res_config) as f:
+            parser = _exp_parser()
+            res_args = parser.parse_args(f.readline().strip().split(' '))
+            res_visual_body = get_visual_body(res_args, config)
+            res_network, _ = get_network(res_visual_body, res_args, config)
+            process_weight(res_network, res_args, config)
+            for param in res_network.parameters(): # fix res_network
+                param.requires_grad = False
+        network = ResidueCategoricalActorCriticNet(
+            config.eval_env.n_tasks,
+            config.state_dim,
+            config.action_dim, 
+            visual_body,
+            actor=actor,
+            res_phi_body=res_network.network.phi_body,
+        )
     else:
         if args.net == 'vq':
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
@@ -394,30 +420,6 @@ def get_network(visual_body, args, config):
                 actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
             else:
                 actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
-        elif args.net == 'res':
-            if args.actor == 'linear':
-                actor = MultiLinear(visual_body.feature_dim, config.action_dim, config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
-            elif args.actor == 'nonlinear': # gate
-                actor = MultiMLP(visual_body.feature_dim, args.hidden + (config.action_dim,), config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
-            else:
-                raise Exception('unsupported actor')
-            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
-            with open(args.res_config) as f:
-                parser = _exp_parser()
-                res_args = parser.parse_args(f.readline().strip().split(' '))
-                res_visual_body = get_visual_body(res_args, config)
-                res_network = get_network(res_visual_body, res_args, config)
-                process_weight(res_network, res_args, config)
-                for param in res_network.parameters(): # fix res_network
-                    param.requires_grad = False
-            network = ResidueCategoricalActorCriticNet(
-                config.eval_env.n_tasks,
-                config.state_dim,
-                config.action_dim, 
-                visual_body,
-                actor=actor,
-                res_phi_body=res_network.phi_body,
-            )
         else:
             raise Exception('unsupported network type')
         if args.critic == 'visual':
@@ -870,6 +872,7 @@ if __name__ == '__main__':
             args, arg_groups = parse(parser, args)
             args.hash_code = record_run(args_str)
             args.d = command_args.d # pass debug flag
+            args.skip = command_args.skip
             if args.env == 'pick':
                 Task = PickGridWorldTask
             elif args.env == 'reach':
