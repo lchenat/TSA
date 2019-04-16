@@ -711,6 +711,7 @@ def nmf_sample(args):
             config.state_normalizer = ImageNormalizer() # tricky
     else:
         raise Exception('unsupported env')
+    process_weight(network, args, config)
     config.network_fn = lambda: network
     def optimizer_fn(model):
         params = filter(lambda p: p.requires_grad, model.parameters())
@@ -720,7 +721,7 @@ def nmf_sample(args):
     config.abs_mean = args.abs_mean
     config.abs_mode = args.abs_mode
     config.optimizer_fn = optimizer_fn
-    config.gradient_clip = 5
+    #config.gradient_clip = 5
     config.batch_size = 32 * n_tasks
     config.log_interval = config.batch_size * 10
 
