@@ -21,7 +21,7 @@ def update_v(X, U, V):
     Y = X - torch.matmul(U, V) + torch.ger(U[:, 0], V[0, :]) # Y_1
     for k in range(K):
         #Y = X - torch.matmul(U, V) + torch.ger(U[:, k], V[k, :])
-        V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
+        V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k])) / torch.dot(U[:, k], U[:, k])
         if k < K-1:
             Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])
 
@@ -34,7 +34,7 @@ def batch_update_v(X, U, V):
     Y = X - torch.bmm(Us, V) + torch.bmm(Us, V)
     for k in range(K):
         #Y = X - torch.matmul(U, V) + torch.ger(U[:, k], V[k, :])
-        V[k, :] = projection_simplex_sort(torch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
+        V[k, :] = (projection_simplex_sorttorch.matmul(Y.t(), U[:, k]) / torch.dot(U[:, k], U[:, k]))
         if k < K-1:
             Y = Y - torch.ger(U[:, k], V[k, :]) + torch.ger(U[:, k+1], V[k+1, :])   
 
@@ -124,6 +124,7 @@ class NMFDirectAgent(BaseAgent):
         storage.placeholder()
 
         loss_dict = defaultdict(list)
+        '''
         if hasattr(self, 'replay'): # debug
             states = self.replay['states']
             next_states = self.replay['next_states']
@@ -137,6 +138,8 @@ class NMFDirectAgent(BaseAgent):
                 infos=infos,
                 opt_a=opt_a,
             )
+        '''
+        states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
         # loss
         # define loss function
         def get_loss(Xs, U, Vs):

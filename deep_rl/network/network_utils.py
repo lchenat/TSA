@@ -57,7 +57,8 @@ class MultiLinear(nn.Module):
 
     def load_weight(self, weight_dict):
         for i, weight in weight_dict.items():
-            self.weights.data[i].copy_(weight)
+            #self.weights.data[i].copy_(weight)
+            self.weights.data[i] = weight
 
 class MultiMLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, n_heads, key, w_scale=1.0, gate=F.relu):
@@ -75,14 +76,28 @@ class MultiMLP(nn.Module):
                 y = F.relu(y)
         return y
 
+layer_init_mode = 'orthogonal'
+def set_layer_init_mode(mode):
+    global layer_init_mode
+    assert mode in ['uniform', 'orthogonal']
+    layer_init_mode = mode
+
 def layer_init(layer, w_scale=1.0):
-    nn.init.orthogonal_(layer.weight.data)
+    if layer_init_mode == 'orthogonal':
+        init_f = nn.init.orthogonal_
+    elif layer_init_mode == 'uniform':
+        init_f = nn.init.uniform_
+    init_f(layer.weight.data)
     layer.weight.data.mul_(w_scale)
     if layer.bias is not None: nn.init.constant_(layer.bias.data, 0)
     return layer
 
 def weight_init(weight, w_scale=1.0):
-    nn.init.orthogonal_(weight.data)
+    if layer_init_mode == 'orthogonal':
+        init_f = nn.init.orthogonal_
+    elif layer_init_mode == 'uniform':
+        init_f = nn.init.uniform_
+    init_f(weight.data)
     weight.data.mul_(w_scale)
     return weight
 

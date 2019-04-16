@@ -93,6 +93,7 @@ def _exp_parser():
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
     algo.add_argument('--batch_size', type=int, default=32)
     algo.add_argument('--num_workers', type=int, default=8)
+    algo.add_argument('--init_mode', default='orthogonal', choices=['orthogonal', 'uniform'])
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
@@ -561,6 +562,7 @@ def get_expert(args, config):
 
 def ppo_pixel_tsa(args):
     config = Config()
+    set_layer_init_mode(args.init_mode)
     env_config = get_env_config(args)
     config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
@@ -603,6 +605,7 @@ def ppo_pixel_tsa(args):
 
 def fc_discrete(args):
     config = Config()
+    set_layer_init_mode(args.init_mode)
     config.num_workers = 5
     if args.env == 'grid':
         goal_locs = process_goals(args.goal_fn)
@@ -667,6 +670,7 @@ def fc_discrete(args):
 
 def nmf_sample(args):
     config = Config()
+    set_layer_init_mode(args.init_mode)
     assert args.sample_fn is not None, 'need args.sample_fn'
     with open(args.sample_fn, 'rb') as f:
         sample_dict = dill.load(f) # abs, policy
@@ -744,6 +748,7 @@ def nmf_sample(args):
 
 def imitation_tsa(args):
     config = Config()
+    set_layer_init_mode(args.init_mode)
     env_config = get_env_config(args)
     config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
@@ -777,6 +782,7 @@ def imitation_tsa(args):
 
 def nmf_direct(args): 
     config = Config()
+    set_layer_init_mode(args.init_mode)
     env_config = get_env_config(args)
     config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
@@ -813,6 +819,7 @@ def nmf_direct(args):
 
 def nmf_reg(args): 
     config = Config()
+    set_layer_init_mode(args.init_mode)
     env_config = get_env_config(args)
     config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)

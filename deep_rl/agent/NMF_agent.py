@@ -24,8 +24,8 @@ class NMFAgent(NMFBaseAgent):
         if config.abs_mode == 'mse' and config.abs_mean is not None:
             print('multiplied by: {}'.format(config.abs_mean / self.abs.mean()))
             self.abs *= config.abs_mean / self.abs.mean()
-        if config.abs_mode == 'kl':
-            assert np.allclose(self.abs.sum(1), 1.0)
+        #if config.abs_mode == 'kl':
+            #assert np.allclose(self.abs.sum(1), 1.0)
         self.states = np.concatenate(config.sample_dict['states'])
         self.infos = np.concatenate(config.sample_dict['infos'])
         #self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(self.states) // len(config.sample_dict['abs']))])
