@@ -793,7 +793,7 @@ def nmf_direct(args):
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
-    config.gradient_clip = 0.5
+    #config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
     config.x_iter = args.x_iter
     config.u_iter = args.u_iter

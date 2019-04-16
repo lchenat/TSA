@@ -57,7 +57,7 @@ class MultiLinear(nn.Module):
 
     def load_weight(self, weight_dict):
         for i, weight in weight_dict.items():
-            self.weights.data[i] = weight
+            self.weights.data[i].copy_(weight)
 
 class MultiMLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, n_heads, key, w_scale=1.0, gate=F.relu):

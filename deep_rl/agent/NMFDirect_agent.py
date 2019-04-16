@@ -165,9 +165,9 @@ class NMFDirectAgent(BaseAgent):
                     update_v(Xs[i], U, Vs[i])
             loss_dict['v_loss'].append(get_loss(Xs, U, Vs))
         if hasattr(self.network, 'abs_encoder'):
-            self.network.actor.load_weight(Vs)
+            self.network.actor.load_weight(Vs) # not support abs_encoder yet
         else:
-            self.network.network.actor.load_weight(Vs) # not support abs_encoder yet
+            self.network.network.actor.load_weight(Vs)
 
         for k, v in loss_dict.items():
             val = torch.mean(tensor(v))
