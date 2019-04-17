@@ -24,11 +24,8 @@ class NMFAgent(NMFBaseAgent):
         if config.abs_mode == 'mse' and config.abs_mean is not None:
             print('multiplied by: {}'.format(config.abs_mean / self.abs.mean()))
             self.abs *= config.abs_mean / self.abs.mean()
-        #if config.abs_mode == 'kl':
-            #assert np.allclose(self.abs.sum(1), 1.0)
         self.states = np.concatenate(config.sample_dict['states'])
         self.infos = np.concatenate(config.sample_dict['infos'])
-        #self.abs = np.concatenate([config.sample_dict['abs'] for _ in range(len(self.states) // len(config.sample_dict['abs']))])
         self.policies = np.concatenate(config.sample_dict['policies'])
         if config.load_actor: # load actor sequentially
             print('load actor')
@@ -78,8 +75,7 @@ class NMFAgent(NMFBaseAgent):
             else: 
                 actual_abs = self.network.abs_encoder.get_logprob(states, infos)
         else:
-            #assert config.abs_mode == 'mse'
-            actual_abs = self.network.network.phi_body(states)
+            actual_abs = torch.log(self.network.network.phi_body(states) + 1e-8) # should I plus this?
         actual_policies = F.log_softmax(self.network.get_logits(states, infos), dim=-1)
         loss_dict = dict()
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
