@@ -78,7 +78,7 @@ class NMFAgent(NMFBaseAgent):
             else: 
                 actual_abs = self.network.abs_encoder.get_logprob(states, infos)
         else:
-            assert config.abs_mode == 'mse'
+            #assert config.abs_mode == 'mse'
             actual_abs = self.network.network.phi_body(states)
         actual_policies = F.log_softmax(self.network.get_logits(states, infos), dim=-1)
         loss_dict = dict()
