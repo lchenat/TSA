@@ -160,7 +160,7 @@ def nineroom_nmf_search(base_dir, feat_dim, touch=True):
 
 # now it is for new split
 @cmd()
-def nineroom_load_search(expname, base_dir, feat_dim):
+def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
     exp_path = Path('exps/pick/nineroom/{}'.format(expname))
     kwargs = { 
         '--agent': 'tsa',
@@ -176,14 +176,17 @@ def nineroom_load_search(expname, base_dir, feat_dim):
         '--save_interval': 1,
         '--steps': 500000,
     }   
-    open(exp_path, 'w').close()
+    if int(touch): open(exp_path, 'w').close()
     with open(exp_path, 'a+') as f:
         for name in os.listdir(base_dir):
             for seed in range(5):
                 step = int(name.split('-')[1])
                 if step % 256000: continue
                 kwargs['--weight'] = Path(base_dir, name)
-                kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
+                if tag is None:
+                    kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
+                else: 
+                    kwargs['--tag'] = '{}-{}-{}-{}'.format(expname, tag, feat_dim, step)
                 kwargs['--seed'] = seed
                 dump_args(f, kwargs=kwargs)
 

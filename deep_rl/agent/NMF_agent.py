@@ -75,7 +75,10 @@ class NMFAgent(NMFBaseAgent):
             else: 
                 actual_abs = self.network.abs_encoder.get_logprob(states, infos)
         else:
-            actual_abs = torch.log(self.network.network.phi_body(states) + 1e-8) # should I plus this?
+            if config.abs_mode == 'mse':
+                actual_abs = self.network.network.phi_body(states)
+            else: 
+                actual_abs = torch.log(self.network.network.phi_body(states) + 1e-16) # should I plus this?
         actual_policies = F.log_softmax(self.network.get_logits(states, infos), dim=-1)
         loss_dict = dict()
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
