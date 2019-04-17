@@ -731,7 +731,7 @@ def nmf_sample(args):
 
     config.max_steps = 10000 if args.d else 1200000
     if args.steps is not None: config.max_steps = args.steps
-    config.eval_interval = 25
+    config.eval_interval = 5
     config.save_interval = args.save_interval
     log_tags = dict(
         task='.'.join([args.env, Path(args.sample_fn).name]),
