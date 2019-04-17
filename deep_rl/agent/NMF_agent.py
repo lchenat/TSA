@@ -21,7 +21,7 @@ class NMFAgent(NMFBaseAgent):
             print('normalized abs')
         else:
             print('unnormalized abs')
-        if config.abs_mode == 'mse' and config.abs_mean is not None:
+        if config.abs_mean is not None:
             print('multiplied by: {}'.format(config.abs_mean / self.abs.mean()))
             self.abs *= config.abs_mean / self.abs.mean()
         self.states = np.concatenate(config.sample_dict['states'])
@@ -75,7 +75,7 @@ class NMFAgent(NMFBaseAgent):
             else: 
                 actual_abs = self.network.abs_encoder.get_logprob(states, infos)
         else:
-            actual_abs = torch.log(self.network.network.phi_body(states) + 1e-8) # should I plus this?
+            actual_abs = torch.log(self.network.network.phi_body(states) + 1e-16) # should I plus this?
         actual_policies = F.log_softmax(self.network.get_logits(states, infos), dim=-1)
         loss_dict = dict()
         #loss_dict['NLL'] = (-logprobs * labels).sum(dim=1).mean()
