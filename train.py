@@ -598,12 +598,11 @@ def ppo_pixel_tsa(args):
             'git sha': git_sha,
             **vars(args),
             }])
-        return run_steps(PPOAgent(config))
+        return PPOAgent(config), run_steps
     else:
         config.abs_save_path = Path(args.weight)
         agent = PPOAgent(config)
-        save_abs(agent)
-        return agent
+        return agent, save_abs
 
 def fc_discrete(args):
     config = Config()
@@ -668,7 +667,7 @@ def fc_discrete(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(PPOAgent(config))
+    return PPOAgent(config), run_steps
 
 def nmf_sample(args):
     config = Config()
@@ -746,7 +745,7 @@ def nmf_sample(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_supervised_steps(NMFAgent(config))
+    return NMFAgent(config), run_supervised_steps
 
 def imitation_tsa(args):
     config = Config()
@@ -780,7 +779,7 @@ def imitation_tsa(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(ImitationAgent(config))
+    return ImitationAgent(config), run_steps
 
 def nmf_direct(args): 
     config = Config()
@@ -817,7 +816,7 @@ def nmf_direct(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(NMFDirectAgent(config))
+    return NMFDirectAgent(config), run_steps
 
 def nmf_reg(args): 
     config = Config()
@@ -854,7 +853,7 @@ def nmf_reg(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(NMFRegAgent(config))
+    return NMFRegAgent(config), run_steps
 
 
 if __name__ == '__main__':
@@ -904,21 +903,22 @@ if __name__ == '__main__':
             # quit ipdb will jump out of this, therefore should put exp_finished inside context
             with context(): 
                 if args.agent == 'tsa':
-                    agent = ppo_pixel_tsa(args)
+                    agent, run_f = ppo_pixel_tsa(args)
                 elif args.agent == 'baseline':
-                    agent = ppo_pixel_baseline(args)
+                    agent, run_f = ppo_pixel_baseline(args)
                 elif args.agent == 'imitation':
-                    agent = imitation_tsa(args)
+                    agent, run_f = imitation_tsa(args)
                 elif args.agent == 'PI':
-                    agent = ppo_pixel_PI(args)
+                    agent, run_f = ppo_pixel_PI(args)
                 elif args.agent == 'fc_discrete':
-                    agent = fc_discrete(args)
+                    agent, run_f = fc_discrete(args)
                 elif args.agent == 'nmf_sample':
-                    agent = nmf_sample(args)
+                    agent, run_f = nmf_sample(args)
                 elif args.agent == 'nmf_direct':
-                    agent = nmf_direct(args)
+                    agent, run_f = nmf_direct(args)
                 elif args.agent == 'nmf_reg':
-                    agent = nmf_reg(args)
+                    agent, run_f = nmf_reg(args)
+                run_f(agent)
                 exp_finished = True
         except Exception as e:
             traceback.print_exc()
