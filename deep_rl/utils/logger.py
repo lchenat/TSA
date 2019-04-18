@@ -59,6 +59,11 @@ class Logger(object):
         self.skip = skip
         self.all_steps = {}
 
+    # delete self.logdir
+    # this should only be called when the logger is not used anymore after calling this function
+    def clear(self):
+        shutil.rmtree(self.log_dir)
+
     def to_numpy(self, v):
         if isinstance(v, torch.Tensor):
             v = v.cpu().detach().numpy()

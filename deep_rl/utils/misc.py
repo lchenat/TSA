@@ -7,6 +7,7 @@
 import subprocess
 import numpy as np
 import pickle
+import re
 import os
 import git
 import sys
@@ -92,6 +93,18 @@ def get_hashcode():
     hashcode = '%08x' % random.getrandbits(32) # random seed does not fixed, wierd...
     random.setstate(state)
     return hashcode
+
+def parse_tag(tag_str, args):
+    #groups = tag_str.split('[') # old method but does not work
+    #groups = sum([group.split(']') for group in groups], []) 
+    groups = re.split(r'(\[.*?\])', tag_str)
+    tag = []
+    for group in groups:
+        if group.startswith('['):
+            tag.append(str(getattr(args, group[1:-1])))
+        else:
+            tag.append(group)
+    return ''.join(tag)
 
 # extract tuples from dictionary
 def extract(d, keys):
@@ -248,6 +261,7 @@ def run_supervised_steps(agent):
             agent.close()
             break
         agent.step()
+    return agent
 
 def get_states_infos(env, discount):
     states, infos = [], []
@@ -301,6 +315,7 @@ def run_steps(agent):
             agent.close()
             break
         agent.step()
+    return agent
 
 def get_time_str():
     return datetime.datetime.now().strftime("%y%m%d-%H%M%S")

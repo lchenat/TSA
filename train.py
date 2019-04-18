@@ -202,7 +202,7 @@ def get_log_tags(args):
         tags['algo'] = Path(args.algo_config).stem
     else:
         tags['algo'] = args.algo_name
-    tags['others'] = args.tag
+    tags['others'] = parse_tag(args.tag, args)
     tags['seed'] = args.seed
     return tags
 
@@ -598,10 +598,12 @@ def ppo_pixel_tsa(args):
             'git sha': git_sha,
             **vars(args),
             }])
-        run_steps(PPOAgent(config))
+        return run_steps(PPOAgent(config))
     else:
         config.abs_save_path = Path(args.weight)
-        save_abs(PPOAgent(config))
+        agent = PPOAgent(config)
+        save_abs(agent)
+        return agent
 
 def fc_discrete(args):
     config = Config()
@@ -666,7 +668,7 @@ def fc_discrete(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    run_steps(PPOAgent(config))
+    return run_steps(PPOAgent(config))
 
 def nmf_sample(args):
     config = Config()
@@ -736,7 +738,7 @@ def nmf_sample(args):
     log_tags = dict(
         task='.'.join([args.env, Path(args.sample_fn).name]),
         algo=args.algo_name,
-        others=args.tag,
+        others=parse_tag(args.tag, args),
         seed=args.seed,
     )
     config.logger = get_logger(args.hash_code, tags=log_tags, skip=args.skip)
@@ -744,7 +746,7 @@ def nmf_sample(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    run_supervised_steps(NMFAgent(config))
+    return run_supervised_steps(NMFAgent(config))
 
 def imitation_tsa(args):
     config = Config()
@@ -778,7 +780,7 @@ def imitation_tsa(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    run_steps(ImitationAgent(config))
+    return run_steps(ImitationAgent(config))
 
 def nmf_direct(args): 
     config = Config()
@@ -815,7 +817,7 @@ def nmf_direct(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    run_steps(NMFDirectAgent(config))
+    return run_steps(NMFDirectAgent(config))
 
 def nmf_reg(args): 
     config = Config()
@@ -852,7 +854,7 @@ def nmf_reg(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    run_steps(NMFRegAgent(config))
+    return run_steps(NMFRegAgent(config))
 
 
 if __name__ == '__main__':
@@ -902,25 +904,27 @@ if __name__ == '__main__':
             # quit ipdb will jump out of this, therefore should put exp_finished inside context
             with context(): 
                 if args.agent == 'tsa':
-                    ppo_pixel_tsa(args)
+                    agent = ppo_pixel_tsa(args)
                 elif args.agent == 'baseline':
-                    ppo_pixel_baseline(args)
+                    agent = ppo_pixel_baseline(args)
                 elif args.agent == 'imitation':
-                    imitation_tsa(args)
+                    agent = imitation_tsa(args)
                 elif args.agent == 'PI':
-                    ppo_pixel_PI(args)
+                    agent = ppo_pixel_PI(args)
                 elif args.agent == 'fc_discrete':
-                    fc_discrete(args)
+                    agent = fc_discrete(args)
                 elif args.agent == 'nmf_sample':
-                    nmf_sample(args)
+                    agent = nmf_sample(args)
                 elif args.agent == 'nmf_direct':
-                    nmf_direct(args)
+                    agent = nmf_direct(args)
                 elif args.agent == 'nmf_reg':
-                    nmf_reg(args)
+                    agent = nmf_reg(args)
                 exp_finished = True
         except Exception as e:
             traceback.print_exc()
         finally:
             if not exp_finished:
+                if stdin_choices('experiment is not finished, want to clean up the log?', ['y', 'n']):
+                    agent.config.logger.clear()
                 push_args(args_str, exp_path)
                 break # should quit immediately
