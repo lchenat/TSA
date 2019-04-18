@@ -167,7 +167,7 @@ def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
         '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
         '--net': 'baseline',
         '--visual': 'mini',
-        #'--gate': 'softplus', # be careful about this!
+        '--gate': 'lrelu', # be careful about this!
         '--feat_dim': int(feat_dim),
         '--load_part': 'abs',
         '--obs_type': 'mask',

@@ -1,0 +1,1 @@
+--visual mini --net baseline --obs_type mask --scale 2 --weight log/pick.split.kl.10-0.0-20/nmf_sample.baseline.n_abs-20/kl_split_1.0_kl/0.190417-143152/models/step-1024000-acc-10.80 --feat_dim 20
