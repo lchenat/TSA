@@ -10,6 +10,8 @@ random.seed(1)
 
 # subsample files
 def subsample(files, n, mode='evenly'):
+    print(files)
+    if n == -1: return files
     files = sorted([(int(fn.split('-')[1]), fn) for fn in files])
     if mode == 'evenly':
         gap = len(files) // n
@@ -171,7 +173,9 @@ def nineroom_nmf_search(base_dir, feat_dim, touch=True):
 
 # now it is for new split
 @cmd()
-def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
+def nineroom_load_search(expname, base_dir, feat_dim=20, n_models=-1, tag=None, touch=1):
+    feat_dim = int(feat_dim)
+    n_models = int(n_models)
     exp_path = Path('exps/pick/nineroom/{}'.format(expname))
     kwargs = { 
         '--agent': 'tsa',
@@ -179,7 +183,7 @@ def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
         '--net': 'baseline',
         '--visual': 'mini',
         #'--gate': 'relu', # be careful about this!
-        '--feat_dim': int(feat_dim),
+        '--feat_dim': feat_dim,
         '--load_part': 'abs',
         '--obs_type': 'mask',
         '--scale': 2,
@@ -189,7 +193,8 @@ def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
     }   
     if int(touch): open(exp_path, 'w').close()
     with open(exp_path, 'a+') as f:
-        for name in subsample(os.listdir(base_dir), 4): # be careful!
+        for name in subsample(os.listdir(base_dir), n_models): # be careful!
+            print(name)
             for seed in range(5):
                 step = int(name.split('-')[1])
                 #if step % 256000: continue # for nmf
