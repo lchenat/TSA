@@ -767,10 +767,10 @@ def imitation_tsa(args):
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
-    config.gradient_clip = 0.5
+    #config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 3e7 if args.d else int(3e6)
+    config.max_steps = 300000 if args.d else 1200000
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = args.eval_interval
     config.save_interval = 1 # in terms of eval interval
