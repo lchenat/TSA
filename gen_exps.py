@@ -8,6 +8,17 @@ from deep_rl.utils.misc import cmd, cmd_run
 
 random.seed(1)
 
+# subsample files
+def subsample(files, n, mode='evenly'):
+    files = sorted([(int(fn.split('-')[1]), fn) for fn in files])
+    if mode == 'evenly':
+        gap = len(files) // n
+        return [files[i][1] for i in range(0, len(files), gap)][-n:]
+    elif mode == 'random':
+        return [p[1] for p in random.sample(files, n)]
+    else:
+        raise Exception('unsupported sampling mode')
+
 @cmd('resume')
 def resume_exp(exp_fn):
     exp_fn = Path(exp_fn)
@@ -178,7 +189,7 @@ def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
     }   
     if int(touch): open(exp_path, 'w').close()
     with open(exp_path, 'a+') as f:
-        for name in os.listdir(base_dir):
+        for name in subsample(os.listdir(base_dir), 4): # be careful!
             for seed in range(5):
                 step = int(name.split('-')[1])
                 #if step % 256000: continue # for nmf
