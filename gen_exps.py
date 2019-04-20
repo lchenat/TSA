@@ -181,7 +181,7 @@ def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
         for name in os.listdir(base_dir):
             for seed in range(5):
                 step = int(name.split('-')[1])
-                if step % 256000: continue
+                #if step % 256000: continue # for nmf
                 kwargs['--weight'] = Path(base_dir, name)
                 if tag is None:
                     kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
