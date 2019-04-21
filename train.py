@@ -25,11 +25,10 @@ git_sha = get_git_sha()
 
 def _command_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('op', type=str, choices=['new', 'join', 'wait', 'push'],
+    parser.add_argument('op', type=str, choices=['new', 'join', 'push'],
         help='create a new exp with name exp-tag or join an old one, or wait for one to solve')
     parser.add_argument('exp', type=str, default='exps/exp', 
         help='path of the experiment file')
-    parser.add_argument('--wait', action='store_true', help='wait for the next one after the current is finished')
     parser.add_argument('-d', action='store_true') # debug mode
     parser.add_argument('--skip', action='store_true') 
     return parser
@@ -867,6 +866,7 @@ def run_exp(exp_path, parser, command_args):
             args.hash_code = record_run(args_str)
             args.d = command_args.d # pass debug flag
             args.skip = command_args.skip
+            global Task # fix
             if args.env == 'pick':
                 Task = PickGridWorldTask
             elif args.env == 'reach':
@@ -909,8 +909,8 @@ def run_exp(exp_path, parser, command_args):
             traceback.print_exc()
         finally:
             if not exp_finished:
-                if stdin_choices('experiment is not finished, want to clean up the log?', ['y', 'n']):
-                    agent.config.logger.clear()
+                if not command_args.skip and 'agent' in vars() and stdin_choices('experiment is not finished, want to clean up the log?', ['y', 'n']) == 'y':
+                    agent.config.logger.clear() # when agent is not defined, this cannot be ran
                 push_args(args_str, exp_path)
                 break
 
@@ -920,26 +920,22 @@ def main(args=None):
     mkdir('exps/running')
     if command_args.op == 'new':
         assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
-        exp_path = Path('exps/running/{}-{}.run'.format(command_args.exp, get_time_str()))
+        exp_path = Path('exps/running/{}-{}.run'.format(Path(command_args.exp).name, get_time_str()))
         shutil.copy(command_args.exp, str(exp_path))
     elif command_args.op == 'join':
         exp_path = Path(command_args.exp)
         assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
     elif command_args.op == 'push':
         assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
-        exp_path = Path('exps/running/{}-{}.run'.format(command_args.exp, get_time_str()))
+        exp_path = Path('exps/running/{}-{}.run'.format(Path(command_args.exp).name, get_time_str()))
         shutil.copy(command_args.exp, str(exp_path))
         return
-    else: # wait
-        command_args.wait = True
+    else:
+        raise Exception('unsupported operation')
     if not command_args.d and is_git_diff():
         print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
         exit() # end the program
-    while True:
-        run_exp(exp_path, parser, command_args)
-        if args.wait: # found new task to join
-            exp_path = wait_exp('exps/running')
-        else: break
+    run_exp(exp_path, parser, command_args)
 
 if __name__ == '__main__':
     main()

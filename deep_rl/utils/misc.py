@@ -158,13 +158,6 @@ def push_args(args_str, args_path, timeout=30):
         with open(args_path, 'w') as f:
             f.writelines(jobs)
 
-def wait_exp(exp_dir):
-    while True:
-        for fn in os.listdir(exp_dir):
-            if not fn.endswith('.run'): continue
-            return Path(exp_dir, fn)
-        time.sleep(1)
-
 # input parser, arguments
 # output a dictionary seperate args into different group
 def group_args(parser, args):
