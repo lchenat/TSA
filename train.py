@@ -25,14 +25,13 @@ git_sha = get_git_sha()
 
 def _command_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('op', type=str, choices=['new', 'join'], # no default!
-        help='create a new exp with name exp-tag or join an old one')
+    parser.add_argument('op', type=str, choices=['new', 'join', 'wait'], # no default!
+        help='create a new exp with name exp-tag or join an old one, or wait for one to solve')
     parser.add_argument('exp', type=str, default='exps/exp', 
         help='path of the experiment file')
-    parser.add_argument('--tag', type=str, default='0',
-        help='suffix tag creating a new experiment')
+    parser.add_argument('--wait', action='store_true', help='wait for the next one after the current is finished')
     parser.add_argument('-d', action='store_true') # debug mode
-    parser.add_argument('--skip', action='store_true')
+    parser.add_argument('--skip', action='store_true') 
     return parser
 
 def _exp_parser():
@@ -855,21 +854,7 @@ def nmf_reg(args):
         }])
     return NMFRegAgent(config), run_steps
 
-
-if __name__ == '__main__':
-    command_args = _command_parser().parse_args()
-    parser = _exp_parser()
-    if command_args.op == 'new':
-        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
-        exp_path = Path('{}-{}.run'.format(command_args.exp, command_args.tag))
-        if not exp_path.exists() or stdin_choices('{} exists, want to replace?'.format(exp_path), ['y', 'n']):
-            shutil.copy(command_args.exp, str(exp_path))
-    else: # join
-        exp_path = Path(command_args.exp)
-        assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
-    if not command_args.d and is_git_diff():
-        print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
-        exit() # end the program
+def run_exp(exp_path, parser, command_args):
     while True:
         args = read_args(exp_path)
         if args is None: break
@@ -927,4 +912,28 @@ if __name__ == '__main__':
                 if stdin_choices('experiment is not finished, want to clean up the log?', ['y', 'n']):
                     agent.config.logger.clear()
                 push_args(args_str, exp_path)
-                break # should quit immediately
+                break
+
+def main(args=None):
+    command_args = _command_parser().parse_args(args)
+    parser = _exp_parser()
+    mkdir('exps/running')
+    if command_args.op == 'new':
+        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
+        exp_path = Path('exps/running/{}-{}.run'.format(command_args.exp, get_time_str()))
+    elif command_args.op == 'join':
+        exp_path = Path(command_args.exp)
+        assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
+    else: # wait
+        command_args.wait = True
+    if not command_args.d and is_git_diff():
+        print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
+        exit() # end the program
+    while True:
+        run_exp(exp_path, parser, command_args)
+        if args.wait: # found new task to join
+            exp_path = wait_exp('exps/running')
+        else: break
+
+if __name__ == '__main__':
+    main()
