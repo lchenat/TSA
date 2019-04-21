@@ -25,7 +25,7 @@ git_sha = get_git_sha()
 
 def _command_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('op', type=str, choices=['new', 'join', 'wait'], # no default!
+    parser.add_argument('op', type=str, choices=['new', 'join', 'wait', 'push'],
         help='create a new exp with name exp-tag or join an old one, or wait for one to solve')
     parser.add_argument('exp', type=str, default='exps/exp', 
         help='path of the experiment file')
@@ -921,9 +921,15 @@ def main(args=None):
     if command_args.op == 'new':
         assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
         exp_path = Path('exps/running/{}-{}.run'.format(command_args.exp, get_time_str()))
+        shutil.copy(command_args.exp, str(exp_path))
     elif command_args.op == 'join':
         exp_path = Path(command_args.exp)
         assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
+    elif command_args.op == 'push':
+        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
+        exp_path = Path('exps/running/{}-{}.run'.format(command_args.exp, get_time_str()))
+        shutil.copy(command_args.exp, str(exp_path))
+        return
     else: # wait
         command_args.wait = True
     if not command_args.d and is_git_diff():
