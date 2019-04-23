@@ -30,6 +30,7 @@ def _command_parser():
     parser.add_argument('exp', type=str, default='exps/exp', 
         help='path of the experiment file')
     parser.add_argument('-d', action='store_true') # debug mode
+    parser.add_argument('--tag', type=str, default='0')
     parser.add_argument('--skip', action='store_true') 
     return parser
 
@@ -47,8 +48,6 @@ def _exp_parser():
             'fc_discrete', # use fc body, tabular cases
             'fc_continuous', # use fc body
             'nmf_sample', # non-tabular cases
-            'nmf_direct',
-            'nmf_reg',
         ],
     )
     # environment (the task setting, first level directory)
@@ -779,80 +778,6 @@ def imitation_tsa(args):
         }])
     return ImitationAgent(config), run_steps
 
-def nmf_direct(args): 
-    config = Config()
-    set_layer_init_mode(args.init_mode)
-    env_config = get_env_config(args)
-    config.env_config = env_config
-    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
-    config.eval_env = Task(env_config)
-    print('n_tasks:', config.eval_env.n_tasks)
-    config.expert = get_expert(args, config)
-    config.num_workers = 8
-    visual_body = get_visual_body(args, config)
-    network, args.algo_name = get_network(visual_body, args, config)
-    config.network_fn = lambda: network
-    set_aux_network(visual_body, args, config)
-    process_weight(network, args, config)
-    set_optimizer_fn(args, config)
-    if args.obs_type == 'rgb':
-        assert args.env in ['pick', 'reach']
-        config.state_normalizer = ImageNormalizer() # tricky
-    config.discount = args.discount
-    #config.gradient_clip = 0.5
-    config.rollout_length = args.rollout_length
-    config.x_iter = args.x_iter
-    config.u_iter = args.u_iter
-    config.v_iter = args.v_iter
-    config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 2e7 if args.d else int(3e6)
-    if args.steps is not None: config.max_steps = args.steps
-    config.eval_interval = args.eval_interval
-    config.save_interval = 1 # in terms of eval interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
-    config.logger.add_text('Configs', [{
-        'git sha': git_sha,
-        **vars(args),
-        }])
-    return NMFDirectAgent(config), run_steps
-
-def nmf_reg(args): 
-    config = Config()
-    set_layer_init_mode(args.init_mode)
-    env_config = get_env_config(args)
-    config.env_config = env_config
-    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
-    config.eval_env = Task(env_config)
-    print('n_tasks:', config.eval_env.n_tasks)
-    config.expert = get_expert(args, config)
-    config.num_workers = 8
-    visual_body = get_visual_body(args, config)
-    network, args.algo_name = get_network(visual_body, args, config)
-    config.network_fn = lambda: network
-    set_aux_network(visual_body, args, config)
-    process_weight(network, args, config)
-    set_optimizer_fn(args, config)
-    if args.obs_type == 'rgb':
-        assert args.env in ['pick', 'reach']
-        config.state_normalizer = ImageNormalizer() # tricky
-    config.discount = args.discount
-    config.gradient_clip = 0.5
-    config.rollout_length = args.rollout_length
-    config.x_iter = args.x_iter
-    config.u_iter = args.u_iter
-    config.v_iter = args.v_iter
-    config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 2e7 if args.d else int(3e6)
-    if args.steps is not None: config.max_steps = args.steps
-    config.eval_interval = args.eval_interval
-    config.save_interval = 1 # in terms of eval interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
-    config.logger.add_text('Configs', [{
-        'git sha': git_sha,
-        **vars(args),
-        }])
-    return NMFRegAgent(config), run_steps
-
 def run_exp(exp_path, parser, command_args):
     while True:
         args = read_args(exp_path)
@@ -917,19 +842,17 @@ def run_exp(exp_path, parser, command_args):
 def main(args=None):
     command_args = _command_parser().parse_args(args)
     parser = _exp_parser()
-    mkdir('exps/running')
     if command_args.op == 'new':
         assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
-        exp_path = Path('exps/running/{}-{}.run'.format(Path(command_args.exp).name, get_time_str()))
-        shutil.copy(command_args.exp, str(exp_path))
+        exp_path = Path('{}-{}.run'.format(command_args.exp, command_args.tag))
+        if not exp_path.exists() or stdin_choices('{} exists, want to replace?'.format(exp_path), ['y', 'n']):
+            shutil.copy(command_args.exp, str(exp_path))
+        else: exit()
     elif command_args.op == 'join':
         exp_path = Path(command_args.exp)
         assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
-    elif command_args.op == 'push':
-        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
-        exp_path = Path('exps/running/{}-{}.run'.format(Path(command_args.exp).name, get_time_str()))
-        shutil.copy(command_args.exp, str(exp_path))
-        return
+    elif command_args.op == 'push': # push exp_path and hashcode (not the same hashcode should not be run)
+        raise Exception('not finished yet')
     else:
         raise Exception('unsupported operation')
     if not command_args.d and is_git_diff():

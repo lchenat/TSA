@@ -14,4 +14,4 @@ def wait_exp(exp_dir):
 if __name__ == "__main__":
     while True:
         exp_path = wait_exp('exps/running')
-        subprocess.call(['python', 'train.py', 'join', exp_path, '-d', '--skip'])
+        subprocess.call(['python', 'train.py', 'join', exp_path])
