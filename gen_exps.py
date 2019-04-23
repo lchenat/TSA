@@ -8,6 +8,19 @@ from deep_rl.utils.misc import cmd, cmd_run
 
 random.seed(1)
 
+# subsample files
+def subsample(files, n, mode='evenly'):
+    print(files)
+    if n == -1: return files
+    files = sorted([(int(fn.split('-')[1]), fn) for fn in files])
+    if mode == 'evenly':
+        gap = len(files) // n
+        return [files[i][1] for i in range(0, len(files), gap)][-n:]
+    elif mode == 'random':
+        return [p[1] for p in random.sample(files, n)]
+    else:
+        raise Exception('unsupported sampling mode')
+
 @cmd('resume')
 def resume_exp(exp_fn):
     exp_fn = Path(exp_fn)
@@ -160,15 +173,17 @@ def nineroom_nmf_search(base_dir, feat_dim, touch=True):
 
 # now it is for new split
 @cmd()
-def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
+def nineroom_load_search(expname, base_dir, feat_dim=20, n_models=-1, tag=None, touch=1):
+    feat_dim = int(feat_dim)
+    n_models = int(n_models)
     exp_path = Path('exps/pick/nineroom/{}'.format(expname))
     kwargs = { 
         '--agent': 'tsa',
         '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
         '--net': 'baseline',
         '--visual': 'mini',
-        '--gate': 'lrelu', # be careful about this!
-        '--feat_dim': int(feat_dim),
+        #'--gate': 'relu', # be careful about this!
+        '--feat_dim': feat_dim,
         '--load_part': 'abs',
         '--obs_type': 'mask',
         '--scale': 2,
@@ -178,10 +193,11 @@ def nineroom_load_search(expname, base_dir, feat_dim, tag=None, touch=1):
     }   
     if int(touch): open(exp_path, 'w').close()
     with open(exp_path, 'a+') as f:
-        for name in os.listdir(base_dir):
+        for name in subsample(os.listdir(base_dir), n_models): # be careful!
+            print(name)
             for seed in range(5):
                 step = int(name.split('-')[1])
-                if step % 256000: continue
+                #if step % 256000: continue # for nmf
                 kwargs['--weight'] = Path(base_dir, name)
                 if tag is None:
                     kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
@@ -215,33 +231,6 @@ def nineroom_absx_search(expname, base_dir, feat_dim):
             for seed in range(5):
                 kwargs['--weight'] = Path(base_dir, name)
                 kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
-                kwargs['--seed'] = seed
-                dump_args(f, kwargs=kwargs)
-
-
-@cmd()
-def nineroom_kl_only_search(base_dir, feat_dim, touch=True):
-    exp_path = Path('exps/pick/nineroom/kl_only_search_{}'.format(feat_dim))
-    kwargs = { 
-        '--agent': 'tsa',
-        '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
-        '--net': 'baseline',
-        '--visual': 'mini',
-        '--gate': 'softplus',
-        '--feat_dim': int(feat_dim),
-        '--load_part': 'abs',
-        '--obs_type': 'mask',
-        '--scale': 2,
-        '--eval_interval': 15, 
-        '--save_interval': 1,
-        '--steps': 500000,
-    }   
-    if touch: open(exp_path, 'w').close()
-    with open(exp_path, 'a+') as f:
-        for name in os.listdir(base_dir):
-            for seed in range(3):
-                kwargs['--weight'] = Path(base_dir, name)
-                kwargs['--tag'] = 'kl_only_{}-{}'.format(feat_dim, name.split('-')[1])
                 kwargs['--seed'] = seed
                 dump_args(f, kwargs=kwargs)
 

@@ -25,14 +25,12 @@ git_sha = get_git_sha()
 
 def _command_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('op', type=str, choices=['new', 'join'], # no default!
-        help='create a new exp with name exp-tag or join an old one')
+    parser.add_argument('op', type=str, choices=['new', 'join', 'push'],
+        help='create a new exp with name exp-tag or join an old one, or wait for one to solve')
     parser.add_argument('exp', type=str, default='exps/exp', 
         help='path of the experiment file')
-    parser.add_argument('--tag', type=str, default='0',
-        help='suffix tag creating a new experiment')
     parser.add_argument('-d', action='store_true') # debug mode
-    parser.add_argument('--skip', action='store_true')
+    parser.add_argument('--skip', action='store_true') 
     return parser
 
 def _exp_parser():
@@ -598,12 +596,11 @@ def ppo_pixel_tsa(args):
             'git sha': git_sha,
             **vars(args),
             }])
-        return run_steps(PPOAgent(config))
+        return PPOAgent(config), run_steps
     else:
         config.abs_save_path = Path(args.weight)
         agent = PPOAgent(config)
-        save_abs(agent)
-        return agent
+        return agent, save_abs
 
 def fc_discrete(args):
     config = Config()
@@ -668,7 +665,7 @@ def fc_discrete(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(PPOAgent(config))
+    return PPOAgent(config), run_steps
 
 def nmf_sample(args):
     config = Config()
@@ -746,7 +743,7 @@ def nmf_sample(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_supervised_steps(NMFAgent(config))
+    return NMFAgent(config), run_supervised_steps
 
 def imitation_tsa(args):
     config = Config()
@@ -768,10 +765,10 @@ def imitation_tsa(args):
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
-    config.gradient_clip = 0.5
+    #config.gradient_clip = 0.5
     config.rollout_length = args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 3e7 if args.d else int(3e6)
+    config.max_steps = 300000 if args.d else 1200000
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = args.eval_interval
     config.save_interval = 1 # in terms of eval interval
@@ -780,7 +777,7 @@ def imitation_tsa(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(ImitationAgent(config))
+    return ImitationAgent(config), run_steps
 
 def nmf_direct(args): 
     config = Config()
@@ -817,7 +814,7 @@ def nmf_direct(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(NMFDirectAgent(config))
+    return NMFDirectAgent(config), run_steps
 
 def nmf_reg(args): 
     config = Config()
@@ -854,23 +851,9 @@ def nmf_reg(args):
         'git sha': git_sha,
         **vars(args),
         }])
-    return run_steps(NMFRegAgent(config))
+    return NMFRegAgent(config), run_steps
 
-
-if __name__ == '__main__':
-    command_args = _command_parser().parse_args()
-    parser = _exp_parser()
-    if command_args.op == 'new':
-        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
-        exp_path = Path('{}-{}.run'.format(command_args.exp, command_args.tag))
-        if not exp_path.exists() or stdin_choices('{} exists, want to replace?'.format(exp_path), ['y', 'n']):
-            shutil.copy(command_args.exp, str(exp_path))
-    else: # join
-        exp_path = Path(command_args.exp)
-        assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
-    if not command_args.d and is_git_diff():
-        print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
-        exit() # end the program
+def run_exp(exp_path, parser, command_args):
     while True:
         args = read_args(exp_path)
         if args is None: break
@@ -883,6 +866,7 @@ if __name__ == '__main__':
             args.hash_code = record_run(args_str)
             args.d = command_args.d # pass debug flag
             args.skip = command_args.skip
+            global Task # fix
             if args.env == 'pick':
                 Task = PickGridWorldTask
             elif args.env == 'reach':
@@ -904,27 +888,54 @@ if __name__ == '__main__':
             # quit ipdb will jump out of this, therefore should put exp_finished inside context
             with context(): 
                 if args.agent == 'tsa':
-                    agent = ppo_pixel_tsa(args)
+                    agent, run_f = ppo_pixel_tsa(args)
                 elif args.agent == 'baseline':
-                    agent = ppo_pixel_baseline(args)
+                    agent, run_f = ppo_pixel_baseline(args)
                 elif args.agent == 'imitation':
-                    agent = imitation_tsa(args)
+                    agent, run_f = imitation_tsa(args)
                 elif args.agent == 'PI':
-                    agent = ppo_pixel_PI(args)
+                    agent, run_f = ppo_pixel_PI(args)
                 elif args.agent == 'fc_discrete':
-                    agent = fc_discrete(args)
+                    agent, run_f = fc_discrete(args)
                 elif args.agent == 'nmf_sample':
-                    agent = nmf_sample(args)
+                    agent, run_f = nmf_sample(args)
                 elif args.agent == 'nmf_direct':
-                    agent = nmf_direct(args)
+                    agent, run_f = nmf_direct(args)
                 elif args.agent == 'nmf_reg':
-                    agent = nmf_reg(args)
+                    agent, run_f = nmf_reg(args)
+                run_f(agent)
                 exp_finished = True
         except Exception as e:
             traceback.print_exc()
         finally:
             if not exp_finished:
-                if stdin_choices('experiment is not finished, want to clean up the log?', ['y', 'n']):
-                    agent.config.logger.clear()
+                if not command_args.skip and 'agent' in vars() and stdin_choices('experiment is not finished, want to clean up the log?', ['y', 'n']) == 'y':
+                    agent.config.logger.clear() # when agent is not defined, this cannot be ran
                 push_args(args_str, exp_path)
-                break # should quit immediately
+                break
+
+def main(args=None):
+    command_args = _command_parser().parse_args(args)
+    parser = _exp_parser()
+    mkdir('exps/running')
+    if command_args.op == 'new':
+        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
+        exp_path = Path('exps/running/{}-{}.run'.format(Path(command_args.exp).name, get_time_str()))
+        shutil.copy(command_args.exp, str(exp_path))
+    elif command_args.op == 'join':
+        exp_path = Path(command_args.exp)
+        assert exp_path.suffix == '.run', 'only support run filetype, name: {}, suffix: {}'.format(exp_path, exp_path.suffix)
+    elif command_args.op == 'push':
+        assert Path(command_args.exp).suffix != '.run', '.run file should be joined instead of new'
+        exp_path = Path('exps/running/{}-{}.run'.format(Path(command_args.exp).name, get_time_str()))
+        shutil.copy(command_args.exp, str(exp_path))
+        return
+    else:
+        raise Exception('unsupported operation')
+    if not command_args.d and is_git_diff():
+        print(colored('please commit your changes before running new experiments!', 'red', attrs=['bold']))
+        exit() # end the program
+    run_exp(exp_path, parser, command_args)
+
+if __name__ == '__main__':
+    main()
