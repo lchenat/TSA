@@ -41,6 +41,7 @@ def _exp_parser():
         '--agent', 
         default='tsa', 
         choices=[
+            'dqn',
             'tsa', 
             'baseline', 
             'supervised',
@@ -778,6 +779,44 @@ def imitation_tsa(args):
         }])
     return ImitationAgent(config), run_steps
 
+def dqn(args):
+    config = Config()
+    config.history_length = 4
+    config.task_fn = lambda: Task(env_config)
+    config.eval_env = Task(env_config)
+    env_config = get_env_config(args)
+    config.env_config = env_config
+
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(
+        params, lr=0.00025, alpha=0.95, eps=0.01, centered=True)
+    #config.network_fn = lambda: VanillaNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
+    config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
+    # config.network_fn = lambda: DuelingNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
+    config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6)
+
+    # config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    config.replay_fn = lambda: AsyncReplay(memory_size=int(1e6), batch_size=32)
+
+    config.batch_size = 32
+    if args.obs_type == 'rgb':
+        assert args.env in ['pick', 'reach']
+        config.state_normalizer = ImageNormalizer() # tricky
+    config.reward_normalizer = SignNormalizer() # really need this?
+    config.discount = 0.99
+    config.target_network_update_freq = 10000
+    config.exploration_steps = 50000
+    config.sgd_update_frequency = 4
+    config.gradient_clip = 5
+    # config.double_q = True
+    config.double_q = False
+    config.max_steps = int(2e7)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
+    config.logger.add_text('Configs', [{
+        'git sha': git_sha,
+        **vars(args),
+        }])
+    return DQNAgent(config), run_steps
+
 def run_exp(exp_path, parser, command_args):
     while True:
         args = read_args(exp_path)
@@ -828,6 +867,8 @@ def run_exp(exp_path, parser, command_args):
                     agent, run_f = nmf_direct(args)
                 elif args.agent == 'nmf_reg':
                     agent, run_f = nmf_reg(args)
+                elif args.agent == 'dqn':
+                    agent, run_f = dqn(args)
                 run_f(agent)
                 exp_finished = True
         except Exception as e:
