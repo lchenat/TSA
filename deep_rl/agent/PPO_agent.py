@@ -130,15 +130,6 @@ class PPOAgent(BaseAgent):
                 #network_loss = network_loss / torch.clamp(network_loss.detach(), min=1)
                 loss_dict['network'].append(network_loss)
                 aux_loss = network_loss
-                if getattr(config, 'action_predictor', None) is not None: # inverse dynamic loss
-                    indices = sampled_ms.squeeze(1) > 0
-                    action_prediction_loss = 0.05 * config.action_predictor.loss(sampled_states[indices], sampled_next_states[indices], sampled_actions[indices])
-                    loss_dict['action'].append(action_prediction_loss)
-                    aux_loss += action_prediction_loss
-                if getattr(config, 'recon', None) is not None:
-                    recon_loss = config.recon.loss(sampled_states)
-                    loss_dict['recon'].append(recon_loss)
-                    aux_loss += recon_loss
                 if hasattr(config, 'reg_abs'):
                     reg_abs_loss = config.reg_abs.loss(sampled_states, sampled_infos)
                     loss_dict['reg_abs'].append(reg_abs_loss)

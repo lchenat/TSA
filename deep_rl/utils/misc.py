@@ -260,7 +260,6 @@ def run_supervised_steps(agent):
                 if config.save_interval and not agent.total_steps / config.log_interval / config.eval_interval % config.save_interval:
                     weight_dict = dict(
                         network=agent.network.state_dict(),
-                        action_predictor=config.action_predictor.state_dict() if hasattr(config, 'action_predictor') else None,
                     )
                     config.logger.save_model('step-{}-acc-{:.2f}'.format(agent.total_steps, acc), weight_dict)
         if config.max_steps and agent.total_steps >= config.max_steps:
@@ -314,7 +313,6 @@ def run_steps(agent):
                 if config.save_interval and not agent.total_steps / config.log_interval / config.eval_interval % config.save_interval:
                     weight_dict = dict(
                         network=agent.network.state_dict(),
-                        action_predictor=config.action_predictor.state_dict() if hasattr(config, 'action_predictor') else None,
                     )
                     config.logger.save_model('step-{}-mean-{:.2f}'.format(stats['steps'], mean_return), weight_dict)
         if config.max_steps and agent.total_steps >= config.max_steps:

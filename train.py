@@ -86,12 +86,10 @@ def _exp_parser():
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--res_config', type=str, default=None) # load the network config
     algo.add_argument('--actor', choices=['linear', 'nonlinear', 'split'], default='linear')
-    algo.add_argument('--critic', default='visual', choices=['critic', 'abs'])
     algo.add_argument('--rate', type=float, default=1)
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
     algo.add_argument('--batch_size', type=int, default=32)
     algo.add_argument('--num_workers', type=int, default=8)
-    algo.add_argument('--init_mode', default='orthogonal', choices=['orthogonal', 'uniform'])
     algo.add_argument('--action_mode', choices=['max', 'softmax'], default='max') # for dqn
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
@@ -109,9 +107,6 @@ def _exp_parser():
     algo.add_argument('--abs_mode', choices=['mse', 'kl'], default='mse')
     algo.add_argument('--load_actor', action='store_true')
     # aux loss
-    algo.add_argument('--pred_action', action='store_true')
-    algo.add_argument('--recon', action='store_true')
-    algo.add_argument('--trans', action='store_true')
     algo.add_argument('--reg_abs_fn', type=str, default=None)
     algo.add_argument('--reg_abs_weight', type=float, default=1.0)
     # optimization
@@ -290,14 +285,6 @@ def get_visual_body(args, config):
         config.reg_abs = RegAbs(visual_body, abs_dict, args.reg_abs_weight)
     return visual_body
 
-def set_aux_network(visual_body, args, config):
-    if args.pred_action:
-        config.action_predictor = ActionPredictor(config.action_dim, visual_body)
-    if args.recon:
-        config.recon = UNetReconstructor(visual_body, 3*config.env_config['main']['window'])
-    if args.trans:
-        config.trans = TransitionModel(visual_body, config.action_dim, 3*config.env_config['main']['window'])
-
 # deal with loading and fixing weight
 def process_weight(network, args, config):
     if args.weight is not None:
@@ -418,10 +405,7 @@ def get_network(visual_body, args, config):
                 actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         else:
             raise Exception('unsupported network type')
-        if args.critic == 'visual':
-            critic_body = visual_body
-        elif args.critic == 'abs':
-            critic_body = abs_encoder
+        critic_body = visual_body
         critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
         network = TSANet(config.action_dim, abs_encoder, actor, critic)
     return network, algo_name
@@ -445,7 +429,6 @@ def get_grid_network(args, config):
         with open(args.abs_fn, 'rb') as f:
             abs_dict = dill.load(f)
             n_abs = len(list(abs_dict.values())[0]) # this is the length of feature vector
-        #print(abs_dict)
         def abs_f(states):
             np_states = to_np(states)
             abs_s = np.array([abs_dict[tuple(s)] for s in np_states])
@@ -483,7 +466,7 @@ def get_grid_network(args, config):
             actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
     else:
         raise Exception('unsupported network')
-    critic_body = abs_encoder
+    critic_body = abs_encoder # does this matter?
     critic = TSACriticNet(critic_body, config.eval_env.n_tasks)
     network = TSANet(config.action_dim, abs_encoder, actor, critic)
     return network, '.'.join(algo_name)
@@ -557,7 +540,6 @@ def get_expert(args, config):
 
 def ppo_pixel_tsa(args):
     config = Config()
-    set_layer_init_mode(args.init_mode)
     env_config = get_env_config(args)
     config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
@@ -601,7 +583,6 @@ def ppo_pixel_tsa(args):
 
 def fc_discrete(args):
     config = Config()
-    set_layer_init_mode(args.init_mode)
     config.num_workers = 5
     if args.env == 'grid':
         goal_locs = process_goals(args.goal_fn)
@@ -666,7 +647,6 @@ def fc_discrete(args):
 
 def nmf_sample(args):
     config = Config()
-    set_layer_init_mode(args.init_mode)
     assert args.sample_fn is not None, 'need args.sample_fn'
     with open(args.sample_fn, 'rb') as f:
         sample_dict = dill.load(f) # abs, policy
@@ -744,7 +724,6 @@ def nmf_sample(args):
 
 def imitation_tsa(args):
     config = Config()
-    set_layer_init_mode(args.init_mode)
     env_config = get_env_config(args)
     config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
@@ -791,7 +770,7 @@ def dqn(args):
     config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
     args.algo_name = args.agent
     # config.network_fn = lambda: DuelingNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
-    config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6)
+    config.random_action_prob = LinearSchedule(1.0, 0.01, 1e7) # 1e6
 
     # config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
     config.replay_fn = lambda: AsyncReplay(memory_size=int(2e6), batch_size=32)

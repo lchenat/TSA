@@ -76,27 +76,15 @@ class MultiMLP(nn.Module):
                 y = F.relu(y)
         return y
 
-layer_init_mode = 'orthogonal'
-def set_layer_init_mode(mode):
-    global layer_init_mode
-    assert mode in ['uniform', 'orthogonal']
-    layer_init_mode = mode
-
 def layer_init(layer, w_scale=1.0):
-    if layer_init_mode == 'orthogonal':
-        init_f = nn.init.orthogonal_
-    elif layer_init_mode == 'uniform':
-        init_f = nn.init.uniform_
+    init_f = nn.init.orthogonal_
     init_f(layer.weight.data)
     layer.weight.data.mul_(w_scale)
     if layer.bias is not None: nn.init.constant_(layer.bias.data, 0)
     return layer
 
 def weight_init(weight, w_scale=1.0):
-    if layer_init_mode == 'orthogonal':
-        init_f = nn.init.orthogonal_
-    elif layer_init_mode == 'uniform':
-        init_f = nn.init.uniform_
+    init_f = nn.init.orthogonal_
     init_f(weight.data)
     weight.data.mul_(w_scale)
     return weight
