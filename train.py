@@ -797,13 +797,13 @@ def dqn(args):
     config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6)
 
     # config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.replay_fn = lambda: AsyncReplay(memory_size=int(1e6), batch_size=32)
+    config.replay_fn = lambda: AsyncReplay(memory_size=int(2e6), batch_size=32)
 
     config.batch_size = 32
     if args.obs_type == 'rgb':
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
-    #config.reward_normalizer = SignNormalizer() # really need this?
+    config.reward_normalizer = RescaleNormalizer(0.1)
     config.discount = 0.99
     config.target_network_update_freq = 10000
     config.exploration_steps = 50000
