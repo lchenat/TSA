@@ -782,6 +782,7 @@ def imitation_tsa(args):
 def dqn(args):
     config = Config()
     config.history_length = 4
+    env_config = get_env_config(args)
     config.task_fn = lambda: Task(env_config)
     config.eval_env = Task(env_config)
     env_config = get_env_config(args)
@@ -791,6 +792,7 @@ def dqn(args):
         params, lr=0.00025, alpha=0.95, eps=0.01, centered=True)
     #config.network_fn = lambda: VanillaNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
     config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
+    args.algo_name = args.agent
     # config.network_fn = lambda: DuelingNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
     config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6)
 

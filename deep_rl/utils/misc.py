@@ -98,6 +98,7 @@ def get_hashcode():
 def parse_tag(tag_str, args):
     #groups = tag_str.split('[') # old method but does not work
     #groups = sum([group.split(']') for group in groups], []) 
+    if tag_str is None: return None
     groups = re.split(r'(\[.*?\])', tag_str)
     tag = []
     for group in groups:
