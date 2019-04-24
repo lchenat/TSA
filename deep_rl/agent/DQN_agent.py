@@ -4,6 +4,10 @@ from ..utils import *
 import time
 from .BaseAgent import *
 
+def softmax(a):
+    a = np.exp(a - a.max())
+    return a / a.sum(-1)
+
 class DQNActor(BaseActor):
     def __init__(self, config):
         BaseActor.__init__(self, config)
@@ -21,7 +25,11 @@ class DQNActor(BaseActor):
                 or np.random.rand() < config.random_action_prob():
             action = np.random.randint(0, len(q_values))
         else:
-            action = np.argmax(q_values)
+            if config.action_mode == 'max':
+                action = np.argmax(q_values)
+            else:
+                scores = softmax(q_values)
+                action = np.random.choice(len(scores), p=scores)
         next_state, reward, done, info = self._task.step([action])
         entry = [self._state[0], action, reward[0], next_state[0], int(done[0]), info]
         self._total_steps += 1

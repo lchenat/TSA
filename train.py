@@ -92,13 +92,10 @@ def _exp_parser():
     algo.add_argument('--batch_size', type=int, default=32)
     algo.add_argument('--num_workers', type=int, default=8)
     algo.add_argument('--init_mode', default='orthogonal', choices=['orthogonal', 'uniform'])
+    algo.add_argument('--action_mode', choices=['max', 'softmax'], default='max') # for dqn
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
-    ## for NMFDirect
-    algo.add_argument('--x_iter', type=int, default=2)
-    algo.add_argument('--u_iter', type=int, default=3)
-    algo.add_argument('--v_iter', type=int, default=1)
     # network setting
     algo.add_argument('--label', choices=['action', 'abs'], default='action')
     algo.add_argument('--weight', type=str, default=None)
@@ -809,8 +806,8 @@ def dqn(args):
     config.exploration_steps = 50000
     config.sgd_update_frequency = 4
     config.gradient_clip = 5
-    # config.double_q = True
     config.double_q = False
+    config.action_mode = args.action_mode
     config.max_steps = int(2e7)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
@@ -865,8 +862,6 @@ def run_exp(exp_path, parser, command_args):
                     agent, run_f = fc_discrete(args)
                 elif args.agent == 'nmf_sample':
                     agent, run_f = nmf_sample(args)
-                elif args.agent == 'nmf_direct':
-                    agent, run_f = nmf_direct(args)
                 elif args.agent == 'nmf_reg':
                     agent, run_f = nmf_reg(args)
                 elif args.agent == 'dqn':
