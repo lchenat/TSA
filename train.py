@@ -803,7 +803,7 @@ def dqn(args):
     if args.obs_type == 'rgb':
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
-    config.reward_normalizer = SignNormalizer() # really need this?
+    #config.reward_normalizer = SignNormalizer() # really need this?
     config.discount = 0.99
     config.target_network_update_freq = 10000
     config.exploration_steps = 50000
