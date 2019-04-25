@@ -64,6 +64,7 @@ def _exp_parser():
     task.add_argument('--goal_fn', type=str, default='data/goals/fourroom/9_9')
     task.add_argument('--scale', type=int, default=1)
     task.add_argument('--task_length', type=int, default=1)
+    task.add_argument('--normalized_reward', action='store_true')
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
     ##
@@ -147,6 +148,8 @@ def get_env_config(args):
         env_config = dill.load(f)
         env_config['window'] = args.window
         env_config['min_dis'] = args.min_dis
+        if args.normalized_reward:
+            env_config['reward_config'] = {'wall_penalty': -0.01, 'time_penalty': -0.01, 'complete_sub_task': 0.1, 'complete_all': 1, 'fail': -1}
         env_config = dict(
             main=env_config,
             l=args.l,
@@ -770,23 +773,25 @@ def dqn(args):
     config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
     args.algo_name = args.agent
     # config.network_fn = lambda: DuelingNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
-    config.random_action_prob = LinearSchedule(1.0, 0.01, 1e7) # 1e6
+    config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6) # 1e6
 
     # config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.replay_fn = lambda: AsyncReplay(memory_size=int(2e6), batch_size=32)
+    config.replay_fn = lambda: AsyncReplay(memory_size=int(1e6), batch_size=32) # 32
 
     config.batch_size = 32
     if args.obs_type == 'rgb':
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
-    config.reward_normalizer = RescaleNormalizer(0.1)
+    #config.reward_normalizer = RescaleNormalizer(0.3)
     config.discount = 0.99
     config.target_network_update_freq = 10000
     config.exploration_steps = 50000
     config.sgd_update_frequency = 4
     config.gradient_clip = 5
-    config.double_q = False
+    config.double_q = True # try
     config.action_mode = args.action_mode
+    config.eval_interval = 20
+    config.save_interval = 1
     config.max_steps = int(2e7)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
