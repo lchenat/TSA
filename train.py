@@ -67,7 +67,6 @@ def _exp_parser():
     task.add_argument('--normalized_reward', action='store_true')
     ## simple_grid only
     task.add_argument('--map_name', type=str, default='fourroom')
-    ##
     ## reacher only
     task.add_argument('--n_bins', type=int, nargs=2, default=[0, 0])
     task.add_argument('--no_goal', action='store_true')
@@ -95,6 +94,8 @@ def _exp_parser():
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
+    ## DQN only
+    algo.add_argument('--double_q', action='store_true')
     # network setting
     algo.add_argument('--label', choices=['action', 'abs'], default='action')
     algo.add_argument('--weight', type=str, default=None)
@@ -107,9 +108,6 @@ def _exp_parser():
     algo.add_argument('--abs_mean', type=float, default=None)
     algo.add_argument('--abs_mode', choices=['mse', 'kl'], default='mse')
     algo.add_argument('--load_actor', action='store_true')
-    # aux loss
-    algo.add_argument('--reg_abs_fn', type=str, default=None)
-    algo.add_argument('--reg_abs_weight', type=float, default=1.0)
     # optimization
     algo.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
     algo.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
@@ -282,10 +280,6 @@ def get_visual_body(args, config):
         visual_body = LargeTSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim)
     elif args.visual == 'mini_fc':
         visual_body = TSAMiniConvFCBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
-    if args.reg_abs_fn is not None:
-        with open(args.reg_abs_fn, 'rb') as f:
-            abs_dict = dill.load(f)
-        config.reg_abs = RegAbs(visual_body, abs_dict, args.reg_abs_weight)
     return visual_body
 
 # deal with loading and fixing weight
@@ -788,11 +782,11 @@ def dqn(args):
     config.exploration_steps = 50000
     config.sgd_update_frequency = 4
     config.gradient_clip = 5
-    config.double_q = True # try
+    config.double_q = args.double_q
     config.action_mode = args.action_mode
     config.eval_interval = 20
     config.save_interval = 1
-    config.max_steps = int(2e7)
+    config.max_steps = int(6e6)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': git_sha,
