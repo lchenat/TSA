@@ -769,8 +769,8 @@ def dqn(args):
     # config.network_fn = lambda: DuelingNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
     config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6) # 1e6
 
-    # config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    config.replay_fn = lambda: AsyncReplay(memory_size=int(1e6), batch_size=32) # 32
+    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
+    #config.replay_fn = lambda: AsyncReplay(memory_size=int(1e6), batch_size=32) # 32
 
     config.batch_size = 32
     if args.obs_type == 'rgb':
