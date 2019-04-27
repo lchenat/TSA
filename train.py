@@ -81,7 +81,7 @@ def _exp_parser():
     algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
     algo.add_argument('--gate', default='relu', choices=['relu', 'softplus', 'lrelu'])
-    algo.add_argument('--net', default='prob', choices=['gaussian', 'prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap', 'res'])
+    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap', 'res', 'q'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--res_config', type=str, default=None) # load the network config
@@ -90,7 +90,9 @@ def _exp_parser():
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
     algo.add_argument('--batch_size', type=int, default=32)
     algo.add_argument('--num_workers', type=int, default=8)
+    # for dqn
     algo.add_argument('--action_mode', choices=['max', 'softmax'], default='max') # for dqn
+    algo.add_argument('--imitate_loss', choices=['kl', 'mse'], default='kl')
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
@@ -357,6 +359,9 @@ def get_network(visual_body, args, config):
             actor=actor,
             res_phi_body=res_network.network.phi_body,
         )
+    elif args.net == 'q':    
+        network = QNet(config.eval_env.n_tasks, config.action_dim, visual_body)
+        algo_name = '.'.join([args.agent, args.net])
     else:
         if args.net == 'vq':
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
@@ -546,7 +551,6 @@ def ppo_pixel_tsa(args):
     visual_body = get_visual_body(args, config)
     network, args.algo_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
-    set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
     set_optimizer_fn(args, config)
     if args.obs_type == 'rgb':
@@ -721,6 +725,7 @@ def nmf_sample(args):
 
 def imitation_tsa(args):
     config = Config()
+    config.imitate_loss = args.imitate_loss
     env_config = get_env_config(args)
     config.env_config = env_config
     config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
@@ -731,7 +736,6 @@ def imitation_tsa(args):
     visual_body = get_visual_body(args, config)
     network, args.algo_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
-    set_aux_network(visual_body, args, config)
     process_weight(network, args, config)
     set_optimizer_fn(args, config)
     if args.obs_type == 'rgb':
@@ -754,7 +758,6 @@ def imitation_tsa(args):
 
 def dqn(args):
     config = Config()
-    config.history_length = 4
     env_config = get_env_config(args)
     config.task_fn = lambda: Task(env_config)
     config.eval_env = Task(env_config)
@@ -763,15 +766,16 @@ def dqn(args):
 
     config.optimizer_fn = lambda params: torch.optim.RMSprop(
         params, lr=0.00025, alpha=0.95, eps=0.01, centered=True)
-    #config.network_fn = lambda: VanillaNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
-    config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
-    args.algo_name = args.agent
-    # config.network_fn = lambda: DuelingNet(config.action_dim, NatureConvBody(in_channels=config.history_length))
+
+    visual_body = get_visual_body(args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
+    config.network_fn = lambda: network # here
+    #config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
+    #args.algo_name = args.agent
     config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6) # 1e6
 
     config.async_actor = False
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-    #config.replay_fn = lambda: AsyncReplay(memory_size=int(1e6), batch_size=32) # 32
 
     config.batch_size = 32
     if args.obs_type == 'rgb':
