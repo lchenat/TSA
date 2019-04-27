@@ -92,8 +92,8 @@ class DQNAgent(BaseAgent):
             states, actions, rewards, next_states, terminals, infos, next_infos = experiences
             states = self.config.state_normalizer(states)
             next_states = self.config.state_normalizer(next_states)
-            infos = stack_dict(infos)
-            next_infos = stack_dict(next_infos)
+            infos = stack_dict(infos, lambda l: sum(l, []))
+            next_infos = stack_dict(next_infos, lambda l: sum(l, []))
             q_next = self.target_network(next_states, next_infos).detach() # there is no next info !!!
             if self.config.double_q:
                 best_actions = torch.argmax(self.network(next_states, next_infos), dim=-1)

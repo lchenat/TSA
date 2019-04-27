@@ -784,14 +784,14 @@ def dqn(args):
     #config.reward_normalizer = RescaleNormalizer(0.3)
     config.discount = 0.99
     config.target_network_update_freq = 10000
-    config.exploration_steps = 50000
+    config.exploration_steps = 15000 if args.d else 50000
     config.sgd_update_frequency = 4
     config.gradient_clip = 5
     config.double_q = args.double_q
     config.action_mode = args.action_mode
     config.eval_interval = 20
     config.save_interval = 1
-    config.max_steps = int(1.5e4) if args.d else int(3e6)
+    config.max_steps = int(2e4) if args.d else int(3e6)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': git_sha,
