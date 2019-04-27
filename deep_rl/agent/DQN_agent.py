@@ -17,9 +17,10 @@ class DQNActor(BaseActor):
     def _transition(self):
         if self._state is None:
             self._state = self._task.reset()
+            self._info = self._task.get_info()
         config = self.config
         with config.lock:
-            q_values = self._network(config.state_normalizer(self._state))
+            q_values = self._network(config.state_normalizer(self._state), self._info)
         q_values = to_np(q_values).flatten()
         if self._total_steps < config.exploration_steps \
                 or np.random.rand() < config.random_action_prob():
@@ -31,9 +32,10 @@ class DQNActor(BaseActor):
                 scores = softmax(q_values)
                 action = np.random.choice(len(scores), p=scores)
         next_state, reward, done, info = self._task.step([action])
-        entry = [self._state[0], action, reward[0], next_state[0], int(done[0]), info]
+        entry = [self._state[0], action, reward[0], next_state[0], int(done[0]), self._info, info]
         self._total_steps += 1
         self._state = next_state
+        self._info = info
         return entry
 
 class DQNAgent(BaseAgent):
@@ -63,10 +65,10 @@ class DQNAgent(BaseAgent):
         close_obj(self.replay)
         close_obj(self.actor)
 
-    def eval_step(self, state):
+    def eval_step(self, state, info):
         self.config.state_normalizer.set_read_only()
         state = self.config.state_normalizer(state)
-        q = self.network(state)
+        q = self.network(state, info)
         action = np.argmax(to_np(q))
         self.config.state_normalizer.unset_read_only()
         return action
@@ -75,24 +77,26 @@ class DQNAgent(BaseAgent):
         config = self.config
         transitions = self.actor.step()
         experiences = []
-        for state, action, reward, next_state, done, _ in transitions:
+        for state, action, reward, next_state, done, info, next_info in transitions:
             self.episode_reward += reward
             self.total_steps += 1
             reward = config.reward_normalizer(reward)
             if done:
                 self.episode_rewards.append(self.episode_reward)
                 self.episode_reward = 0
-            experiences.append([state, action, reward, next_state, done])
+            experiences.append([state, action, reward, next_state, done, info, next_info])
         self.replay.feed_batch(experiences)
 
         if self.total_steps > self.config.exploration_steps:
             experiences = self.replay.sample()
-            states, actions, rewards, next_states, terminals = experiences
+            states, actions, rewards, next_states, terminals, infos, next_infos = experiences
             states = self.config.state_normalizer(states)
             next_states = self.config.state_normalizer(next_states)
-            q_next = self.target_network(next_states).detach()
+            infos = stack_dict(infos, lambda l: sum(l, []))
+            next_infos = stack_dict(next_infos, lambda l: sum(l, []))
+            q_next = self.target_network(next_states, next_infos).detach() # there is no next info !!!
             if self.config.double_q:
-                best_actions = torch.argmax(self.network(next_states), dim=-1)
+                best_actions = torch.argmax(self.network(next_states, next_infos), dim=-1)
                 q_next = q_next[self.batch_indices, best_actions]
             else:
                 q_next = q_next.max(1)[0]
@@ -101,7 +105,7 @@ class DQNAgent(BaseAgent):
             q_next = self.config.discount * q_next * (1 - terminals)
             q_next.add_(rewards)
             actions = tensor(actions).long()
-            q = self.network(states)
+            q = self.network(states, infos)
             q = q[self.batch_indices, actions]
             loss = (q_next - q).pow(2).mul(0.5).mean()
             config.logger.add_scalar(tag='mse', value=loss, step=self.total_steps)

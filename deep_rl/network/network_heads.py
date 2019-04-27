@@ -25,6 +25,18 @@ class VanillaNet(nn.Module, BaseNet):
         y = self.fc_head(phi)
         return y
 
+class QNet(nn.Module, BaseNet):
+    def __init__(self, n_tasks, action_dim, body):
+        super(QNet, self).__init__()
+        self.fc_head = MultiLinear(body.feature_dim, action_dim, n_tasks, key='task_id')
+        self.body = body
+        self.to(Config.DEVICE)
+
+    def forward(self, x, info):
+        phi = self.body(tensor(x))
+        y = self.fc_head(phi, info)
+        return y
+
 class OldActorCriticNet(nn.Module, BaseNet):
     def __init__(self, n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(OldActorCriticNet, self).__init__()
@@ -565,84 +577,3 @@ class TSANet(nn.Module, Actor):
         obs = tensor(obs)
         return self.critic(obs, info)
 
-### auxiliary networks
-
-class ActionPredictor(nn.Module):
-    def __init__(self, action_dim, state_encoder, hidden_dim=256):
-        super().__init__()
-        self.state_encoder = state_encoder
-        self.action_predictor = nn.Sequential(
-            nn.Linear(2 * self.state_encoder.feature_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, action_dim),
-            nn.Softmax(dim=1),
-        )
-        self.to(Config.DEVICE)
-
-    def forward(self, states, next_states):
-        state_features = self.state_encoder(states)
-        next_state_features = self.state_encoder(next_states)
-        inputs = torch.cat([state_features, next_state_features], dim=1)
-        return self.action_predictor(inputs)
-
-    def loss(self, states, next_states, actions):
-        predicted_actions = self(states, next_states)
-        return F.cross_entropy(predicted_actions, actions)
-
-class UNetReconstructor(nn.Module):
-    def __init__(self, encoder, in_channels):
-        super().__init__()
-        #self.encoder = UnetEncoder(in_channels)
-        self.encoder = encoder
-        self.decoder = UnetDecoder(in_channels)
-        self.loss_weight = 1.0
-        self.to(Config.DEVICE)
-
-    def forward(self, states):
-        return self.decoder(self.encoder(states))
-
-    def loss(self, states):
-        pred_states = self(states)
-        return self.loss_weight * F.binary_cross_entropy(pred_states, states)
-
-class TransitionModel(nn.Module):
-    def __init__(self, encoder, action_dim, in_channels):
-        super().__init__()
-        self.encoder = encoder
-        self.action_embed = nn.Embedding(action_dim, self.encoder.feature_dim)
-        self.fusion_fc = nn.Linear(3*self.encoder.feature_dim, self.encoder.feature_dim)
-        self.decoder = UnetDecoder(in_channels)
-        self.loss_weight = 1.0
-        self.to(Config.DEVICE)
-
-    def forward(self, states, actions, next_states):
-        state_features = self.encoder(states)
-        next_state_features = self.encoder(next_states)
-        action_features = self.action_embed(actions)
-        features = torch.cat([state_features, next_state_features, action_features], dim=1)
-        return self.decoder(F.relu(self.fusion_fc(features)))
-
-    def loss(self, states, actions, next_states):
-        return self.loss_weight * F.binary_cross_entropy(self(states, actions, next_states), (next_states - states + 1.0) / 2)
-
-class RegAbs(nn.Module):
-    def __init__(self, body, abs_dict, loss_weight=1.0):
-        super().__init__()
-        self.body = body
-        self.abs_dict = abs_dict
-        n_abs = len(set(abs_dict[0].values())) # only one map! Be careful to forward indices below
-        self.embed = torch.nn.Embedding(n_abs, self.body.feature_dim)
-        self.loss_weight = loss_weight
-        self.to(Config.DEVICE)
-
-    # output: the features and corresponding dictionary features
-    def forward(self, states, infos):
-        xs = self.body(states)
-        indices = tensor([self.abs_dict[map_id][pos] for map_id, pos in zip(infos['map_id'], infos['pos'])], dtype=torch.long)
-        return xs, self.embed(indices)
-
-    def loss(self, states, infos):
-        xs, embeds = self(states, infos)
-        x_loss = torch.mean((embeds.detach() - xs)**2)
-        embed_loss = torch.mean((embeds - xs.detach())**2)
-        return self.loss_weight * (x_loss + 0.25 * embed_loss)
