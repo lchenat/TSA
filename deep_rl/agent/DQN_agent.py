@@ -65,10 +65,10 @@ class DQNAgent(BaseAgent):
         close_obj(self.replay)
         close_obj(self.actor)
 
-    def eval_step(self, state):
+    def eval_step(self, state, info):
         self.config.state_normalizer.set_read_only()
         state = self.config.state_normalizer(state)
-        q = self.network(state)
+        q = self.network(state, info)
         action = np.argmax(to_np(q))
         self.config.state_normalizer.unset_read_only()
         return action
