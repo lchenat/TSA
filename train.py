@@ -761,7 +761,6 @@ def dqn(args):
     env_config = get_env_config(args)
     config.task_fn = lambda: Task(env_config)
     config.eval_env = Task(env_config)
-    env_config = get_env_config(args)
     config.env_config = env_config
 
     config.optimizer_fn = lambda params: torch.optim.RMSprop(
