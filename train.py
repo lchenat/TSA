@@ -797,7 +797,7 @@ def dqn(args):
     config.async_actor = False
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
 
-    config.batch_size = 32
+    config.batch_size = args.batch_size
     if args.obs_type == 'rgb':
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
