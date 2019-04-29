@@ -17,7 +17,9 @@ class ImitationAgent(BaseAgent):
         self.online_rewards = np.zeros(config.num_workers)
 
     def eval_step(self, state, info):
-        return self.network(state, info)['a'][0]
+        if self.config.imitate_loss == 'kl':
+            return self.network(state, info)['a'][0]
+        return self.network(state, info)[0].argmax()
 
     def eval_episode(self):
         env = self.config.eval_env
@@ -52,7 +54,12 @@ class ImitationAgent(BaseAgent):
             if config.expert is None:
                 opt_a = self.task.get_opt_action()
             else:
-                opt_a = [to_np(config.expert[j](states[i:i+1], {'task_id': [j]})['a']) for i, j in enumerate(infos['task_id'])] 
+                if config.imitate_loss == 'kl':
+                    opt_a = [to_np(config.expert[j](states[i:i+1], {'task_id': [j]})['a']) for i, j in enumerate(infos['task_id'])] 
+                else: # mse
+                    expert_q = [to_np(config.expert[j](states[i:i+1], {'task_id': [j]})) for i, j in enumerate(infos['task_id'])]
+                    opt_a = [q.argmax(1) for q in expert_q]
+                    storage.add({'expert_q': tensor(np.concatenate(expert_q))})
                 opt_a = np.concatenate(opt_a)
             next_states, rewards, terminals, next_infos = self.task.step(opt_a)
             self.online_rewards += rewards
@@ -62,7 +69,7 @@ class ImitationAgent(BaseAgent):
                     self.episode_rewards.append(self.online_rewards[i])
                     self.online_rewards[i] = 0
             next_states = config.state_normalizer(next_states)
-            storage.add(prediction)
+            #storage.add(prediction)
             storage.add({'r': tensor(rewards).unsqueeze(-1),
                          'm': tensor(1 - terminals).unsqueeze(-1),
                          's': tensor(states),
@@ -76,21 +83,23 @@ class ImitationAgent(BaseAgent):
         self.states = states
         self.infos = infos
         prediction = self.network(states, infos)
-        storage.add(prediction)
+        #storage.add(prediction)
         storage.placeholder()
 
-        returns = prediction['v'].detach()
-        for i in reversed(range(config.rollout_length)):
-            returns = storage.r[i] + config.discount * storage.m[i] * returns
-            storage.ret[i] = returns.detach()
+        #returns = prediction['v'].detach()
+        #for i in reversed(range(config.rollout_length)):
+            #returns = storage.r[i] + config.discount * storage.m[i] * returns
+            #storage.ret[i] = returns.detach()
 
         loss_dict = dict()
-        states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
         if config.imitate_loss == 'kl':
+            states, next_states, infos, opt_a = storage.cat(['s', 'ns', 'info', 'opt_a'])
             log_prob = self.network.get_logprobs(states, infos)
             loss_dict['NLL'] = F.nll_loss(log_prob, opt_a)
         elif config.imitate_loss == 'mse':
+            states, next_states, infos, opt_a, expert_q = storage.cat(['s', 'ns', 'info', 'opt_a', 'expert_q'])
             q = self.network(states, infos)
+            loss_dict['MSE'] = F.mse_loss(q, expert_q)
         else:
             raise Exception('unsupported loss')
         for k, v in loss_dict.items():

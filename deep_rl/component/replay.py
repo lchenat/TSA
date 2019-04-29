@@ -167,7 +167,7 @@ class Storage:
                        'v', 'q', 'pi', 'log_pi', 'ent',
                        'adv', 'ret', 'q_a', 'log_pi_a', 'source_log_ret', 'prob',
                        'mean', 'opt_a', 'info', 'source_log_pi_a', 'r_source',
-                       'discount_source_log_pi_a']
+                       'discount_source_log_pi_a', 'expert_q']
         self.keys = keys
         self.size = size
         self.reset()

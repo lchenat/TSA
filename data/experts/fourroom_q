@@ -1,0 +1,5 @@
+{
+    "0": "log/pick.mask.fourroom-16.0.min_dis-1/dqn.q/double_q/0.190428-142730/models/step-3000000-mean-0.96",
+    "1": "log/pick.mask.fourroom-16.1.min_dis-1/dqn.q/double_q/0.190427-163923/models/step-3000000-mean-0.94",
+    "2": "log/pick.mask.fourroom-16.2.min_dis-1/dqn.q/double_q/0.190427-191144/models/step-3000000-mean-0.95"
+}

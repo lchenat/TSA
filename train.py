@@ -75,7 +75,7 @@ def _exp_parser():
     task.add_argument('--discount', type=float, default=0.99)
     task.add_argument('--min_dis', type=int, default=1)
     task.add_argument('--task_config', type=str, default=None) # read from file
-    task.add_argument('--expert', choices=['hand_coded', 'nineroom'], default='hand_coded')
+    task.add_argument('--expert', choices=['hand_coded', 'nineroom', 'fourroom_q'], default='hand_coded')
     task.add_argument('--expert_fn', type=str, default=None)
     # network
     algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
@@ -527,6 +527,27 @@ def get_expert(args, config):
                 config.action_dim,
                 visual_body,
             )
+            # load weight
+            weight_dict = expert.state_dict()
+            loaded_weight_dict = {k: v for k, v in torch.load(
+                weight_path,
+                map_location=lambda storage, loc: storage)['network'].items()
+                if k in weight_dict}
+            weight_dict.update(loaded_weight_dict)
+            expert.load_state_dict(weight_dict)
+            experts[int(index)] = expert
+        return experts
+    elif args.expert == 'fourroom_q':
+        with open(args.expert_fn) as f:
+            expert_fns = json.load(f)
+        experts = dict()
+        for index, weight_path in expert_fns.items():
+            visual_body = TSAMiniConvBody(
+                config.eval_env.observation_space.shape[0], 
+                512,
+                scale=2,
+            )
+            expert = QNet(config.eval_env.n_tasks, config.action_dim, visual_body)
             # load weight
             weight_dict = expert.state_dict()
             loaded_weight_dict = {k: v for k, v in torch.load(
