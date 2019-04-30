@@ -93,6 +93,7 @@ def _exp_parser():
     # for dqn
     algo.add_argument('--action_mode', choices=['max', 'softmax'], default='max') # for dqn
     algo.add_argument('--imitate_loss', choices=['kl', 'mse'], default='kl')
+    algo.add_argument('--reward_reshape', action='store_true')
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
@@ -361,7 +362,11 @@ def get_network(visual_body, args, config):
         )
     elif args.net == 'q':    
         network = QNet(config.eval_env.n_tasks, config.action_dim, visual_body)
+        config.parameters = [network.parameters()] # a new way
         algo_name = '.'.join([args.agent, args.net])
+        if args.reward_reshape:
+            config.rr = RRNet(config.eval_env.n_tasks, visual_body)
+            config.parameters.append(config.rr.parameters())
     else:
         if args.net == 'vq':
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])

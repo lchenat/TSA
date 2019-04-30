@@ -577,3 +577,16 @@ class TSANet(nn.Module, Actor):
         obs = tensor(obs)
         return self.critic(obs, info)
 
+## aux network
+class RRNet(nn.Module, BaseNet):
+    def __init__(self, n_tasks, body):
+        super(RRNet, self).__init__()
+        self.fc_head = MultiLinear(body.feature_dim, 1, n_tasks, key='task_id')
+        self.body = body
+        self.to(Config.DEVICE)
+
+    def forward(self, x, info):
+        phi = self.body(tensor(x))
+        y = self.fc_head(phi, info)
+        return y
+

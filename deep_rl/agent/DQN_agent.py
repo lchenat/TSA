@@ -3,6 +3,7 @@ from ..component import *
 from ..utils import *
 import time
 from .BaseAgent import *
+from itertools import chain
 
 def softmax(a):
     a = np.exp(a - a.max())
@@ -51,7 +52,8 @@ class DQNAgent(BaseAgent):
         self.network.share_memory()
         self.target_network = config.network_fn()
         self.target_network.load_state_dict(self.network.state_dict())
-        self.optimizer = config.optimizer_fn(self.network.parameters())
+        #self.optimizer = config.optimizer_fn(self.network.parameters())
+        self.optimizer = config.optimizer_fn(chain(*config.parameters))
 
         self.actor.set_network(self.network)
 
@@ -107,7 +109,12 @@ class DQNAgent(BaseAgent):
             actions = tensor(actions).long()
             q = self.network(states, infos)
             q = q[self.batch_indices, actions]
-            loss = (q_next - q).pow(2).mul(0.5).mean()
+            if hasattr(config, 'rr'):
+                r = config.rr(states, infos).squeeze(1)
+                nr = config.rr(next_states, next_infos).squeeze(1)
+                loss = (q_next + r - config.discount * nr - q).mul(0.5).mean()
+            else:
+                loss = (q_next - q).pow(2).mul(0.5).mean()
             config.logger.add_scalar(tag='mse', value=loss, step=self.total_steps)
             self.optimizer.zero_grad()
             loss.backward()
