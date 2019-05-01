@@ -295,8 +295,12 @@ def process_weight(network, args, config):
         else:
             if hasattr(network, 'abs_encoder'):
                 load_filter = lambda x: x.startswith('abs_encoder')
-            else:
+            elif hasattr(network, 'network'):
                 load_filter = lambda x: x.startswith('network.phi_body')
+            elif hasattr(network, 'body'):
+                load_filter = lambda x: x.startswith('body')
+            else:
+                raise Exception('unsupported network type')
         loaded_weight_dict = {k: v for k, v in torch.load(
             args.weight,
             map_location=lambda storage, loc: storage)['network'].items()
@@ -309,9 +313,14 @@ def process_weight(network, args, config):
         if hasattr(network, 'abs_encoder'):
             for p in network.abs_encoder.parameters():
                 p.requires_grad = False
-        else: # baseline
+        elif hasattr(network, 'network'): # categoricalactorcriticnet
             for p in network.network.phi_body.parameters():
                 p.requires_grad = False
+        elif hasattr(network, 'body'): # qnet
+            for p in network.body.parameters():
+                p.requires_grad = False
+        else:
+            raise Exception('unsupported network type')
 
 def process_goals(goal_fn): # should be read json what are you doing?
     with open(goal_fn) as f:
@@ -790,10 +799,11 @@ def dqn(args):
     config.env_config = env_config
 
     config.optimizer_fn = lambda params: torch.optim.RMSprop(
-        params, lr=0.00025, alpha=0.95, eps=0.01, centered=True)
+        filter(lambda p: p.requires_grad, params), lr=0.00025, alpha=0.95, eps=0.01, centered=True)
 
     visual_body = get_visual_body(args, config)
     network, args.algo_name = get_network(visual_body, args, config)
+    process_weight(network ,args, config)
     config.network_fn = lambda: network # here
     #config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
     #args.algo_name = args.agent
