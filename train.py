@@ -797,7 +797,8 @@ def dqn(args):
     config.network_fn = lambda: network # here
     #config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
     #args.algo_name = args.agent
-    config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6) # 1e6
+    #config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6) # 1e6
+    config.random_action_prob = LinearSchedule(1.0, 0.1, 1e6) # 1e6
 
     config.async_actor = False
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
