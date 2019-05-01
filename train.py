@@ -94,6 +94,7 @@ def _exp_parser():
     algo.add_argument('--action_mode', choices=['max', 'softmax'], default='max') # for dqn
     algo.add_argument('--imitate_loss', choices=['kl', 'mse'], default='kl')
     algo.add_argument('--reward_reshape', action='store_true')
+    algo.add_argument('--final_eps', type=float, default=0.01)
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
@@ -798,7 +799,7 @@ def dqn(args):
     #config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
     #args.algo_name = args.agent
     #config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6) # 1e6
-    config.random_action_prob = LinearSchedule(1.0, 0.1, 1e6) # 1e6
+    config.random_action_prob = LinearSchedule(1.0, args.final_eps, 1e6) # 1e6
 
     config.async_actor = False
     config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
