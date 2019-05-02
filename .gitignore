@@ -105,4 +105,5 @@ exps
 *.lock
 *.cur
 old_log
+s_log
 MUJOCO_LOG.TXT
