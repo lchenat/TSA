@@ -49,6 +49,7 @@ def _exp_parser():
             'fc_discrete', # use fc body, tabular cases
             'fc_continuous', # use fc body
             'nmf_sample', # non-tabular cases
+            'meta_linear_q',
         ],
     )
     # environment (the task setting, first level directory)
@@ -836,6 +837,38 @@ def dqn(args):
         }])
     return DQNAgent(config), run_steps
 
+def meta_linear_q(args):
+    config = Config()
+    env_config = get_env_config(args)
+    config.env_config = env_config
+    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
+    config.eval_env = Task(env_config)
+    print('n_tasks:', config.eval_env.n_tasks)
+    config.expert = get_expert(args, config)
+    config.num_workers = 8
+    visual_body = get_visual_body(args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
+    config.network_fn = lambda: network
+    process_weight(network, args, config)
+    set_optimizer_fn(args, config)
+    if args.obs_type == 'rgb':
+        assert args.env in ['pick', 'reach']
+        config.state_normalizer = ImageNormalizer() # tricky
+    config.discount = args.discount
+    config.rollout_length = args.rollout_length
+    config.log_interval = config.num_workers * config.rollout_length
+    config.max_steps = 300000 if args.d else 1200000
+    if args.steps is not None: config.max_steps = args.steps
+    config.eval_interval = args.eval_interval
+    config.save_interval = 1 # in terms of eval interval
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
+    config.logger.add_text('Configs', [{
+        'git sha': git_sha,
+        **vars(args),
+        }])
+    return MLQAgent(config), run_steps
+
+
 def run_exp(exp_path, parser, command_args):
     while True:
         args = read_args(exp_path)
@@ -886,6 +919,8 @@ def run_exp(exp_path, parser, command_args):
                     agent, run_f = nmf_reg(args)
                 elif args.agent == 'dqn':
                     agent, run_f = dqn(args)
+                elif args.agent == 'meta_linear_q':
+                    agent, run_f = meta_linear_q(args)
                 run_f(agent)
                 exp_finished = True
         except Exception as e:

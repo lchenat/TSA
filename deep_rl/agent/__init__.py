@@ -5,3 +5,4 @@ from .Transfer_agent import *
 from .NMF_agent import *
 from .PPO_agent import *
 from .DQN_agent import *
+from .MLQ_agent import *
