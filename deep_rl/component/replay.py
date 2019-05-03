@@ -48,6 +48,47 @@ class Replay:
         return not len(self.data)
 
 
+class TrajReplay:
+    def __init__(self, memory_size, batch_size, num_workers=1):
+        self.memory_size = memory_size
+        self.batch_size = batch_size
+        self.data = []
+        self.pos = 0
+        self.buffer = [[] for _ in range(num_workers)] # for storing trajectories
+
+    def feed(self, transitions, terminals):
+        for i, transition in enumerate(zip(*transitions)):
+            self.buffer[i].append(transition)
+        for i, terminal in enumerate(terminals):
+            if terminal:
+                self.feed_traj(self.buffer[i])
+                self.buffer[i] = []
+
+    def feed_traj(self, experience):
+        if self.pos >= len(self.data):
+            self.data.append(experience)
+        else:
+            self.data[self.pos] = experience
+        self.pos = (self.pos + 1) % self.memory_size
+
+    def sample(self, batch_size=None):
+        if self.empty():
+            return None
+        if batch_size is None:
+            batch_size = self.batch_size
+
+        sampled_indices = [np.random.randint(0, len(self.data)) for _ in range(batch_size)]
+        sampled_data = sum([self.data[ind] for ind in sampled_indices], [])
+        batch_data = list(map(lambda x: np.asarray(x), zip(*sampled_data)))
+        return batch_data
+
+    def size(self):
+        return len(self.data)
+
+    def empty(self):
+        return not len(self.data)
+
+
 class SkewedReplay:
     def __init__(self, memory_size, batch_size, criterion):
         self.replay1 = Replay(memory_size // 2, batch_size // 2)

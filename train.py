@@ -846,6 +846,7 @@ def meta_linear_q(args):
     print('n_tasks:', config.eval_env.n_tasks)
     config.expert = get_expert(args, config)
     config.num_workers = 8
+    config.replay_fn = lambda: TrajReplay(memory_size=5000, batch_size=32, num_workers=config.num_workers)
     visual_body = get_visual_body(args, config)
     network, args.algo_name = get_network(visual_body, args, config)
     config.network_fn = lambda: network
@@ -855,7 +856,7 @@ def meta_linear_q(args):
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
-    config.rollout_length = args.rollout_length
+    config.rollout_length = 5 #args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
     config.max_steps = 300000 if args.d else 1200000
     if args.steps is not None: config.max_steps = args.steps
