@@ -64,6 +64,29 @@ def dump_args(f, args=None, kwargs=None):
     f.write(generate_cmd(args, kwargs) + '\n')
 
 @cmd()
+def meta_q_search(base_dir, touch=True, n_models=20):
+    exp_path = Path('exps/pick/nineroom/meta_q_search')
+    args = ['--double_q', '--normalized_reward']
+    kwargs = {
+        '--agent': 'dqn',
+        '--net': 'q',
+        '--visual': 'mini',
+        '--obs_type': 'mask',
+        '--scale': 2,
+        '--load_part': 'abs',
+        '--env_config': 'data/env_configs/pick/fourroom-16.0',
+        '--seed': 0,
+    }
+    if int(touch): open(exp_path, 'w').close()
+    with open(exp_path, 'a+') as f:
+        for name in subsample(os.listdir(base_dir), n_models): # be careful!
+            print(name)
+            step = int(name.split('-')[1])
+            kwargs['--weight'] = Path(base_dir, name)
+            kwargs['--tag'] = 'meta_linear-{}'.format(step)
+            dump_args(f, args, kwargs)
+
+@cmd()
 def train_nineroom():
     # variable: env_config, seed, (feat_dim, tag)
     exp_path = Path('exps/pick/nineroom/train')
@@ -71,7 +94,7 @@ def train_nineroom():
         '--agent': 'tsa',
         '--visual': 'mini',
         '--net': 'baseline',
-        '--gate': 'softplus',
+        '--gate': 'softplus', # be careful
         '--obs_type': 'mask',
         '--scale': 2,
         '--eval_interval': 15,
@@ -86,37 +109,6 @@ def train_nineroom():
             if feat_dim != 512:
                 kwargs['--feat_dim'] = feat_dim
                 kwargs['--tag'] = feat_dim
-            for g in range(8, 9):
-                kwargs['--env_config'] = 'data/env_configs/pick/nineroom/nineroom.{}'.format(g)
-                for seed in range(5):
-                    kwargs['--seed'] = seed
-                    dump_args(f, kwargs=kwargs)
-
-@cmd()
-def train_nineroom_relu():
-    # variable: env_config, seed, (feat_dim, tag)
-    exp_path = Path('exps/pick/nineroom/train_relu')
-    kwargs = {
-        '--agent': 'tsa',
-        '--visual': 'mini',
-        '--net': 'baseline',
-        '--gate': 'relu',
-        '--obs_type': 'mask',
-        '--scale': 2,
-        '--eval_interval': 15,
-        '--save_interval': 1,
-        '--steps': 500000,
-    }
-    # clean up the file
-    open(exp_path, 'w').close()
-    with open(exp_path, 'a+') as f:
-        # 512, 20, 50 ,5
-        for feat_dim in [512, 20]:
-            kwargs['--feat_dim'] = feat_dim
-            if feat_dim != 512:
-                kwargs['--tag'] = '{}_relu'.format(feat_dim)
-            else:
-                kwargs['--tag'] = 'relu'.format(feat_dim)              
             for g in range(8, 9):
                 kwargs['--env_config'] = 'data/env_configs/pick/nineroom/nineroom.{}'.format(g)
                 for seed in range(5):
@@ -144,32 +136,6 @@ def train_reacher_cont():
                 for seed in range(5):
                     kwargs['--seed'] = seed
                     dump_args(f, args, kwargs)
-
-@cmd()
-def nineroom_nmf_search(base_dir, feat_dim, touch=True):
-    exp_path = Path('exps/pick/nineroom/nmf_search_{}'.format(feat_dim))
-    kwargs = { 
-        '--agent': 'tsa',
-        '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
-        '--net': 'baseline',
-        '--visual': 'mini',
-        '--gate': 'softplus',
-        '--feat_dim': int(feat_dim),
-        '--load_part': 'abs',
-        '--obs_type': 'mask',
-        '--scale': 2,
-        '--eval_interval': 15, 
-        '--save_interval': 1,
-        '--steps': 500000,
-    }   
-    if touch: open(exp_path, 'w').close()
-    with open(exp_path, 'a+') as f:
-        for name in os.listdir(base_dir):
-            for seed in range(3):
-                kwargs['--weight'] = Path(base_dir, name)
-                kwargs['--tag'] = 'from_nmf_{}-{}'.format(feat_dim, name.split('-')[1])
-                kwargs['--seed'] = seed
-                dump_args(f, kwargs=kwargs)
 
 # now it is for new split
 @cmd()
@@ -203,34 +169,6 @@ def nineroom_load_search(expname, base_dir, feat_dim=20, n_models=-1, tag=None, 
                     kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
                 else: 
                     kwargs['--tag'] = '{}-{}-{}-{}'.format(expname, tag, feat_dim, step)
-                kwargs['--seed'] = seed
-                dump_args(f, kwargs=kwargs)
-
-@cmd() # for abs-x
-def nineroom_absx_search(expname, base_dir, feat_dim):
-    exp_path = Path('exps/pick/nineroom/{}'.format(expname))
-    kwargs = { 
-        '--agent': 'tsa',
-        '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
-        '--net': 'baseline',
-        '--visual': 'mini',
-        '--gate': 'softplus',
-        '--feat_dim': int(feat_dim),
-        '--load_part': 'abs',
-        '--obs_type': 'mask',
-        '--scale': 2,
-        '--eval_interval': 15, 
-        '--save_interval': 1,
-        '--steps': 500000,
-    }   
-    open(exp_path, 'w').close()
-    with open(exp_path, 'a+') as f:
-        for name in os.listdir(base_dir):
-            step = int(name.split('-')[1])
-            if step < 600000: continue
-            for seed in range(5):
-                kwargs['--weight'] = Path(base_dir, name)
-                kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
                 kwargs['--seed'] = seed
                 dump_args(f, kwargs=kwargs)
 
@@ -307,62 +245,6 @@ def nineroom_actor_mimic_search(base_dir, feat_dim, touch=True):
                 kwargs['--tag'] = 'actor_mimic_{}-{}'.format(feat_dim, step)
                 kwargs['--seed'] = seed
                 dump_args(f, kwargs=kwargs)
-
-@cmd()
-def nineroom_nmf_direct_search(feat_dim):
-    feat_dim = int(feat_dim)
-    exp_path = Path('exps/pick/nineroom/nmf_direct_search_{}'.format(feat_dim))
-    kwargs = { 
-        '--agent': 'nmf_direct',
-        '--env_config': 'data/env_configs/pick/nineroom/nineroom.e8',
-        '--net': 'baseline',
-        '--visual': 'mini',
-        '--gate': 'softplus',
-        '--feat_dim': feat_dim,
-        '--obs_type': 'mask',
-        '--scale': 2,
-        '--eval_interval': 15, 
-        '--save_interval': 1,
-        '--steps': 500000,
-        '--expert': 'nineroom',
-        '--expert_fn': 'data/experts/nineroom',
-        '--seed': 0,
-    }
-    x_iters = [2, 4, 8, 16, 32]
-    u_iters = [2, 4, 8, 16, 32]
-    v_iters = [2, 4, 8]
-    open(exp_path, 'w').close()
-    with open(exp_path, 'a+') as f:
-        for x_iter, u_iter, v_iter in product(x_iters, u_iters, v_iters):
-            kwargs['--x_iter'] = x_iter
-            kwargs['--u_iter'] = u_iter
-            kwargs['--v_iter'] = v_iter
-            kwargs['--tag'] = 'nmf_direct_{}-{}-{}-{}'.format(feat_dim, x_iter, u_iter, v_iter)
-            dump_args(f, kwargs=kwargs)
-
-@cmd()
-def nineroom_nmf_sample_abs():
-    exp_path = Path('exps/pick/nineroom/nmf_sample_abs')
-    kwargs = { 
-        '--env': 'pick',
-        '--env_config': 'data/env_configs/pick/nineroom/nineroom.e8',
-        '--agent': 'nmf_sample',
-        '--net': 'baseline',
-        '--visual': 'mini',
-        '--gate': 'softplus',
-        '--scale': 2,
-        '--obs_type': 'mask',
-        '--feat_dim': 20,
-        '--sample_fn': 'data/nmf_sample/pick/nineroom/split.10-20',
-        '--save_interval': 1,
-        '--abs_mean': 3,
-    }
-    open(exp_path, 'w').close()
-    with open(exp_path, 'a+') as f:
-        for abs_coeff in [0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 2.0, 3.0, 4.0]:
-            kwargs['--abs_coeff'] = abs_coeff
-            kwargs['--tag'] = 'abs-{}'.format(abs_coeff)
-            dump_args(f, kwargs=kwargs) 
 
 if __name__ == "__main__":
     cmd_run()

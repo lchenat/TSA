@@ -829,7 +829,7 @@ def dqn(args):
     config.action_mode = args.action_mode
     config.eval_interval = 20
     config.save_interval = 1
-    config.max_steps = int(2e4) if args.d else int(3e6)
+    config.max_steps = int(2e4) if args.d else int(2.5e6)
     config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
     config.logger.add_text('Configs', [{
         'git sha': git_sha,
