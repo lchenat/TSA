@@ -60,13 +60,14 @@ class MLQAgent(BaseAgent):
         return total_rewards
 
     def eval_episodes(self):
-        rewards = []
-        for ep in range(self.config.eval_episodes):
-            rewards.append(self.eval_episode())
-        self.config.logger.info('evaluation episode return: %f(%f)' % (
-            np.mean(rewards), np.std(rewards) / np.sqrt(len(rewards))))
-        self.config.logger.add_scalar(tag='eval_return', value=np.mean(rewards), step=self.total_steps)
-        return np.mean(rewards)
+        return 0.0
+        #rewards = []
+        #for ep in range(self.config.eval_episodes):
+            #rewards.append(self.eval_episode())
+        #self.config.logger.info('evaluation episode return: %f(%f)' % (
+            #np.mean(rewards), np.std(rewards) / np.sqrt(len(rewards))))
+        #self.config.logger.add_scalar(tag='eval_return', value=np.mean(rewards), step=self.total_steps)
+        #return np.mean(rewards)
 
     def step(self):
         config = self.config

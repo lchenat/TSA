@@ -856,9 +856,9 @@ def meta_linear_q(args):
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
     config.discount = args.discount
-    config.rollout_length = 5 #args.rollout_length
+    config.rollout_length = 10 #args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 300000 if args.d else 1200000
+    config.max_steps = 10000 if args.d else 300000
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = args.eval_interval
     config.save_interval = 1 # in terms of eval interval
