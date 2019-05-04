@@ -6,3 +6,4 @@ from .NMF_agent import *
 from .PPO_agent import *
 from .DQN_agent import *
 from .MLQ_agent import *
+from .Sarsa_agent import *
