@@ -81,8 +81,8 @@ class SarsaAgent(BaseAgent):
                 self.episode_rewards.append(self.episode_reward)
                 self.episode_reward = 0
             q = self.network(self.state, self.info)[:1, self.action]
-            next_q = self.network(next_state, next_info)[:1, next_action]
-            loss = F.mse_loss(q - config.discount * next_q, tensor(reward))
+            next_q = (reward + config.discount * done * self.network(next_state, next_info)[:1, next_action]).detach()
+            loss = F.mse_loss(q, next_q)
             loss_dict['MSE'].append(loss)
             self.optimizer.zero_grad()
             loss.backward()
