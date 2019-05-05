@@ -100,8 +100,9 @@ def _exp_parser():
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
-    ## DQN only
+    ## DQN / Q learning / SARSA only
     algo.add_argument('--double_q', action='store_true')
+    algo.add_argument('--offline', action='store_true')
     # network setting
     algo.add_argument('--label', choices=['action', 'abs'], default='action')
     algo.add_argument('--weight', type=str, default=None)
@@ -852,10 +853,11 @@ def sarsa(args):
     network, args.algo_name = get_network(visual_body, args, config)
     process_weight(network ,args, config)
     config.network_fn = lambda: network # here
-    config.random_action_prob = LinearSchedule(1.0, args.final_eps, 1e6) # 1e6
+    config.random_action_prob = LinearSchedule(0.8, args.final_eps, 5e5) # 1e6
     if args.obs_type == 'rgb':
         assert args.env in ['pick', 'reach']
         config.state_normalizer = ImageNormalizer() # tricky
+    config.offline = args.offline
     config.rollout_length = args.rollout_length
     config.log_interval = config.rollout_length
     config.discount = 0.99

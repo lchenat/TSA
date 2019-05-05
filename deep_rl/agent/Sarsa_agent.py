@@ -19,7 +19,7 @@ class SarsaAgent(BaseAgent):
         self.total_steps = 0
         self.state = config.state_normalizer(self.task.reset())
         self.info = self.task.get_info()
-        self.action = self.select_action()
+        self.action = self.select_action(self.state, self.info)
 
     def close(self):
         pass
@@ -32,9 +32,9 @@ class SarsaAgent(BaseAgent):
         self.config.state_normalizer.unset_read_only()
         return action
 
-    def select_action(self):
+    def select_action(self, state, info):
         config = self.config
-        q_values = self.network(self.state, self.info)
+        q_values = self.network(state, info)
         q_values = to_np(q_values).flatten()
         if np.random.rand() < config.random_action_prob():
             action = np.random.randint(0, len(q_values))
@@ -48,13 +48,16 @@ class SarsaAgent(BaseAgent):
         for _ in range(config.rollout_length):
             next_state, reward, done, next_info = self.task.step([self.action])
             next_state = config.state_normalizer(next_state)
-            next_action = self.select_action()
+            next_action = self.select_action(next_state, next_info)
             self.episode_reward += reward # for logging
             if done:
                 self.episode_rewards.append(self.episode_reward)
                 self.episode_reward = 0
             q = self.network(self.state, self.info)[:1, self.action]
-            next_q = (float(reward) + float(config.discount * (1 - done)) * self.network(next_state, next_info)[:1, next_action]).detach()
+            if config.offline:
+                next_q = (float(reward) + float(config.discount * (1 - done)) * self.network(next_state, next_info).max(1)[0]).detach()
+            else:
+                next_q = (float(reward) + float(config.discount * (1 - done)) * self.network(next_state, next_info)[:1, next_action]).detach()
             loss = F.mse_loss(q, next_q)
             loss_dict['MSE'].append(loss)
             self.optimizer.zero_grad()
