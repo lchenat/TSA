@@ -66,7 +66,7 @@ def dump_args(f, args=None, kwargs=None):
 @cmd()
 def meta_q_search(base_dir, touch=True, n_models=20):
     exp_path = Path('exps/pick/nineroom/meta_q_search')
-    args = ['--double_q', '--normalized_reward', '--fix_abs']
+    args = ['--double_q', '--offline', '--normalized_reward', '--fix_abs']
     kwargs = {
         '--agent': 'sarsa',
         '--net': 'q',

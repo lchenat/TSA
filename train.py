@@ -309,6 +309,7 @@ def process_weight(network, args, config):
             args.weight,
             map_location=lambda storage, loc: storage)['network'].items()
             if ((k in weight_dict) and load_filter(k))}
+        print('loaded weight keys: {}'.format(loaded_weight_dict.keys()))
         weight_dict.update(loaded_weight_dict)
         network.load_state_dict(weight_dict)
         if 'action_predictor' in weight_dict:
