@@ -64,7 +64,7 @@ def dump_args(f, args=None, kwargs=None):
     f.write(generate_cmd(args, kwargs) + '\n')
 
 @cmd()
-def meta_q_search(base_dir, touch=True, n_models=20):
+def meta_q_search(base_dir, touch=True, n_models=30):
     exp_path = Path('exps/pick/nineroom/meta_q_search')
     args = ['--double_q', '--offline', '--normalized_reward', '--fix_abs']
     kwargs = {
