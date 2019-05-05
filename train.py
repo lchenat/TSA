@@ -50,6 +50,7 @@ def _exp_parser():
             'fc_continuous', # use fc body
             'nmf_sample', # non-tabular cases
             'meta_linear_q',
+            'sarsa', # linear function
         ],
     )
     # environment (the task setting, first level directory)
@@ -99,8 +100,9 @@ def _exp_parser():
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
-    ## DQN only
+    ## DQN / Q learning / SARSA only
     algo.add_argument('--double_q', action='store_true')
+    algo.add_argument('--offline', action='store_true')
     # network setting
     algo.add_argument('--label', choices=['action', 'abs'], default='action')
     algo.add_argument('--weight', type=str, default=None)
@@ -837,6 +839,38 @@ def dqn(args):
         }])
     return DQNAgent(config), run_steps
 
+def sarsa(args):
+    config = Config()
+    env_config = get_env_config(args)
+    config.task_fn = lambda: Task(env_config)
+    config.eval_env = Task(env_config)
+    config.env_config = env_config
+
+    config.optimizer_fn = lambda params: torch.optim.RMSprop(
+        filter(lambda p: p.requires_grad, params), lr=0.00025, alpha=0.95, eps=0.01, centered=True)
+
+    visual_body = get_visual_body(args, config)
+    network, args.algo_name = get_network(visual_body, args, config)
+    process_weight(network ,args, config)
+    config.network_fn = lambda: network # here
+    config.random_action_prob = LinearSchedule(0.8, args.final_eps, 5e5) # 1e6
+    if args.obs_type == 'rgb':
+        assert args.env in ['pick', 'reach']
+        config.state_normalizer = ImageNormalizer() # tricky
+    config.offline = args.offline
+    config.rollout_length = args.rollout_length
+    config.log_interval = config.rollout_length
+    config.discount = 0.99
+    config.eval_interval = 20
+    config.save_interval = 1
+    config.max_steps = int(2e4) if args.d else int(2.5e6)
+    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
+    config.logger.add_text('Configs', [{
+        'git sha': git_sha,
+        **vars(args),
+        }])
+    return SarsaAgent(config), run_steps
+
 def meta_linear_q(args):
     config = Config()
     env_config = get_env_config(args)
@@ -858,7 +892,7 @@ def meta_linear_q(args):
     config.discount = args.discount
     config.rollout_length = 10 #args.rollout_length
     config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 10000 if args.d else 300000
+    config.max_steps = 300000 if args.d else 300000
     if args.steps is not None: config.max_steps = args.steps
     config.eval_interval = args.eval_interval
     config.save_interval = 1 # in terms of eval interval
@@ -922,6 +956,8 @@ def run_exp(exp_path, parser, command_args):
                     agent, run_f = dqn(args)
                 elif args.agent == 'meta_linear_q':
                     agent, run_f = meta_linear_q(args)
+                elif args.agent == 'sarsa':
+                    agent, run_f = sarsa(args)
                 run_f(agent)
                 exp_finished = True
         except Exception as e:

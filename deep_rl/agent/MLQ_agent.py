@@ -94,15 +94,16 @@ class MLQAgent(BaseAgent):
                          #'ns': tensor(next_states),
                          #'info': infos,
                          #'opt_a': tensor(opt_a, dtype=torch.long)})
-            self.replay.feed(
-                [states,
-                opt_a,
-                rewards,
-                next_states,
-                terminals,
-                expert_q],
-                terminals,
-            )
+            if self.replay.size() < 100:
+                self.replay.feed(
+                    [states,
+                    opt_a,
+                    rewards,
+                    next_states,
+                    terminals,
+                    expert_q],
+                    terminals,
+                )
 
             states = next_states
             infos = next_infos
