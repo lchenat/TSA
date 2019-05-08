@@ -83,7 +83,7 @@ def meta_q_search(base_dir, touch=True, n_models=30):
             print(name)
             step = int(name.split('-')[1])
             kwargs['--weight'] = Path(base_dir, name)
-            kwargs['--tag'] = 'meta_linear-{}'.format(step)
+            kwargs['--tag'] = 'meta_linear_random-{}'.format(step)
             dump_args(f, args, kwargs)
 
 @cmd()
