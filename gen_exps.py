@@ -138,18 +138,19 @@ def train_reacher_cont():
                     dump_args(f, args, kwargs)
 
 @cmd()
-def phase3(expname, base_dir, feat_dim=20, n_models=8, tag=None, touch=1):
-    feat_dim = int(feat_dim)
+def phase3(expname, base_dir, n_abs=20, n_models=8, tag=None, touch=1):
+    n_abs = int(n_abs)
     n_models = int(n_models)
     exp_path = Path('exps/pick/nineroom/{}'.format(expname))
-    args = ['--fix_abs']
+    #args = ['--fix_abs']
+    args = []
     kwargs = { 
         '--agent': 'tsa',
         '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
         '--net': 'prob',
         '--visual': 'mini',
         #'--gate': 'relu', # be careful about this!
-        '--feat_dim': feat_dim,
+        '--n_abs': n_abs,
         '--load_part': 'abs',
         '--obs_type': 'mask',
         '--scale': 2,
@@ -166,9 +167,9 @@ def phase3(expname, base_dir, feat_dim=20, n_models=8, tag=None, touch=1):
                 #if step % 256000: continue # for nmf
                 kwargs['--weight'] = Path(base_dir, name)
                 if tag is None:
-                    kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
+                    kwargs['--tag'] = '{}-{}-{}'.format(expname, n_abs, step)
                 else: 
-                    kwargs['--tag'] = '{}-{}-{}-{}'.format(expname, tag, feat_dim, step)
+                    kwargs['--tag'] = '{}-{}-{}-{}'.format(expname, tag, n_abs, step)
                 kwargs['--seed'] = seed
                 dump_args(f, args=args, kwargs=kwargs)
 
