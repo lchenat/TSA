@@ -53,10 +53,11 @@ class NMFAgent(NMFBaseAgent):
                 if done[0]:
                     break
         else: # plot classification accuaracy
-            states = tensor(config.state_normalizer(config.sample_dict['states'][0]))
-            infos = stack_dict(config.sample_dict['infos'][0]) # infos should be list of dictionary!
+            indices = np.random.choice(len(config.sample_dict['states'][0]), size=500)
+            states = tensor(config.state_normalizer(config.sample_dict['states'][0][indices]))
+            infos = stack_dict(np.asarray(config.sample_dict['infos'][0])[indices]) # infos should be list of dictionary!
             pred_label = self.network.abs_encoder(states, infos).argmax(1)
-            gt_label = tensor(config.sample_dict['abs']).argmax(1)
+            gt_label = tensor(np.asarray(config.sample_dict['abs'])[indices]).argmax(1)
             total_rewards = (pred_label == gt_label).float().mean()
         return total_rewards
 
