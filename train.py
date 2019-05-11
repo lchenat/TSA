@@ -691,7 +691,7 @@ def nmf_sample(args):
     assert args.sample_fn is not None, 'need args.sample_fn'
     with open(args.sample_fn, 'rb') as f:
         sample_dict = dill.load(f) # abs, policy
-        args.n_abs = sample_dict['abs'].shape[1]
+        args.n_abs = sample_dict['abs'].shape[1] # here change the n_abs!!!
         n_tasks = len(sample_dict['policies'])
     config.sample_dict = sample_dict
     config.load_actor = args.load_actor
