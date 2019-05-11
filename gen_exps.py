@@ -137,6 +137,41 @@ def train_reacher_cont():
                     kwargs['--seed'] = seed
                     dump_args(f, args, kwargs)
 
+@cmd()
+def phase3(expname, base_dir, feat_dim=20, n_models=8, tag=None, touch=1):
+    feat_dim = int(feat_dim)
+    n_models = int(n_models)
+    exp_path = Path('exps/pick/nineroom/{}'.format(expname))
+    args = ['--fix_abs']
+    kwargs = { 
+        '--agent': 'tsa',
+        '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
+        '--net': 'prob',
+        '--visual': 'mini',
+        #'--gate': 'relu', # be careful about this!
+        '--feat_dim': feat_dim,
+        '--load_part': 'abs',
+        '--obs_type': 'mask',
+        '--scale': 2,
+        '--eval_interval': 15, 
+        '--save_interval': 1,
+        '--steps': 500000,
+    }   
+    if int(touch): open(exp_path, 'w').close()
+    with open(exp_path, 'a+') as f:
+        for name in subsample(os.listdir(base_dir), n_models): # be careful!
+            print(name)
+            for seed in range(5):
+                step = int(name.split('-')[1])
+                #if step % 256000: continue # for nmf
+                kwargs['--weight'] = Path(base_dir, name)
+                if tag is None:
+                    kwargs['--tag'] = '{}-{}-{}'.format(expname, feat_dim, step)
+                else: 
+                    kwargs['--tag'] = '{}-{}-{}-{}'.format(expname, tag, feat_dim, step)
+                kwargs['--seed'] = seed
+                dump_args(f, args=args, kwargs=kwargs)
+
 # now it is for new split
 @cmd()
 def nineroom_load_search(expname, base_dir, feat_dim=20, n_models=-1, tag=None, touch=1):
