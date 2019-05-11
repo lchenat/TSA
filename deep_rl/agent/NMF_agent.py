@@ -40,17 +40,24 @@ class NMFAgent(NMFBaseAgent):
 
     def eval_episode(self):
         config = self.config
-        env = self.config.eval_env
-        state = config.state_normalizer(env.reset())
-        info = env.get_info()
-        total_rewards = 0
-        while True:
-            action = self.eval_step(state, info)
-            state, reward, done, _ = env.step([action])
-            state = config.state_normalizer(state)
-            total_rewards += reward[0]
-            if done[0]:
-                break
+        if config.kl_coeff > 0:
+            env = self.config.eval_env
+            state = config.state_normalizer(env.reset())
+            info = env.get_info()
+            total_rewards = 0
+            while True:
+                action = self.eval_step(state, info)
+                state, reward, done, _ = env.step([action])
+                state = config.state_normalizer(state)
+                total_rewards += reward[0]
+                if done[0]:
+                    break
+        else: # plot classification accuaracy
+            states = tensor(config.state_normalizer(self.states))
+            infos = stack_dict(self.infos) # infos should be list of dictionary!
+            pred_label = self.network.abs_encoder(states, infos).argmax(1)
+            gt_label = tensor(self.abs).argmax(1)
+            total_rewards = (pred_label == gt_label).mean()
         return total_rewards
 
     def eval_episodes(self):
