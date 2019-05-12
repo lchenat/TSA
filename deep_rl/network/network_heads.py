@@ -145,7 +145,7 @@ class FCAbstractEncoder(VanillaNet, AbstractEncoder):
         raise NotImplementedError
 
     def entropy(self, inputs, info, logits=None):
-        raise NotImplementedError
+        return 0.0
         
     def step(self):
         BaseNet.step(self)
