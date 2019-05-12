@@ -173,6 +173,36 @@ def phase3(expname, base_dir, n_abs=20, n_models=8, tag=None, touch=1):
                 kwargs['--seed'] = seed
                 dump_args(f, args=args, kwargs=kwargs)
 
+@cmd()
+def phase3_actor_mimic_search(base_dir, n_abs, n_models=8, touch=True):
+    n_abs = int(n_abs)
+    touch = int(touch)
+    exp_path = Path('exps/pick/nineroom/actor_mimic_search_{}'.format(n_abs))
+    args = ['--fix_abs']
+    kwargs = { 
+        '--agent': 'tsa',
+        '--env_config': 'data/env_configs/pick/nineroom/nineroom.8',
+        '--net': 'fc',
+        '--visual': 'mini',
+        '--n_abs': n_abs,
+        '--load_part': 'abs',
+        '--obs_type': 'mask',
+        '--scale': 2,
+        '--eval_interval': 15, 
+        '--save_interval': 1,
+        '--steps': 500000,
+    }
+    if touch: open(exp_path, 'w').close()
+    with open(exp_path, 'a+') as f:
+        for name in subsample(os.listdir(base_dir), n_models):
+            step = int(name.split('-')[1])
+            if '--' in name: continue
+            for seed in range(5):
+                kwargs['--weight'] = Path(base_dir, name)
+                kwargs['--tag'] = 'phase3_actor_mimic_actor_{}-{}'.format(n_abs, step)
+                kwargs['--seed'] = seed
+                dump_args(f, args=args, kwargs=kwargs)
+
 # now it is for new split
 @cmd()
 def nineroom_load_search(expname, base_dir, feat_dim=20, n_models=-1, tag=None, touch=1):

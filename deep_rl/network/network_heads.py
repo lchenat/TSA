@@ -125,6 +125,31 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
         next(self.temperature)
         BaseNet.step(self)
 
+# a network that output positive coefficient
+class FCAbstractEncoder(VanillaNet, AbstractEncoder):
+    def __init__(self, n_abs, body, abstract_type='prob'):
+        super().__init__(n_abs, body)
+        self.abstract_type = abstract_type
+        self.loss_weight = 0.0
+        self.feature_dim = n_abs # output_dim
+
+    def get_indices(self, inputs, info):
+        y = super().forward(inputs)
+        return torch.argmax(y, dim=1)
+
+    def forward(self, inputs, info):
+        y = super().forward(inputs)
+        return F.relu(y)
+
+    def get_logprob(self, inputs, info):
+        raise NotImplementedError
+
+    def entropy(self, inputs, info, logits=None):
+        return tensor(0.0)
+        
+    def step(self):
+        BaseNet.step(self)
+
 # gumbel softmax sampling
 class SampleAbstractEncoder(VanillaNet, AbstractEncoder):
     def __init__(self, n_abs, body, temperature, base=2, abstract_type='sample'):

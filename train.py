@@ -83,7 +83,7 @@ def _exp_parser():
     algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
     algo.add_argument('--gate', default='relu', choices=['relu', 'softplus', 'lrelu'])
-    algo.add_argument('--net', default='prob', choices=['prob', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap', 'res', 'q'])
+    algo.add_argument('--net', default='prob', choices=['prob', 'fc', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap', 'res', 'q'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--res_config', type=str, default=None) # load the network config
@@ -389,6 +389,10 @@ def get_network(visual_body, args, config):
                 actor = NonLinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
             else:
                 actor = LinearActorNet(config.abs_dim, config.action_dim, config.eval_env.n_tasks)
+        elif args.net == 'fc':
+            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
+            abs_encoder = FCAbstractEncoder(args.n_abs, visual_body)
+            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         elif args.net == 'prob':
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             temperature = process_temperature(args.temperature)
