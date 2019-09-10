@@ -108,7 +108,6 @@ class ProbAbstractEncoder(VanillaNet, AbstractEncoder):
     def forward(self, inputs, info):
         y = super().forward(inputs) / self.temperature.cur
         self._loss = self.loss_weight * self.entropy(inputs, info, logits=y).mean() if self.loss_weight else 0.0
-        #return F.log_softmax(y, dim=1)
         return F.softmax(y, dim=1)
 
     def get_logprob(self, inputs, info):
