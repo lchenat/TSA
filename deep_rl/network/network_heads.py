@@ -318,9 +318,10 @@ class NonLinearActorNet(nn.Module, BaseNet):
     def __init__(self, abs_dim, action_dim, n_tasks, hidden_dims=(512,)):
         super().__init__()
         dims = (abs_dim,) + hidden_dims + (action_dim,)
-        self.fcs = [] 
+        fcs = [] 
         for i in range(1, len(dims)):
-            self.fcs.append(MultiLinear(dims[i-1], dims[i], n_tasks, key='task_id', w_scale=1e-3))
+            fcs.append(MultiLinear(dims[i-1], dims[i], n_tasks, key='task_id', w_scale=1e-3))
+        self.fcs = ListModule(*fcs)
         #self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
         #self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 

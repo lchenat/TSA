@@ -317,7 +317,7 @@ def get_network(visual_body, args, config):
             if args.actor == 'linear':
                 actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
             elif args.actor == 'nonlinear':
-                actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks, args.hidden) # args.dim is only used here!
+                actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks, tuple(args.hidden)) # args.dim is only used here!
             else:
                 raise Exception('unknown actor net')
         elif args.net == 'pos':
