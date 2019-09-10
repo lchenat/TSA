@@ -41,16 +41,12 @@ def _exp_parser():
         '--agent', 
         default='tsa', 
         choices=[
-            'dqn',
             'tsa', 
             'baseline', 
-            'supervised',
             'imitation',
             'fc_discrete', # use fc body, tabular cases
             'fc_continuous', # use fc body
             'nmf_sample', # non-tabular cases
-            'meta_linear_q',
-            'sarsa', # linear function
         ],
     )
     # environment (the task setting, first level directory)
@@ -80,10 +76,10 @@ def _exp_parser():
     task.add_argument('--expert', choices=['hand_coded', 'nineroom', 'fourroom_q'], default='hand_coded')
     task.add_argument('--expert_fn', type=str, default=None)
     # network
-    algo.add_argument('--visual', choices=['minimini', 'mini', 'normal', 'large', 'mini_fc'], default='mini')
+    algo.add_argument('--visual', choices=['minimini', 'mini', 'normal'], default='mini')
     algo.add_argument('--feat_dim', type=int, default=512)
     algo.add_argument('--gate', default='relu', choices=['relu', 'softplus', 'lrelu'])
-    algo.add_argument('--net', default='prob', choices=['prob', 'fc', 'vq', 'pos', 'sample', 'baseline', 'i2a', 'bernoulli', 'map', 'imap', 'res', 'q'])
+    algo.add_argument('--net', default='prob', choices=['prob', 'fc', 'vq', 'pos', 'sample', 'baseline', 'map', 'imap'])
     algo.add_argument('--n_abs', type=int, default=512)
     algo.add_argument('--abs_fn', type=str, default=None)
     algo.add_argument('--res_config', type=str, default=None) # load the network config
@@ -92,17 +88,11 @@ def _exp_parser():
     algo.add_argument('--rollout_length', type=int, default=128) # works for PPO only
     algo.add_argument('--batch_size', type=int, default=32)
     algo.add_argument('--num_workers', type=int, default=8)
-    # for dqn
-    algo.add_argument('--action_mode', choices=['max', 'softmax'], default='max') # for dqn
     algo.add_argument('--imitate_loss', choices=['kl', 'mse'], default='kl')
-    algo.add_argument('--reward_reshape', action='store_true')
     algo.add_argument('--final_eps', type=float, default=0.01)
     ## simple grid only
     algo.add_argument('--hidden', type=int, nargs='+', default=(16,))
     algo.add_argument('--sample_fn', type=str, default=None) # only currently, it is actually general
-    ## DQN / Q learning / SARSA only
-    algo.add_argument('--double_q', action='store_true')
-    algo.add_argument('--offline', action='store_true')
     # network setting
     algo.add_argument('--label', choices=['action', 'abs'], default='action')
     algo.add_argument('--weight', type=str, default=None)
@@ -116,9 +106,8 @@ def _exp_parser():
     algo.add_argument('--abs_mode', choices=['mse', 'kl'], default='mse')
     algo.add_argument('--load_actor', action='store_true')
     # optimization
-    algo.add_argument('--opt', choices=['vanilla', 'alt', 'diff'], default='vanilla')
-    algo.add_argument('--opt_gap', nargs=2, type=int, default=[9, 9])
-    algo.add_argument('-lr', nargs='+', type=float, default=[0.00025])
+    algo.add_argument('--opt', choices=['vanilla'], default='vanilla')
+    algo.add_argument('-lr', type=float, default=0.00025)
     algo.add_argument('--weight_decay', type=float, default=0.0)
     algo.add_argument('--momentum', type=float, default=0.0)
     algo.add_argument('--algo_config', type=str, default=None) # read from file
@@ -205,54 +194,20 @@ def get_log_tags(args):
     return tags
 
 def set_optimizer_fn(args, config):
-    if len(args.lr) < 2: args.lr.append(args.lr[0])
-    if args.opt == 'vanilla':
-        def optimizer_fn(model):
-            params = filter(lambda p: p.requires_grad, model.parameters())
-            return VanillaOptimizer(
-                params, 
-                torch.optim.RMSprop(
-                    params,
-                    lr=args.lr[0], 
-                    momentum=args.momentum,
-                    alpha=0.99,
-                    eps=1e-5,
-                    weight_decay=args.weight_decay), 
-                config.gradient_clip
-            )
-        config.optimizer_fn = optimizer_fn
-    elif args.opt == 'alt':
-        def optimizer_fn(model):
-            abs_params = list(model.abs_encoder.parameters())
-            abs_ids = set(id(param) for param in abs_params)
-            actor_params = list(model.actor.parameters()) + [param for param in model.critic.parameters() if id(param) not in abs_ids]
-            # filter
-            abs_params = filter(lambda p: p.requires_grad, abs_params)
-            actor_params = filter(lambda p: p.requires_grad, actor_params)
-            abs_opt = torch.optim.RMSprop(abs_params, lr=args.lr[0], alpha=0.99, eps=1e-5)
-            actor_opt = torch.optim.RMSprop(actor_params, lr=args.lr[1], alpha=0.99, eps=1e-5)
-            return AlternateOptimizer([abs_params, actor_params], [abs_opt, actor_opt], args.opt_gap, config.gradient_clip)
-        config.optimizer_fn = optimizer_fn
-    elif args.opt == 'diff':
-        def optimizer_fn(model):
-            abs_params = list(model.abs_encoder.parameters())
-            abs_ids = set(id(param) for param in abs_params)
-            actor_params = list(model.actor.parameters()) + [param for param in model.critic.parameters() if id(param) not in abs_ids]
-            abs_params = filter(lambda p: p.requires_grad, abs_params)
-            actor_params = filter(lambda p: p.requires_grad, actor_params)
-            return VanillaOptimizer(model.parameters(), 
-                torch.optim.RMSprop(
-                    [{'params': abs_params, 'lr': args.lr[0]}, 
-                     {'params': actor_params, 'lr': args.lr[1]}], 
-                    lr=args.lr[0],
-                    alpha=0.99, 
-                    eps=1e-5,
-                ), 
-                config.gradient_clip,
-            )
-        config.optimizer_fn = optimizer_fn
-    else:
-        raise Exception('unsupported optimizer type')
+    def optimizer_fn(model):
+        params = filter(lambda p: p.requires_grad, model.parameters())
+        return VanillaOptimizer(
+            params, 
+            torch.optim.RMSprop(
+                params,
+                lr=args.lr,
+                momentum=args.momentum,
+                alpha=0.99,
+                eps=1e-5,
+                weight_decay=args.weight_decay), 
+            config.gradient_clip
+        )
+    config.optimizer_fn = optimizer_fn
 
 def process_temperature(temperature):
     if len(temperature) == 1:
@@ -279,14 +234,8 @@ def get_visual_body(args, config):
         n_channels = config.eval_env.observation_space.shape[0]
     if args.visual == 'mini':
         visual_body = TSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
-    elif args.visual == 'minimini':
-        visual_body = TSAMiniMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
     elif args.visual == 'normal':
         visual_body = TSAConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate)) 
-    elif args.visual == 'large':
-        visual_body = LargeTSAMiniConvBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim)
-    elif args.visual == 'mini_fc':
-        visual_body = TSAMiniConvFCBody(n_channels*config.env_config['main']['window'], feature_dim=args.feat_dim, scale=args.scale, gate=get_gate(args.gate))
     return visual_body
 
 # deal with loading and fixing weight
@@ -350,37 +299,6 @@ def get_network(visual_body, args, config):
             #actor_body=FCBody(visual_body.feature_dim, (args.n_abs,)), # out dated
             actor=actor,
         )
-    elif args.net == 'res':
-        if args.actor == 'linear':
-            actor = MultiLinear(visual_body.feature_dim, config.action_dim, config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
-        elif args.actor == 'nonlinear': # gate
-            actor = MultiMLP(visual_body.feature_dim, args.hidden + (config.action_dim,), config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
-        else:
-            raise Exception('unsupported actor')
-        algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
-        with open(args.res_config) as f:
-            parser = _exp_parser()
-            res_args = parser.parse_args(f.readline().strip().split(' '))
-            res_visual_body = get_visual_body(res_args, config)
-            res_network, _ = get_network(res_visual_body, res_args, config)
-            process_weight(res_network, res_args, config)
-            for param in res_network.parameters(): # fix res_network
-                param.requires_grad = False
-        network = ResidueCategoricalActorCriticNet(
-            config.eval_env.n_tasks,
-            config.state_dim,
-            config.action_dim, 
-            visual_body,
-            actor=actor,
-            res_phi_body=res_network.network.phi_body,
-        )
-    elif args.net == 'q':    
-        network = QNet(config.eval_env.n_tasks, config.action_dim, visual_body)
-        config.parameters = [network.parameters()] # a new way
-        algo_name = '.'.join([args.agent, args.net])
-        if args.reward_reshape:
-            config.rr = RRNet(config.eval_env.n_tasks, visual_body)
-            config.parameters.append(config.rr.parameters())
     else:
         if args.net == 'vq':
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
@@ -415,19 +333,6 @@ def get_network(visual_body, args, config):
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             abs_encoder = SampleAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
             actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
-        elif args.net == 'i2a':
-            temperature = process_temperature(args.temperature)
-            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
-            abs_encoder = I2AAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
-            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
-        elif args.net == 'bernoulli':
-            temperature = process_temperature(args.temperature)
-            algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
-            abs_encoder = BernoulliAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
-            if args.actor == 'linear':
-                actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
-            else:
-                actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
         else:
             raise Exception('unsupported network type')
         critic_body = visual_body
@@ -799,115 +704,6 @@ def imitation_tsa(args):
         **vars(args),
         }])
     return ImitationAgent(config), run_steps
-
-def dqn(args):
-    config = Config()
-    env_config = get_env_config(args)
-    config.task_fn = lambda: Task(env_config)
-    config.eval_env = Task(env_config)
-    config.env_config = env_config
-
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(
-        filter(lambda p: p.requires_grad, params), lr=0.00025, alpha=0.95, eps=0.01, centered=True)
-
-    visual_body = get_visual_body(args, config)
-    network, args.algo_name = get_network(visual_body, args, config)
-    process_weight(network ,args, config)
-    config.network_fn = lambda: network # here
-    #config.network_fn = lambda: VanillaNet(config.action_dim, get_visual_body(args, config))
-    #args.algo_name = args.agent
-    #config.random_action_prob = LinearSchedule(1.0, 0.01, 1e6) # 1e6
-    config.random_action_prob = LinearSchedule(1.0, args.final_eps, 1e6) # 1e6
-
-    config.async_actor = False
-    config.replay_fn = lambda: Replay(memory_size=int(1e6), batch_size=32)
-
-    config.batch_size = args.batch_size
-    if args.obs_type == 'rgb':
-        assert args.env in ['pick', 'reach']
-        config.state_normalizer = ImageNormalizer() # tricky
-    #config.reward_normalizer = RescaleNormalizer(0.3)
-    config.discount = 0.99
-    config.target_network_update_freq = 10000
-    config.exploration_steps = 15000 if args.d else 50000
-    config.sgd_update_frequency = 4
-    config.gradient_clip = 5
-    config.double_q = args.double_q
-    config.action_mode = args.action_mode
-    config.eval_interval = 20
-    config.save_interval = 1
-    config.max_steps = int(2e4) if args.d else int(2.5e6)
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
-    config.logger.add_text('Configs', [{
-        'git sha': git_sha,
-        **vars(args),
-        }])
-    return DQNAgent(config), run_steps
-
-def sarsa(args):
-    config = Config()
-    env_config = get_env_config(args)
-    config.task_fn = lambda: Task(env_config)
-    config.eval_env = Task(env_config)
-    config.env_config = env_config
-
-    config.optimizer_fn = lambda params: torch.optim.RMSprop(
-        filter(lambda p: p.requires_grad, params), lr=0.00025, alpha=0.95, eps=0.01, centered=True)
-
-    visual_body = get_visual_body(args, config)
-    network, args.algo_name = get_network(visual_body, args, config)
-    process_weight(network ,args, config)
-    config.network_fn = lambda: network # here
-    config.random_action_prob = LinearSchedule(0.8, args.final_eps, 5e5) # 1e6
-    if args.obs_type == 'rgb':
-        assert args.env in ['pick', 'reach']
-        config.state_normalizer = ImageNormalizer() # tricky
-    config.offline = args.offline
-    config.rollout_length = args.rollout_length
-    config.log_interval = config.rollout_length
-    config.discount = 0.99
-    config.eval_interval = 20
-    config.save_interval = 1
-    config.max_steps = int(2e4) if args.d else int(2.5e6)
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
-    config.logger.add_text('Configs', [{
-        'git sha': git_sha,
-        **vars(args),
-        }])
-    return SarsaAgent(config), run_steps
-
-def meta_linear_q(args):
-    config = Config()
-    env_config = get_env_config(args)
-    config.env_config = env_config
-    config.task_fn = lambda: Task(env_config, num_envs=config.num_workers)
-    config.eval_env = Task(env_config)
-    print('n_tasks:', config.eval_env.n_tasks)
-    config.expert = get_expert(args, config)
-    config.num_workers = 8
-    config.replay_fn = lambda: TrajReplay(memory_size=5000, batch_size=32, num_workers=config.num_workers)
-    visual_body = get_visual_body(args, config)
-    network, args.algo_name = get_network(visual_body, args, config)
-    config.network_fn = lambda: network
-    process_weight(network, args, config)
-    set_optimizer_fn(args, config)
-    if args.obs_type == 'rgb':
-        assert args.env in ['pick', 'reach']
-        config.state_normalizer = ImageNormalizer() # tricky
-    config.discount = args.discount
-    config.rollout_length = 10 #args.rollout_length
-    config.log_interval = config.num_workers * config.rollout_length
-    config.max_steps = 300000 if args.d else 300000
-    if args.steps is not None: config.max_steps = args.steps
-    config.eval_interval = args.eval_interval
-    config.save_interval = 1 # in terms of eval interval
-    config.logger = get_logger(args.hash_code, tags=get_log_tags(args), skip=args.skip)
-    config.logger.add_text('Configs', [{
-        'git sha': git_sha,
-        **vars(args),
-        }])
-    return MLQAgent(config), run_steps
-
 
 def run_exp(exp_path, parser, command_args):
     while True:

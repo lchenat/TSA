@@ -42,25 +42,6 @@ class TSAConvBody(nn.Module):
         y = self.gate(self.fc(y))
         return y
 
-class LargeTSAMiniConvBody(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512):
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 32->16
-        self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 16->8
-        self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 8->4
-        self.conv4 = layer_init(nn.Conv2d(128, 128, stride=2,kernel_size=3, padding=1)) # 4->2
-        self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
-
-    def forward(self, x):
-        y = F.relu(self.conv1(x))
-        y = F.relu(self.conv2(y))
-        y = F.relu(self.conv3(y))
-        y = F.relu(self.conv4(y))
-        y = y.view(y.size(0), -1)
-        y = F.relu(self.fc(y))
-        return y
-
 class TSAMiniConvBody(nn.Module):
     def __init__(self, in_channels=12, feature_dim=512, scale=1, gate=F.relu): # scale only works for 2^n
         super().__init__()
@@ -77,106 +58,6 @@ class TSAMiniConvBody(nn.Module):
         y = self.gate(self.conv3(y))
         y = y.view(y.size(0), -1)
         y = self.gate(self.fc(y))
-        return y
-
-class TSAMiniConvFCBody(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512, scale=1, gate=F.relu):
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 16->8
-        self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
-        self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
-        self.fc = layer_init(nn.Linear(2 * scale * 2 * scale * 128, 512))
-        self.fc2 = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
-        self.gate = gate
-
-    def forward(self, x):
-        y = self.gate(self.conv1(x))
-        y = self.gate(self.conv2(y))
-        y = self.gate(self.conv3(y))
-        y = y.view(y.size(0), -1)
-        y = self.gate(self.fc(y))
-        y = self.gate(self.fc2(y))
-        return y
-
-class TSAMiniMiniConvBody(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512, scale=1, gate=F.relu): # scale only works for 2^n
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.scale = scale
-        if scale == 1:
-            self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=0)) # 11 -> 5
-            self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=0)) # 5 -> 2
-            self.fc = layer_init(nn.Linear(2 * 2 * 64, self.feature_dim))
-        elif scale == 2:
-            self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=4, padding=0)) # 22 -> 10
-            self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=4, padding=0)) # 10 -> 4
-            self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
-            self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
-        else:
-            raise Exception('unsupported scale')
-        self.gate = gate
-
-    def forward(self, x):
-        y = self.gate(self.conv1(x))
-        y = self.gate(self.conv2(y))
-        if self.scale == 2:
-            y = self.gate(self.conv3(y))
-        y = y.view(y.size(0), -1)
-        y = self.gate(self.fc(y))
-        return y
-
-class TSAOneConvBody(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512):
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=1, kernel_size=3)) # 16->14
-        self.conv2 = layer_init(nn.Conv2d(32, 32, stride=1, kernel_size=3)) # 14->12
-        self.conv3 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=4)) # 12->5
-        self.conv4 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3)) # 5->2
-        self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
-
-    def forward(self, x):
-        y = F.relu(self.conv1(x))
-        y = F.relu(self.conv2(y))
-        y = F.relu(self.conv3(y))
-        y = F.relu(self.conv4(y))
-        y = y.view(y.size(0), -1)
-        y = F.relu(self.fc(y))
-        return y
-
-class UnetEncoder(nn.Module):
-    def __init__(self, in_channels=12, feature_dim=512):
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.conv1 = layer_init(nn.Conv2d(in_channels, 32, stride=2, kernel_size=3, padding=1)) # 16->8
-        self.conv2 = layer_init(nn.Conv2d(32, 64, stride=2, kernel_size=3, padding=1)) # 8->4
-        self.conv3 = layer_init(nn.Conv2d(64, 128, stride=2,kernel_size=3, padding=1)) # 4->2
-        self.fc = layer_init(nn.Linear(2 * 2 * 128, self.feature_dim))
-
-    def forward(self, x):
-        y = F.relu(self.conv1(x))
-        y = F.relu(self.conv2(y))
-        y = F.relu(self.conv3(y))
-        y = y.view(y.size(0), -1)
-        y = F.relu(self.fc(y))
-        return y
-
-class UnetDecoder(nn.Module):
-    def __init__(self, out_channels=12, feature_dim=512):
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.fc = layer_init(nn.Linear(self.feature_dim, 2 * 2 * 128))
-
-        self.deconv1 = deconv(128, 64, 4) # 2->4
-        self.deconv2 = deconv(64, 32, 4) # 4->8
-        self.deconv3 = deconv(32, out_channels, 4) # 8->16
-
-    def forward(self, x):
-        y = F.relu(self.fc(x)).view(x.size(0), 128, 2, 2)
-        y = F.relu(self.deconv1(y))
-        y = F.relu(self.deconv2(y))
-        y = F.softmax(self.deconv3(y), dim=1)
         return y
 
 ### end of tsa ###
