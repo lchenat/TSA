@@ -64,9 +64,10 @@ class MultiMLP(nn.Module):
     def __init__(self, input_dim, hidden_dims, n_heads, key, w_scale=1.0, gate=F.relu):
         super().__init__()
         dims = (input_dim,) + tuple(hidden_dims)
-        self.layers = []
+        layers = []
         for i in range(len(dims)-1):
-            self.layers.append(MultiLinear(dims[i], dims[i+1], n_heads, key, w_scale))
+            layers.append(MultiLinear(dims[i], dims[i+1], n_heads, key, w_scale))
+        self.layers = ListModule(*layers)
 
     def forward(self, inputs, info):
         y = inputs

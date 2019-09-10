@@ -24,6 +24,11 @@ def tensor(x, dtype=torch.float32):
     x = torch.tensor(x, device=Config.DEVICE, dtype=dtype)
     return x
 
+def is_cuda(x):
+    if isinstance(x, nn.Module):
+        return all([p.is_cuda for p in x.parameters()])
+    return x.is_cuda
+
 def tensor_dict(d, dtype=torch.float32):
     return {k: tensor(v, dtype=dtype) for k, v in d.items()}
 
@@ -162,3 +167,25 @@ class relaxed_Bernolli:
         y_hard = (y > 0.5).type(y.dtype)
         return (y_hard - y).detach() + y
 
+
+class ListModule(nn.Module):
+    def __init__(self, *args):
+        super(ListModule, self).__init__()
+        idx = 0
+        for module in args:
+            self.add_module(str(idx), module)
+            idx += 1
+
+    def __getitem__(self, idx):
+        if idx < 0 or idx >= len(self._modules):
+            raise IndexError('index {} is out of range'.format(idx))
+        it = iter(self._modules.values())
+        for i in range(idx):
+            next(it)
+        return next(it)
+
+    def __iter__(self):
+        return iter(self._modules.values())
+
+    def __len__(self):
+        return len(self._modules)

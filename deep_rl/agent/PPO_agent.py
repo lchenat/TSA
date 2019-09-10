@@ -7,6 +7,7 @@
 from ..network import *
 from ..component import *
 from .BaseAgent import *
+from ..utils.torch_utils import *
 
 from collections import defaultdict
 

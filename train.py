@@ -287,7 +287,7 @@ def get_network(visual_body, args, config):
         if args.actor == 'linear':
             actor = MultiLinear(visual_body.feature_dim, config.action_dim, config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
         elif args.actor == 'nonlinear': # gate
-            actor = MultiMLP(visual_body.feature_dim, args.hidden + (config.action_dim,), config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
+            actor = MultiMLP(visual_body.feature_dim, tuple(args.hidden) + (config.action_dim,), config.eval_env.n_tasks, key='task_id', w_scale=1e-3)
         else:
             raise Exception('unsupported actor')
         algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
@@ -296,7 +296,6 @@ def get_network(visual_body, args, config):
             config.state_dim,
             config.action_dim, 
             visual_body,
-            #actor_body=FCBody(visual_body.feature_dim, (args.n_abs,)), # out dated
             actor=actor,
         )
     else:
@@ -315,7 +314,12 @@ def get_network(visual_body, args, config):
             algo_name = '.'.join([args.agent, args.net, 'n_abs-{}'.format(args.n_abs)])
             temperature = process_temperature(args.temperature)
             abs_encoder = ProbAbstractEncoder(args.n_abs, visual_body, temperature=temperature)
-            actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+            if args.actor == 'linear':
+                actor = LinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks)
+            elif args.actor == 'nonlinear':
+                actor = NonLinearActorNet(args.n_abs, config.action_dim, config.eval_env.n_tasks, args.hidden) # args.dim is only used here!
+            else:
+                raise Exception('unknown actor net')
         elif args.net == 'pos':
             assert args.abs_fn is not None, 'need args.abs_fn'
             with open(args.abs_fn, 'rb') as f:

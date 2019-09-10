@@ -25,18 +25,6 @@ class VanillaNet(nn.Module, BaseNet):
         y = self.fc_head(phi)
         return y
 
-class QNet(nn.Module, BaseNet):
-    def __init__(self, n_tasks, action_dim, body):
-        super(QNet, self).__init__()
-        self.fc_head = MultiLinear(body.feature_dim, action_dim, n_tasks, key='task_id')
-        self.body = body
-        self.to(Config.DEVICE)
-
-    def forward(self, x, info):
-        phi = self.body(tensor(x))
-        y = self.fc_head(phi, info)
-        return y
-
 class OldActorCriticNet(nn.Module, BaseNet):
     def __init__(self, n_tasks, state_dim, action_dim, phi_body, actor_body, critic_body):
         super(OldActorCriticNet, self).__init__()
@@ -192,33 +180,6 @@ class BernoulliAbstractEncoder(VanillaNet, AbstractEncoder):
         next(self.temperature)
         BaseNet.step(self)
 
-# use relaxed Bernoulli
-class I2AAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
-    def __init__(self, n_abs, body, temperature, feature_dim=512):
-        super().__init__()
-        self.abstract_type = 'sample'
-        self.feature_dim = feature_dim
-        self.temperature = temperature
-        next(temperature)
-        self.body = body
-        self.mask_fc = nn.Linear(body.feature_dim, n_abs)
-        self.feat_fc = nn.Linear(body.feature_dim, n_abs) # the feature dim along each abs is only 1 now
-
-    def get_indices(self, inputs, info):
-        xs = self.body(inputs)
-        mask = relaxed_Bernolli.hard_sample(self.mask_fc(xs), self.temperature.cur)
-        return mask
-
-    def forward(self, inputs, info):
-        xs = self.body(inputs)
-        mask = relaxed_Bernolli.hard_sample(self.mask_fc(xs), self.temperature.cur)
-        feat = self.feat_fc(xs)
-        return mask * feat
-
-    def step(self):
-        next(self.temperature)
-        BaseNet.step(self)
-
 class VQAbstractEncoder(nn.Module, BaseNet, AbstractEncoder):
     def __init__(self, n_embed, embed_dim, body, abstract_type='max'):
         super().__init__()
@@ -354,14 +315,22 @@ class LinearActorNet(MultiLinear, BaseNet):
                 'ent': entropy}
 
 class NonLinearActorNet(nn.Module, BaseNet):
-    def __init__(self, abs_dim, action_dim, n_tasks, hidden_dim=512):
+    def __init__(self, abs_dim, action_dim, n_tasks, hidden_dims=(512,)):
         super().__init__()
-        self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
-        self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
+        dims = (abs_dim,) + hidden_dims + (action_dim,)
+        self.fcs = [] 
+        for i in range(1, len(dims)):
+            self.fcs.append(MultiLinear(dims[i-1], dims[i], n_tasks, key='task_id', w_scale=1e-3))
+        #self.fc1 = MultiLinear(abs_dim, hidden_dim, n_tasks, key='task_id', w_scale=1e-3)
+        #self.fc2 = MultiLinear(hidden_dim, action_dim, n_tasks, key='task_id', w_scale=1e-3)
 
     def get_logits(self, xs, info):
-        output = F.relu(self.fc1(xs, info))
-        output = self.fc2(output, info)
+        output = xs
+        for i, layer in enumerate(self.fcs):
+            output = layer(output, info)
+            if i < len(self.fcs) - 1: output = F.relu(output)
+        #output = F.relu(self.fc1(xs, info))
+        #output = self.fc2(output, info)
         return output
 
     def forward(self, xs, info, action=None):
@@ -481,6 +450,7 @@ class CategoricalActorCriticNet(nn.Module, Actor):
         super(CategoricalActorCriticNet, self).__init__()
         self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor, critic)
         self.to(Config.DEVICE)
+        assert all([p.is_cuda for p in self.parameters()])
 
     def get_logits(self, obs, info):
         obs = tensor(obs)
@@ -518,52 +488,6 @@ class CategoricalActorCriticNet(nn.Module, Actor):
         phi = self.network.phi_body(obs)
         #phi_v = self.network.critic_body(phi)
         #v = self.network.fc_critic(phi_v, info)
-        v = self.network.critic(phi, info)
-        return v
-
-# residue network
-class ResidueCategoricalActorCriticNet(nn.Module, Actor):
-    def __init__(self,
-                 n_tasks,
-                 state_dim,
-                 action_dim,
-                 phi_body=None,
-                 res_phi_body=None,
-                 actor=None,
-                 critic=None):
-        super(ResidueCategoricalActorCriticNet, self).__init__()
-        self.network = ActorCriticNet(n_tasks, state_dim, action_dim, phi_body, actor, critic)
-        self.res_phi_body = res_phi_body
-        self.to(Config.DEVICE)
-
-    def get_logits(self, obs, info):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs) + self.res_phi_body(obs)
-        logits = self.network.actor(phi, info)
-        return logits
-
-    def forward(self, obs, info, action=None):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs) + self.res_phi_body(obs)
-        logits = self.network.actor(phi, info)
-        v = self.network.critic(phi, info)
-        dist = torch.distributions.Categorical(logits=logits)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action)
-        if log_prob.dim() == 1:
-            log_prob = log_prob.unsqueeze(-1)
-        else: # >= 2
-            log_prob = log_prob.reshape((log_prob.shape[0], -1)).sum(dim=1, keepdim=True)
-        entropy = dist.entropy().unsqueeze(-1)
-        return {'a': action,
-                'log_pi_a': log_prob,
-                'ent': entropy,
-                'v': v}
-
-    def value(self, obs, info):
-        obs = tensor(obs)
-        phi = self.network.phi_body(obs) + self.res_phi_body(obs)
         v = self.network.critic(phi, info)
         return v
 
